@@ -1,7 +1,375 @@
-/** All Czech UI strings. Components must read text from here only. */
+/**
+ * All Czech UI strings. Components read text from here only, so wording can change without
+ * touching code. Functions take values that go into the sentence.
+ */
+import type {
+  BookingStatus,
+  Condition,
+  ConflictStatus,
+  IssueResolutionKind,
+  IssueType,
+  NotificationType,
+  Params,
+  Role,
+  ServiceStatus,
+  SystemEventType,
+} from '@quix/core';
+
+const pcs = (n: number) => `${n} ks`;
+const cases = (n: number) => (n === 1 ? '1 case' : `${n} casy`);
+
 export const cs = {
   app: {
     title: 'QUIX HW',
     tagline: 'Katalog techniky a rezervace na akce',
+    loading: 'Připravuji demo data…',
   },
-} as const;
+  nav: {
+    dashboard: 'Přehled',
+    bookings: 'Rezervace',
+    newBooking: 'Nová předrezervace',
+    calendar: 'Kalendář',
+    catalog: 'Katalog',
+    warehouse: 'Sklad',
+    service: 'Servis',
+    notifications: 'Upozornění',
+    issues: 'Nevyřešené',
+  },
+  shell: {
+    user: 'Přihlášen jako',
+    scenario: 'Scénář',
+    today: 'Simulované dnes',
+    runJobs: 'Spustit noční úlohy',
+    jobsDone: (n: number, expired: number) =>
+      `Noční úlohy hotové: ${n} nových upozornění${expired ? `, ${expired} předrezervací propadlo` : ''}.`,
+    reset: 'Obnovit demo data',
+    resetConfirm: 'Zahodit všechny změny a načíst scénář znovu?',
+    bell: (n: number) => (n ? `Upozornění, ${n} nepřečtených` : 'Upozornění'),
+    menu: 'Menu',
+  },
+  roles: {
+    pm: 'Projektový manažer',
+    chief: 'Šéf techniky',
+    warehouse: 'Sklad',
+    admin: 'Administrátor',
+  } satisfies Record<Role, string>,
+  scenarios: {
+    base: 'Základní data',
+    galaDinner: 'Gala Dinner (modelový scénář)',
+    conflictChain: 'Řetěz konfliktů (LEDBeam, červen)',
+    transfer: 'Převoz z akce na akci',
+    caseBreaking: 'Rozbití casu (AX1)',
+  } as Record<string, string>,
+  status: {
+    draft: 'Rozpracovaná',
+    submitted: 'Ke schválení',
+    confirmed: 'Potvrzená',
+    packing: 'Balí se',
+    shipped: 'Odvezeno',
+    returning: 'Vratka probíhá',
+    returned: 'Vráceno',
+    returned_with_issues: 'Vráceno s problémy',
+    closed: 'Uzavřeno',
+    expired: 'Propadlá',
+  } satisfies Record<BookingStatus, string>,
+  bookingType: { prebooking: 'Předrezervace', order: 'Objednávka' },
+  common: {
+    save: 'Uložit',
+    saved: 'Uloženo',
+    cancel: 'Zrušit',
+    close: 'Zavřít',
+    add: 'Přidat',
+    remove: 'Odebrat',
+    edit: 'Upravit',
+    yes: 'Ano',
+    no: 'Ne',
+    none: '—',
+    search: 'Hledat',
+    qty: 'Počet',
+    pcs,
+    cases,
+    total: 'Celkem',
+    warehouse: 'Sklad',
+    allWarehouses: 'Oba sklady',
+    note: 'Poznámka',
+    reason: 'Důvod',
+    date: 'Datum',
+    from: 'Od',
+    to: 'Do',
+    client: 'Klient',
+    pm: 'PM',
+    event: 'Akce',
+    state: 'Stav',
+    open: 'Otevřít',
+    back: 'Zpět',
+    czk: (n: number) => `${n.toLocaleString('cs-CZ')} Kč`,
+    daysOld: (n: number) => (n === 0 ? 'dnes' : n === 1 ? 'před 1 dnem' : `před ${n} dny`),
+    error: 'Akce se nepovedla',
+    empty: 'Nic tu není.',
+    later: 'Tato obrazovka přibude v dalším kroku prototypu.',
+  },
+  dashboard: {
+    hello: (name: string) => `Dobrý den, ${name}`,
+    validationQueue: 'Čeká na schválení',
+    myBookings: 'Moje rezervace',
+    openConflicts: 'Otevřené konflikty',
+    pendingIssues: 'Nevyřešené problémy',
+    overdueService: 'Servis po termínu',
+    externalOpen: 'Externí technika nevrácená dodavateli',
+    conflictsOnMine: 'Konflikty na mých rezervacích',
+    returnedToMe: 'Vráceno k doplnění',
+    noneWaiting: 'Nic nečeká.',
+    newBooking: 'Nová předrezervace',
+    conflictLine: (event: string, short: number, item: string) =>
+      `${event}: chybí ${short} × ${item}`,
+    resolveConflict: 'Vyřešit',
+    inProgress: 'Převzít do řešení',
+    resolutionPrompt: 'Jak byl konflikt vyřešen?',
+  },
+  conflictStatus: { new: 'Nový', in_progress: 'V řešení', resolved: 'Vyřešený' } satisfies Record<
+    ConflictStatus,
+    string
+  >,
+  bookings: {
+    title: 'Rezervace',
+    filterAll: 'Všechny',
+    filterMine: 'Moje',
+    filterActive: 'Aktivní',
+    columns: {
+      event: 'Akce',
+      client: 'Klient',
+      pm: 'PM',
+      dates: 'Termín',
+      state: 'Stav',
+      price: 'Orientačně',
+    },
+    expiresIn: (n: number) => (n <= 0 ? 'propadá dnes' : `propadne za ${n} d`),
+  },
+  newBooking: {
+    title: 'Nová předrezervace',
+    eventName: 'Název akce',
+    eventNameHint: 'Např. Firemní večírek Horizont',
+    eventFrom: 'Akce od',
+    eventTo: 'Akce do',
+    bufferHint: (before: number, after: number) =>
+      `Rezervace zahrne ${before} den před akcí na balení a ${after} den po akci na vratku. Lze upravit v editoru.`,
+    purpose: 'K čemu technika je',
+    purposeHint: 'Firemní večírek, 200 lidí, venkovní stage',
+    warehouse: 'Výchozí sklad',
+    create: 'Vytvořit předrezervaci',
+    pmFor: 'Za PM',
+  },
+  editor: {
+    titleNew: 'Předrezervace',
+    header: 'Akce',
+    periods: 'Termíny',
+    eventDays: 'Akce',
+    bookedDays: 'Rezervováno (vč. balení a vratky)',
+    addPeriod: 'Přidat termín se stejnou technikou',
+    removePeriod: 'Odebrat termín',
+    multiPeriodHint: 'Více termínů jen pokud se opakuje přesně stejná technika.',
+    defaultWarehouse: 'Výchozí sklad',
+    purpose: 'Účel',
+    addTitle: 'Přidat techniku',
+    addPlaceholder: 'Hledat položku nebo case…',
+    addButton: 'Přidat',
+    caseTag: 'case',
+    linesTitle: 'Seznam techniky',
+    noLines: 'Zatím prázdné. Vyhledejte techniku výše — příslušenství se doplní samo.',
+    autoTag: 'auto',
+    forHint: (parts: string) => `pro: ${parts}`,
+    overridden: (computed: number) => `ručně upraveno (vypočteno ${computed})`,
+    resetOverride: 'Vrátit vypočtené',
+    source: 'Zdroj',
+    sourceFromBooking: (name: string) => `z akce ${name}`,
+    expectedReturn: 'Vrátit do',
+    removeAuto: 'Odebrat (jen šéf, s důvodem)',
+    removeAutoPrompt: 'Proč tuto nutnou položku odebrat?',
+    suppressed: (n: number) => `Odebrané nutné položky: ${n}`,
+    restore: 'Vrátit zpět',
+    lineActions: 'Akce s řádkem',
+    markMissing: 'Označit: nemáme',
+    markSubstituted: 'Označit: nahrazeno',
+    markOk: 'Zrušit označení',
+    markReasonPrompt: 'Důvod (uvidí ho PM):',
+    statusMissing: 'Nemáme',
+    statusSubstituted: 'Nahrazeno',
+    external: 'Externí pronájem',
+    externalTag: 'externě',
+    externalFrom: (supplier: string) => `od ${supplier}`,
+    orTitle: (name: string) => `Vyber jednu možnost pro ${name}`,
+    orOpen: 'Žádná možnost není volná — vyberte ručně',
+    checksTitle: 'Máš aspoň jeden z těchto?',
+    checkFor: (item: string) => `${item} potřebuje aspoň jedno z:`,
+    checkDismiss: 'Není potřeba',
+    recsTitle: 'Mohlo by se hodit',
+    recFor: (items: string) => `k: ${items}`,
+    recDismiss: 'Skrýt',
+    priceTotal: 'Orientační cena',
+    priceHint: (days: number) => `za ${days} ${days === 1 ? 'den akce' : 'dny akce'}, bez slev`,
+    split: (n: number, w: string) => `Vzít ${n} ks ze skladu ${w}`,
+    cycle: 'Pozor: v propojeních je smyčka',
+    actions: {
+      save: 'Uložit',
+      submit: 'Odeslat ke schválení',
+      submitBlocked: 'Nejdřív potvrďte, že jste viděli všechny konflikty.',
+      returnToPm: 'Vrátit PM s dotazem',
+      returnPrompt: 'Co má PM doplnit nebo upravit?',
+      confirm: 'Potvrdit objednávku',
+      confirmBlockedOr: 'Vyberte možnost ve všech skupinách „vyber jednu“.',
+      confirmBlockedConflict:
+        'Chybějící položky pokryjte externím pronájmem nebo potvrďte s důvodem.',
+      readonly: 'Tuto rezervaci nemůžete upravovat.',
+      openPacking: 'Balicí list',
+      openVratka: 'Vratka',
+      close: 'Uzavřít rezervaci',
+    },
+    returnedToPm: (reason: string) => `Vráceno k doplnění: ${reason}`,
+    expires: (date: string, age: string) => `Propadne ${date} · vytvořeno ${age}`,
+  },
+  badge: {
+    green: 'Volné',
+    amber: 'Jen pokud se zamítne předrezervace',
+    red: (short: number, isCase: boolean) =>
+      isCase ? `Chybí ${cases(short)}` : `Chybí ${pcs(short)}`,
+    breaksCase: (caseName: string) => `Rozbije case ${caseName}`,
+    none: '',
+    free: (n: number) => `volných ${n}`,
+  },
+  conflict: {
+    title: 'Konflikty',
+    lineShort: (name: string, short: string, day: string) => `${name}: ${short} (nejhůř ${day})`,
+    heldBy: 'Drží:',
+    softBy: 'Předrezervace, které mohou ubrat:',
+    collidingRow: (event: string, pm: string, from: string, to: string, state: string) =>
+      `${event} — ${pm}, ${from}–${to}, ${state}`,
+    ack: 'Viděl(a) jsem konflikt',
+    waysOut: 'Možnosti: snížit počet, nahradit jinou položkou, externí pronájem, jiný termín.',
+    override: 'Potvrdit i přesto — důvod',
+    overridePlaceholder: 'Proč to i tak půjde (uvidí šéf a dotčení PM)',
+    externalTitle: 'Pokrýt externím pronájmem',
+    externalQty: 'Kolik',
+    supplier: 'Dodavatel',
+    pickup: 'Vyzvednutí',
+    returnDate: 'Vrácení dodavateli',
+    externalAdd: 'Přidat externí řádek',
+    breaksCaseInfo: (orders: string) =>
+      `Volné kusy by se musely vzít z casů, které má celé objednané: ${orders}`,
+  },
+  thread: {
+    title: 'Komunikace',
+    placeholder: 'Zpráva pro PM, šéfa nebo sklad…',
+    send: 'Odeslat',
+    system: 'Systém',
+  },
+  events: {
+    created: () => 'Rezervace vytvořena',
+    submitted: () => 'Odesláno ke schválení',
+    returned_to_pm: (p: Params) => `Vráceno PM: ${p.reason ?? ''}`,
+    confirmed: () => 'Potvrzeno jako objednávka',
+    override: (p: Params) => `Potvrzeno přes konflikt: ${p.reason ?? ''}`,
+    packing_started: () => 'Sklad začal balit',
+    batch_shipped: (p: Params) =>
+      `Odvezeno: ${p.label ?? ''} (${p.shipped ?? 0} ks, zbývá ${p.remaining ?? 0})`,
+    lines_added_after_shipping: (p: Params) => `Po odvozu přidány řádky (${p.count ?? 0})`,
+    edited: () => 'Upraveno',
+    return_session: (p: Params) => `Vratka zapsána (${p.lines ?? 0} řádků)`,
+    transfer_in: (p: Params) => `Převzato z akce ${p.from ?? ''}: ${p.qty ?? 0} ks`,
+    transfer_out: (p: Params) => `Předáno na akci ${p.to ?? ''}: ${p.qty ?? 0} ks`,
+    issue_resolved: () => 'Problém vyřešen',
+    closed: () => 'Uzavřeno',
+    expired: () => 'Předrezervace propadla',
+    line_marked: () => 'Řádek označen',
+  } satisfies Record<SystemEventType, (p: Params) => string>,
+  notifications: {
+    title: 'Upozornění',
+    markAll: 'Označit vše jako přečtené',
+    empty: 'Žádná upozornění.',
+    highPriority: 'Důležité',
+    types: {
+      prebooking_submitted: (p: Params) => `${p.event}: nová předrezervace ke schválení`,
+      prebooking_returned: (p: Params) => `${p.event}: vráceno k doplnění — ${p.reason}`,
+      order_confirmed: (p: Params) => `${p.event}: objednávka potvrzena`,
+      conflict_overridden: (p: Params) => `${p.event}: potvrzeno přes konflikt, chybí ${p.short}`,
+      conflict_detected: (p: Params) => `${p.event}: nový konflikt, chybí ${p.short}`,
+      order_edited_after_packing: (p: Params) => `${p.event}: změna po zahájení balení`,
+      upcoming_loading: (p: Params) => `${p.event}: nakládka ${p.date}`,
+      batch_shipped: (p: Params) =>
+        `${p.event}: odvezeno ${p.label} (${p.shipped} ks), zbývá ${p.remaining}`,
+      overdue_return: (p: Params) => `${p.event}: technika po termínu nevrácena`,
+      returned_with_issues: (p: Params) => `${p.event}: vráceno s problémy`,
+      service_opened: (p: Params) => `Servis: nahlášeno ${p.qty}× ${p.itemName ?? p.itemId}`,
+      service_overdue: (p: Params) => `Servis po termínu: ${p.itemName ?? p.itemId}`,
+      service_fixed: (p: Params) => `Servis hotový: ${p.itemName ?? p.itemId}`,
+      service_affects_order: (p: Params) => `${p.event}: servis ovlivnil dostupnost`,
+      case_incomplete: (p: Params) =>
+        `Case ${p.number} není kompletní${p.escalated ? ' už týden' : ''}`,
+      validation_waiting: (p: Params) => `${p.event}: čeká na schválení`,
+      prebooking_expiring: (p: Params) => `${p.event}: předrezervace propadne ${p.date}`,
+      prebooking_expired: (p: Params) => `${p.event}: předrezervace propadla`,
+      external_not_returned: (p: Params) =>
+        `${p.event}: ${p.name} nevráceno dodavateli ${p.supplier}`,
+      conflict_unresolved: (p: Params) => `${p.event}: nevyřešený konflikt`,
+    } satisfies Record<NotificationType, (p: Params) => string>,
+  },
+  errors: {
+    forbidden: 'Na tuto akci nemáte oprávnění.',
+    invalid_state: 'V tomto stavu to nejde.',
+    not_found: 'Záznam nebyl nalezen.',
+    validation: 'Zkontrolujte vyplněné údaje.',
+    conflict_unacknowledged: 'Potvrďte, že jste viděli všechny konflikty.',
+    open_or_choices: 'Vyberte možnost ve všech skupinách „vyber jednu“.',
+    blocking_conflicts: 'Některé řádky chybí — pokryjte je externě nebo uveďte důvod.',
+  } as Record<string, string>,
+  // Filled in by later milestones
+  calendar: {} as Record<string, unknown>,
+  service: {
+    status: {
+      reported: 'Nahlášeno',
+      in_progress: 'Řeší se',
+      external: 'V externím servisu',
+      waiting_parts: 'Čeká na díly',
+      back_to_check: 'Vráceno – ke kontrole',
+      fixed: 'Opraveno',
+      written_off: 'Odepsáno',
+    } satisfies Record<ServiceStatus, string>,
+  },
+  condition: { ok: 'OK', damaged: 'Poškozeno', needs_check: 'Ke kontrole' } satisfies Record<
+    Condition,
+    string
+  >,
+  issues: {
+    type: {
+      missing: 'Chybí',
+      unexpected: 'Nečekaná položka',
+      case_incomplete: 'Neúplný case',
+    } satisfies Record<IssueType, string>,
+    resolution: {
+      found: 'Našlo se',
+      written_off: 'Odepsáno',
+      charged_to_client: 'Přeúčtováno klientovi',
+      other: 'Jinak',
+    } satisfies Record<IssueResolutionKind, string>,
+  },
+};
+
+/** Czech date "24. 4. 2027" from an ISO day. */
+export function fmtDate(d: string | undefined): string {
+  if (!d) return cs.common.none;
+  const [y, m, day] = d.split('-');
+  return `${Number(day)}. ${Number(m)}. ${y}`;
+}
+
+/** Short Czech date "24. 4." */
+export function fmtShort(d: string | undefined): string {
+  if (!d) return cs.common.none;
+  const [, m, day] = d.split('-');
+  return `${Number(day)}. ${Number(m)}.`;
+}
+
+/** Range "23.–25. 4. 2027" or "30. 4. – 2. 5. 2027". */
+export function fmtRange(from: string, to: string): string {
+  if (from === to) return fmtDate(from);
+  if (from.slice(0, 7) === to.slice(0, 7)) return `${Number(from.slice(8))}.–${fmtDate(to)}`;
+  return `${fmtShort(from)} – ${fmtDate(to)}`;
+}

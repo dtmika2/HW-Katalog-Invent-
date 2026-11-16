@@ -35,3 +35,11 @@ Ambiguities resolved during implementation. Format: date — question → choice
 - 2026-11-16 — **Scenario `caseBreaking`** → uses AX1, whose loose stock is zero (all 32 in four cases, one incomplete). With complete cases only, the plan's `broken` formula can never push `caseFree` below zero for a line that is green at item level, so the demo needs an incomplete case.
 - 2026-11-16 — **Filler bookings** → 8 small PRNG bookings (seed 2027) avoid LEDBeams, AX1/AX9 and cases so the scenario numbers stay exact.
 - 2026-11-16 — **Demo notifications** → notifications older than today are marked read; tonight's job (run for 2027-04-20) leaves fresh, unread reminders for the bell.
+
+## M3 — prototype 1A
+
+- 2026-11-16 — **Editor model** → the editor keeps a working copy of the booking and applies the core's pure edit functions (`addLine`, `setLineQty`, `chooseOr`, `coverWithExternal`, …) live; *Uložit / Odeslat / Potvrdit* store it through `saveBooking` and the lifecycle actions. Badges, conflicts, checks and recommendations are recomputed on every change.
+- 2026-11-16 — **Override vs. external in the UI** → anyone who may confirm (Chief, PM with `canConfirmOwnOrders` on own booking) sees the override-reason field; only the Chief sees "Pokrýt externím pronájmem" and the Missing / Substituted markers, matching the concept's role table.
+- 2026-11-16 — **Planned transfer source** → the line's source dropdown offers other orders that end within 14 days before this booking and contain the same item ("z akce …").
+- 2026-11-16 — **Fonts** → IBM Plex Sans / Plex Sans Condensed bundled via `@fontsource` (no CDN at runtime).
+- 2026-11-16 — **Screenshots** → `scripts/shot.mjs` (Playwright) captures pages of the running dev server for visual review; `PW_CHROME` may point at a local Chromium.

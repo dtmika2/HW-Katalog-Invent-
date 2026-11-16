@@ -1,3 +1,56 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer base {
+  html {
+    @apply bg-alu text-ink font-sans antialiased;
+  }
+  body {
+    @apply bg-alu;
+  }
+  :focus-visible {
+    @apply outline outline-2 outline-offset-2 outline-tape;
+  }
+  h1 {
+    @apply font-cond text-2xl font-bold leading-tight;
+  }
+  h2 {
+    @apply font-cond text-lg font-bold leading-snug;
+  }
+}
+
+@layer components {
+  .panel {
+    @apply rounded-md border border-alu-line bg-white;
+  }
+  .btn {
+    @apply inline-flex min-h-9 items-center justify-center gap-1.5 rounded border border-alu-line bg-white px-3 py-1.5 text-sm font-medium text-ink hover:bg-alu disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  .btn-primary {
+    @apply border-tape bg-tape text-white hover:bg-tape-dark;
+  }
+  .btn-danger {
+    @apply border-bad bg-white text-bad hover:bg-bad-light;
+  }
+  .btn-sm {
+    @apply min-h-7 px-2 py-0.5 text-xs;
+  }
+  .input {
+    @apply min-h-9 w-full rounded border border-alu-line bg-white px-2 py-1 text-sm text-ink placeholder:text-muted;
+  }
+  .label {
+    @apply mb-1 block text-xs font-medium text-muted;
+  }
+  /* Stencilled flight-case label: case numbers and case-type tags */
+  .case-label {
+    @apply inline-flex items-center rounded-sm border-2 border-ink px-1.5 font-cond text-xs font-bold leading-5 tracking-wide text-ink;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+    animation: none !important;
+  }
+}
