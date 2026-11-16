@@ -9,6 +9,10 @@ import { CatalogBrowse } from './routes/Catalog';
 import { Dashboard } from './routes/Dashboard';
 import { EventCalendar } from './routes/EventCalendar';
 import { CaseTypeDetail, ItemDetail } from './routes/ItemDetail';
+import { Packing } from './routes/Packing';
+import { Service } from './routes/Service';
+import { Vratka } from './routes/Vratka';
+import { WarehouseDashboard } from './routes/Warehouse';
 import { useProto } from './store';
 
 function Later() {
@@ -28,6 +32,10 @@ export function AppRoutes() {
         <Route path="/catalog" element={<CatalogBrowse />} />
         <Route path="/items/:id" element={<ItemDetail />} />
         <Route path="/case-types/:id" element={<CaseTypeDetail />} />
+        <Route path="/packing/:id" element={<Packing />} />
+        <Route path="/vratka/:id" element={<Vratka />} />
+        <Route path="/service" element={<Service />} />
+        <Route path="/warehouse" element={<WarehouseDashboard />} />
         <Route path="*" element={<Later />} />
       </Routes>
     </Layout>

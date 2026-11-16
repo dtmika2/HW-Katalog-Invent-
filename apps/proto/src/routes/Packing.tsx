@@ -1,0 +1,323 @@
+import { useState } from 'react';
+import { Link, useParams } from 'react-router-dom';
+import {
+  can,
+  caseContentQty,
+  firstBookedFrom,
+  packingList,
+  shipBatch,
+  startPacking,
+  type PackLine,
+  type ShipmentLine,
+} from '@quix/core';
+import { CaseLabel, Empty, StatusChip } from '../components/ui';
+import { cs, fmtDate } from '../i18n/cs';
+import { itemName, locationPath, userName, warehouseName } from '../lib/names';
+import { useAppState, useProto, useToday, useUser } from '../store';
+
+interface Pick {
+  ticked: boolean;
+  qty: number;
+  caseIds: string[];
+  fromCaseId: string;
+}
+
+/** Packing list on a phone: one card per line, grouped by warehouse and shelf; ship in batches. */
+export function Packing() {
+  const { id = '' } = useParams();
+  const s = useAppState();
+  const user = useUser();
+  const today = useToday();
+  const run = useProto((p) => p.run);
+  const b = s.bookings.find((x) => x.id === id);
+  const [picks, setPicks] = useState<Record<string, Pick>>({});
+  const batchNo =
+    s.shipments.filter((x) => x.bookingId === id && !x.transferFromBookingId).length + 1;
+  const [label, setLabel] = useState('');
+  if (!b) return <Empty>{cs.errors.not_found}</Empty>;
+  const pl = packingList(s, id);
+  if (!pl) return <Empty>{cs.errors.not_found}</Empty>;
+  const canShip = can(user, 'ship') && ['packing', 'shipped'].includes(b.status);
+
+  const pick = (l: PackLine): Pick =>
+    picks[l.lineId] ?? { ticked: false, qty: l.remaining, caseIds: [], fromCaseId: '' };
+  const setPick = (l: PackLine, p: Partial<Pick>) =>
+    setPicks({ ...picks, [l.lineId]: { ...pick(l), ...p } });
+  const allLines = [
+    ...pl.byWarehouse.flatMap((w) => w.groups.flatMap((g) => g.lines)),
+    ...pl.external,
+  ];
+  const ticked = allLines.filter((l) => l.remaining > 0 && pick(l).ticked);
+  const newLinesPending = allLines.some((l) => l.addedAfterShipping && l.remaining > 0);
+
+  const ship = () => {
+    const lines: ShipmentLine[] = ticked.map((l) => {
+      const p = pick(l);
+      const sl: ShipmentLine = {
+        lineId: l.lineId,
+        qty: l.kind === 'case' ? p.caseIds.length : p.qty,
+      };
+      if (l.kind === 'case') sl.caseIds = p.caseIds;
+      if (p.fromCaseId) sl.fromCaseId = p.fromCaseId;
+      return sl;
+    });
+    const name = label.trim() || cs.packing.labelDefault(batchNo);
+    if (
+      !run((st) => shipBatch(st, user, today, id, { label: name, lines }), cs.packing.shipped(name))
+    ) {
+      setPicks({});
+      setLabel('');
+    }
+  };
+
+  const card = (l: PackLine) => {
+    const p = pick(l);
+    const done = l.remaining === 0;
+    const sourceCases =
+      l.kind === 'item' && l.itemId
+        ? s.cases.filter(
+            (c) =>
+              c.warehouseId === l.warehouseId &&
+              !c.archived &&
+              caseContentQty(c, l.itemId ?? '') > 0,
+          )
+        : [];
+    return (
+      <li
+        key={l.lineId}
+        data-testid={`pack-${l.lineId}`}
+        className={`panel p-3 ${done ? 'opacity-60' : ''}`}
+      >
+        <label className="flex items-start gap-3">
+          <input
+            type="checkbox"
+            className="mt-1 h-6 w-6 shrink-0"
+            aria-label={`${cs.packing.packed}: ${l.name}`}
+            disabled={done || !canShip}
+            checked={done || p.ticked}
+            onChange={(e) => setPick(l, { ticked: e.target.checked })}
+          />
+          <span className="min-w-0 flex-1">
+            <span className="flex flex-wrap items-center gap-2">
+              <span className="font-cond text-lg font-bold leading-tight">{l.name}</span>
+              {l.kind === 'case' && <CaseLabel>{cs.editor.caseTag}</CaseLabel>}
+              {l.consumable && <span className="text-xs text-warn">{cs.packing.consumable}</span>}
+              {l.addedAfterShipping && !done && (
+                <span className="rounded bg-bad px-1.5 text-xs text-white">
+                  {cs.notifications.highPriority}
+                </span>
+              )}
+            </span>
+            <span className="block text-sm">
+              <strong className="font-cond text-xl">{l.qty}×</strong>{' '}
+              <span className="text-muted">
+                {done
+                  ? cs.packing.allShipped
+                  : l.shipped > 0
+                    ? cs.packing.remaining(l.remaining)
+                    : ''}
+              </span>
+            </span>
+            {l.forHint.length > 0 && (
+              <span className="block text-xs text-muted">
+                {cs.editor.forHint(l.forHint.map((h) => `${h.name} ×${h.qty}`).join(', '))}
+              </span>
+            )}
+          </span>
+        </label>
+        {l.kind === 'case' && (
+          <div className="mt-2 pl-9">
+            <ul className="text-xs text-muted">
+              {(l.contents ?? []).map((c) => (
+                <li key={c.itemId}>
+                  {c.qty}× {itemName(s, c.itemId)}
+                </li>
+              ))}
+            </ul>
+            {!done && canShip && (
+              <fieldset className="mt-2">
+                <legend className="label">{cs.packing.pickCases}</legend>
+                <div className="flex flex-wrap gap-2">
+                  {(l.candidateCases ?? []).map((c) => {
+                    const on = p.caseIds.includes(c.caseId);
+                    return (
+                      <label
+                        key={c.caseId}
+                        className={`flex items-center gap-1 rounded border px-2 py-1 text-sm ${on ? 'border-tape bg-tape-light' : 'border-alu-line'}`}
+                      >
+                        <input
+                          type="checkbox"
+                          disabled={c.busy || !c.complete}
+                          checked={on}
+                          onChange={(e) => {
+                            const ids = e.target.checked
+                              ? [...p.caseIds, c.caseId].slice(-l.remaining)
+                              : p.caseIds.filter((x) => x !== c.caseId);
+                            setPick(l, { caseIds: ids, ticked: ids.length > 0 });
+                          }}
+                        />
+                        <CaseLabel>{c.number}</CaseLabel>
+                        {c.busy && (
+                          <span className="text-xs text-muted">{cs.packing.caseBusy}</span>
+                        )}
+                        {!c.complete && !c.busy && (
+                          <span className="text-xs text-bad">{cs.packing.caseIncomplete}</span>
+                        )}
+                      </label>
+                    );
+                  })}
+                </div>
+              </fieldset>
+            )}
+          </div>
+        )}
+        {l.kind !== 'case' && !done && canShip && (
+          <div className="mt-2 flex flex-wrap items-end gap-3 pl-9 text-sm">
+            <label className="flex items-center gap-1">
+              <span className="text-xs text-muted">{cs.packing.shipQty}</span>
+              <input
+                type="number"
+                className="input w-20"
+                min={1}
+                max={l.remaining}
+                value={p.qty}
+                onChange={(e) =>
+                  setPick(l, {
+                    qty: Math.min(l.remaining, Math.max(1, Number(e.target.value) || 1)),
+                  })
+                }
+              />
+            </label>
+            {sourceCases.length > 0 && (
+              <label className="flex items-center gap-1">
+                <span className="text-xs text-muted">{cs.packing.fromCase}</span>
+                <select
+                  className="input w-auto"
+                  value={p.fromCaseId}
+                  onChange={(e) => setPick(l, { fromCaseId: e.target.value })}
+                >
+                  <option value="">{cs.packing.fromCaseNone}</option>
+                  {sourceCases.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.number}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+          </div>
+        )}
+      </li>
+    );
+  };
+
+  const shipments = s.shipments.filter((x) => x.bookingId === id);
+  return (
+    <div className="mx-auto max-w-2xl space-y-4">
+      <div>
+        <Link to={`/bookings/${id}`} className="text-sm underline">
+          {cs.common.back}
+        </Link>
+        <h1 className="mt-1">{cs.packing.title(b.eventName)}</h1>
+        <p className="mt-1 flex items-center gap-2 text-sm text-muted">
+          <StatusChip status={b.status} /> {fmtDate(firstBookedFrom(b))}
+        </p>
+      </div>
+      {b.editedAfterShipping && newLinesPending && (
+        <p
+          role="alert"
+          data-testid="high-priority"
+          className="rounded border-2 border-bad bg-bad-light p-3 text-sm font-semibold text-bad"
+        >
+          {cs.packing.highPriority}
+        </p>
+      )}
+      {b.status === 'confirmed' && (
+        <div className="panel p-3 text-sm">
+          <p>{cs.packing.notStarted}</p>
+          {can(user, 'start_packing') && (
+            <button
+              type="button"
+              className="btn btn-primary mt-2"
+              onClick={() => run((st) => startPacking(st, user, today, id))}
+            >
+              {cs.packing.start}
+            </button>
+          )}
+        </div>
+      )}
+      {pl.byWarehouse.map((w) => (
+        <section key={w.warehouseId} className="space-y-2">
+          <h2>{cs.packing.warehouse(warehouseName(s, w.warehouseId))}</h2>
+          {w.groups.map((g) => (
+            <div key={g.locationId ?? 'none'}>
+              <h3 className="mb-1 text-xs font-semibold text-muted">
+                {g.locationId ? locationPath(s, g.locationId) : cs.packing.noLocation}
+              </h3>
+              <ul className="space-y-2">{g.lines.map(card)}</ul>
+            </div>
+          ))}
+        </section>
+      ))}
+      {pl.external.length > 0 && (
+        <section className="space-y-2">
+          <h2>{cs.packing.external}</h2>
+          <ul className="space-y-2">{pl.external.map(card)}</ul>
+        </section>
+      )}
+      {pl.transfers.length > 0 && (
+        <section className="space-y-2">
+          <h2>{cs.packing.transfers}</h2>
+          <ul className="space-y-1 text-sm">
+            {pl.transfers.map((l) => (
+              <li key={l.lineId} className="panel p-3">
+                {l.qty}× {l.name} —{' '}
+                {cs.packing.transferFrom(
+                  s.bookings.find((x) => x.id === l.fromBookingId)?.eventName ?? '',
+                )}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+      {canShip && (
+        <div className="sticky bottom-0 -mx-4 space-y-2 border-t border-alu-line bg-alu/95 px-4 py-3 backdrop-blur">
+          <label className="block">
+            <span className="label">{cs.packing.label}</span>
+            <input
+              className="input"
+              placeholder={cs.packing.labelDefault(batchNo)}
+              value={label}
+              onChange={(e) => setLabel(e.target.value)}
+            />
+          </label>
+          <button
+            type="button"
+            className="btn btn-primary min-h-12 w-full text-base"
+            disabled={ticked.length === 0}
+            onClick={ship}
+          >
+            {cs.packing.ship(ticked.length)}
+          </button>
+        </div>
+      )}
+      {shipments.length > 0 && (
+        <section>
+          <h2>{cs.packing.batches}</h2>
+          <ul className="mt-1 text-sm">
+            {shipments.map((sh) => (
+              <li key={sh.id}>
+                {cs.packing.batchRow(
+                  sh.label,
+                  fmtDate(sh.shippedOn),
+                  sh.lines.reduce((n, x) => n + x.qty, 0),
+                  userName(s, sh.userId),
+                )}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+    </div>
+  );
+}
