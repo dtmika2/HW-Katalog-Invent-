@@ -24,3 +24,14 @@ Ambiguities resolved during implementation. Format: date — question → choice
 - 2026-11-16 — **Incomplete case reminders** (2 / 7 days) are skipped while the case or pieces taken from it are out on an active order; the clock restarts on the vratka day.
 - 2026-11-16 — **Notification and thread texts** → core stores `type` + `params` and an English fallback `text`; the UI renders Czech from `cs.ts`. Keeps all Czech strings in one file.
 - 2026-11-16 — **Lines added after shipping** → Chief only (the warehouse cannot create orders). The order goes back to `packing`; new lines and their auto accessories are flagged `addedAfterShipping`.
+
+## M2 — fixtures
+
+- 2026-11-16 — **How are fixture bookings built?** → Not as hand-written records: a small builder drives every booking through the real core API (create → lines → submit → confirm → pack → ship → vratka → close) with past dates up to "today" (2027-04-20). Shipments, return sessions, issues and conflict records are therefore always consistent with the rules; a fixture that would violate a rule fails the build.
+- 2026-11-16 — **Connections count** → 144 instead of ~80: helper groups (power/DMX checks, shared desk OR group, hang-or-stand nested group) are expanded per fixture type. More coverage, same rule set.
+- 2026-11-16 — **Scenario `galaDinner`** → the base data holds "Firemní den" (PM Jana Nováková, one AX9 case on 23–25 Apr). The Gala pre-booking itself is created by Petr during the demo (acceptance test 1); `GALA_STEPS` replays the full walk-through in tests. Brod has two AX9 cases and Karlák's AX9-03 starts incomplete, so the Gala is short exactly one case.
+- 2026-11-16 — **"Affected order in May"** (concept step 9) → *Květnový festival* (PM Jana) books both Brod AX9 cases; the service case on AX9-02 makes it short and notifies its PM.
+- 2026-11-16 — **Scenario `transfer`** → the base data already contains the planned TechConf → "Letní noc – warm-up" transfer (8 LEDBeams), so the scenario is the base state focused on those bookings.
+- 2026-11-16 — **Scenario `caseBreaking`** → uses AX1, whose loose stock is zero (all 32 in four cases, one incomplete). With complete cases only, the plan's `broken` formula can never push `caseFree` below zero for a line that is green at item level, so the demo needs an incomplete case.
+- 2026-11-16 — **Filler bookings** → 8 small PRNG bookings (seed 2027) avoid LEDBeams, AX1/AX9 and cases so the scenario numbers stay exact.
+- 2026-11-16 — **Demo notifications** → notifications older than today are marked read; tonight's job (run for 2027-04-20) leaves fresh, unread reminders for the bell.
