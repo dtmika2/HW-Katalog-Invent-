@@ -47,7 +47,7 @@ function Controls() {
   const { setUser, setToday, loadScenario, runJobs, toast, scenarioId } = useProto();
   const navigate = useNavigate();
   return (
-    <div className="flex flex-wrap items-end gap-3">
+    <div className="flex min-w-0 flex-1 flex-wrap items-end gap-3">
       <div>
         <label className="label" htmlFor="ctl-user">
           {cs.shell.user}
@@ -179,7 +179,7 @@ export function Layout({ children }: { children: ReactNode }) {
         </nav>
       </aside>
       <div className="min-w-0">
-        <header className="flex flex-wrap items-end justify-between gap-3 border-b border-alu-line bg-alu-dark/60 px-4 py-3">
+        <header className="flex items-start justify-between gap-3 border-b border-alu-line bg-alu-dark/60 px-4 py-3">
           <Controls />
           <Bell />
         </header>

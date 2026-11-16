@@ -5,7 +5,10 @@ import { Empty } from './components/ui';
 import { cs } from './i18n/cs';
 import { BookingEditor } from './routes/BookingEditor';
 import { Bookings, NewBooking, Notifications } from './routes/Bookings';
+import { CatalogBrowse } from './routes/Catalog';
 import { Dashboard } from './routes/Dashboard';
+import { EventCalendar } from './routes/EventCalendar';
+import { CaseTypeDetail, ItemDetail } from './routes/ItemDetail';
 import { useProto } from './store';
 
 function Later() {
@@ -21,6 +24,10 @@ export function AppRoutes() {
         <Route path="/bookings/new" element={<NewBooking />} />
         <Route path="/bookings/:id" element={<BookingEditor />} />
         <Route path="/notifications" element={<Notifications />} />
+        <Route path="/calendar" element={<EventCalendar />} />
+        <Route path="/catalog" element={<CatalogBrowse />} />
+        <Route path="/items/:id" element={<ItemDetail />} />
+        <Route path="/case-types/:id" element={<CaseTypeDetail />} />
         <Route path="*" element={<Later />} />
       </Routes>
     </Layout>

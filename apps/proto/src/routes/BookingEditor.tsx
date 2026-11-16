@@ -713,11 +713,20 @@ function LineRow({
             └
           </span>
         )}
-        <span
-          className={`font-cond text-[15px] font-semibold ${line.status !== 'ok' ? 'line-through' : ''}`}
-        >
-          {name}
-        </span>
+        {isExt ? (
+          <span className="font-cond text-[15px] font-semibold">{name}</span>
+        ) : (
+          <Link
+            to={
+              'itemId' in line.target
+                ? `/items/${line.target.itemId}`
+                : `/case-types/${(line.target as { caseTypeId: string }).caseTypeId}`
+            }
+            className={`font-cond text-[15px] font-semibold hover:underline ${line.status !== 'ok' ? 'line-through' : ''}`}
+          >
+            {name}
+          </Link>
+        )}
         {isCaseLine(line) && <CaseLabel>{cs.editor.caseTag}</CaseLabel>}
         {isAuto && (
           <span className="rounded bg-alu px-1.5 text-[11px] font-medium text-muted">
