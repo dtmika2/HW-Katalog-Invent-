@@ -95,7 +95,17 @@ export function Packing() {
             aria-label={`${cs.packing.packed}: ${l.name}`}
             disabled={done || !canShip}
             checked={done || p.ticked}
-            onChange={(e) => setPick(l, { ticked: e.target.checked })}
+            onChange={(e) => {
+              if (l.kind === 'case' && e.target.checked && p.caseIds.length === 0) {
+                // Ticking a case line picks the first free complete cases; the packer can change them.
+                const free = (l.candidateCases ?? []).filter((c) => c.complete && !c.busy);
+                setPick(l, {
+                  ticked: true,
+                  caseIds: free.slice(0, l.remaining).map((c) => c.caseId),
+                });
+              } else if (!e.target.checked) setPick(l, { ticked: false, caseIds: [] });
+              else setPick(l, { ticked: true });
+            }}
           />
           <span className="min-w-0 flex-1">
             <span className="flex flex-wrap items-center gap-2">

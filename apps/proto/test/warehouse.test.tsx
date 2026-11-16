@@ -73,6 +73,25 @@ describe('M5b packing (mobile)', () => {
   });
 });
 
+describe('M5b packing — partial batches', () => {
+  it('a partly shipped order stays on the warehouse packing list with what is left', () => {
+    renderApp('/packing/bk-letni-warmup', { scenario: 'base', user: 'u-martin' });
+    const first = screen.getAllByTestId(/^pack-/)[0]!;
+    fireEvent.click(within(first).getAllByRole('checkbox')[0]!);
+    fireEvent.click(screen.getByRole('button', { name: 'Odvézt zatržené (1)' }));
+    expect(booking('bk-letni-warmup')?.status).toBe('shipped');
+    fireEvent.click(screen.getByRole('link', { name: 'Přehled' }));
+    const row = within(screen.getByTestId('packing-soon'))
+      .getByText('Letní noc – warm-up')
+      .closest('li')!;
+    expect(row).toHaveTextContent(/část odvezena, zbývá \d+ ks/);
+    expect(within(row).getByRole('link', { name: 'Balit' })).toHaveAttribute(
+      'href',
+      '/packing/bk-letni-warmup',
+    );
+  });
+});
+
 describe('M5c vratka (mobile)', () => {
   it('counts start at 0, every line needs its own confirmation; case complete as standard; short line → issue', () => {
     renderApp(`/vratka/${GALA_ID}`, {

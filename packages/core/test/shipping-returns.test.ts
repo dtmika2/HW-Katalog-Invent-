@@ -9,6 +9,7 @@ import {
   packingList,
   recordReturnSession,
   refillTasks,
+  remainingToShip,
   returnSheet,
   shipBatch,
   stockQty,
@@ -60,6 +61,23 @@ describe('packing and shipping', () => {
     expect(caseLine.contents).toHaveLength(3);
     expect(caseLine.candidateCases?.map((c) => c.number)).toEqual(['AX9-01', 'AX9-02']);
     expect(brod.groups.map((g) => g.locationId)).toEqual([L.brodA, L.brodB]);
+  });
+
+  it('a partly shipped order still has pieces to ship (stays on the packing list)', () => {
+    const s0 = packing();
+    expect(remainingToShip(s0, 'o1')).toBe(11);
+    const s1 = shippedAll(s0, [{ lineId: 'l1', qty: 6 }]);
+    expect(remainingToShip(s1, 'o1')).toBe(5);
+    const s2 = unwrap(
+      shipBatch(s1, U.martin, T, 'o1', {
+        label: 'Dodávka 2',
+        lines: [
+          { lineId: 'l1', qty: 4 },
+          { lineId: 'l2', qty: 1 },
+        ],
+      }),
+    );
+    expect(remainingToShip(s2, 'o1')).toBe(0);
   });
 
   it('ships in two batches and notifies PM and Chief with what is missing', () => {

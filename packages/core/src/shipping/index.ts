@@ -334,5 +334,21 @@ export function addLinesAfterShipping(
   return ok(recomputeConflictRecords(next, today));
 }
 
+/**
+ * Pieces (or cases) still to leave the warehouse on an order: active lines, external pickups
+ * included, transfer lines excluded (they arrive from another event). A partly shipped order
+ * stays on the packing list until this is 0.
+ */
+export function remainingToShip(state: AppState, bookingId: Id): number {
+  const b = state.bookings.find((x) => x.id === bookingId);
+  if (!b || b.type !== 'order' || !['confirmed', 'packing', 'shipped'].includes(b.status)) return 0;
+  let n = 0;
+  for (const l of b.lines) {
+    if (!isActiveLine(l) || l.fromBookingId) continue;
+    n += Math.max(0, effectiveQty(l) - shippedQty(state, b.id, l.id));
+  }
+  return n;
+}
+
 /** True when the user may ship (for UI). */
 export const canShip = (user: User): boolean => can(user, 'ship');

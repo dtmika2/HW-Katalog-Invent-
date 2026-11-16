@@ -53,3 +53,7 @@ Ambiguities resolved during implementation. Format: date — question → choice
 - 2026-11-16 — **Packing**: the packer ticks lines and chooses specific case numbers (only complete cases not out on another order). For loose items the packer may name the case they were taken from; that case becomes incomplete. Ship quantity defaults to the remaining count and can be lowered (rest goes in a later batch).
 - 2026-11-16 — **Vratka UI**: one card per line and one card per case; counts start at 0; "Kompletní dle standardu" fills one case only; there is no select-all. Damaged pieces in a case are counted against the case type's primary item (first standard content) in Batch 1.
 - 2026-11-16 — **Service status flow** buttons follow the concept's order; "Odepsáno" is available from any open status. The responsible person, a Chief or anyone with `canManageService` may change status.
+
+## Feedback after Batch 1
+
+- 2026-11-16 — **Partly shipped orders disappeared from the packing list** (user feedback). → An order is `shipped` after its first batch (gear is out), but it now stays in the warehouse dashboard's packing list while `remainingToShip > 0`, marked "část odvezena, zbývá N ks". Ticking a case line on the packing screen now preselects the first free complete cases (previously shipping failed until case numbers were picked by hand).

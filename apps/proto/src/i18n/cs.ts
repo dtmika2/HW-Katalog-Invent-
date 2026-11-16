@@ -644,6 +644,7 @@ export const cs = {
     refilled: (n: string) => `Case ${n} doplněn`,
     age: (n: number) => `${n} d`,
     loading: (d: string) => `nakládka ${d}`,
+    partlyShipped: (n: number) => `část odvezena, zbývá ${n} ks`,
     returnBy: (d: string) => `vratka do ${d}`,
     openPacking: 'Balit',
     openVratka: 'Vratka',

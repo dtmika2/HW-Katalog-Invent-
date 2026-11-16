@@ -7,6 +7,7 @@ import {
   lastBookedUntil,
   refillCase,
   refillTasksWithAge,
+  remainingToShip,
 } from '@quix/core';
 import { CaseLabel, Section, StatusChip } from '../components/ui';
 import { cs, fmtDate } from '../i18n/cs';
@@ -24,7 +25,8 @@ export function WarehouseDashboard() {
     .filter(
       (b) =>
         b.type === 'order' &&
-        ['confirmed', 'packing'].includes(b.status) &&
+        (['confirmed', 'packing'].includes(b.status) ||
+          (b.status === 'shipped' && remainingToShip(s, b.id) > 0)) &&
         firstBookedFrom(b) <= addDays(today, 3),
     )
     .sort((a, b) => (firstBookedFrom(a) < firstBookedFrom(b) ? -1 : 1));
@@ -46,6 +48,11 @@ export function WarehouseDashboard() {
                 <span className="block text-xs text-muted">
                   {cs.warehouseUi.loading(fmtDate(firstBookedFrom(b)))}
                 </span>
+                {b.status === 'shipped' && (
+                  <span className="block text-xs font-semibold text-warn">
+                    {cs.warehouseUi.partlyShipped(remainingToShip(s, b.id))}
+                  </span>
+                )}
               </span>
               <span className="flex items-center gap-2">
                 <StatusChip status={b.status} />
