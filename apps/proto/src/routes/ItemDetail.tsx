@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import {
   addDays,
+  can,
   caseMissing,
   caseTypesContaining,
   isCaseComplete,
@@ -17,6 +18,7 @@ import { CaseLabel, Empty, Field, Section } from '../components/ui';
 import { cs, fmtDate } from '../i18n/cs';
 import { itemName, locationPath, targetName, userName } from '../lib/names';
 import { useAppState, useProto, useToday, useUser } from '../store';
+import { CaseEditor, ItemEditPanels } from './ItemEdit';
 
 function ConnectionList({ s, list, from }: { s: AppState; list: Connection[]; from: boolean }) {
   if (list.length === 0) return <Empty>{cs.catalog.noConnections}</Empty>;
@@ -154,6 +156,7 @@ export function ItemDetail() {
   const [params] = useSearchParams();
   const s = useAppState();
   const today = useToday();
+  const user = useUser();
   const item = s.items.find((i) => i.id === id);
   if (!item) return <Empty>{cs.errors.not_found}</Empty>;
   const stock = s.stock.filter((x) => x.itemId === id);
@@ -237,6 +240,8 @@ export function ItemDetail() {
         </Section>
       </div>
 
+      {can(user, 'edit_catalogue') && <ItemEditPanels item={item} />}
+
       <Section title={cs.catalog.calendar}>
         <AvailabilityCalendar
           s={s}
@@ -274,6 +279,7 @@ export function CaseTypeDetail() {
   const [params] = useSearchParams();
   const s = useAppState();
   const today = useToday();
+  const user = useUser();
   const t = s.caseTypes.find((x) => x.id === id);
   if (!t) return <Empty>{cs.errors.not_found}</Empty>;
   const cases = s.cases.filter((c) => c.caseTypeId === id && !c.archived);
@@ -321,6 +327,7 @@ export function CaseTypeDetail() {
           </ul>
         </Section>
       </div>
+      {can(user, 'edit_catalogue') && <CaseEditor type={t} />}
       <Section title={cs.catalog.calendar}>
         <AvailabilityCalendar
           s={s}

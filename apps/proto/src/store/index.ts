@@ -35,7 +35,11 @@ export interface ProtoState {
   setUser: (id: string) => void;
   setToday: (d: string) => void;
   /** Apply a core action; on error shows a toast and returns the error. */
-  run: (action: (s: AppState) => Result<AppState>, okText?: string) => DomainError | undefined;
+  run: (
+    action: (s: AppState) => Result<AppState>,
+    okText?: string,
+    errText?: string,
+  ) => DomainError | undefined;
   /** Replace the state directly (pure helpers that cannot fail). */
   apply: (fn: (s: AppState) => AppState) => void;
   runJobs: () => { created: number; expired: number };
@@ -109,12 +113,12 @@ export const useProto = create<ProtoState>()((set, get) => ({
   setUser: (userId) => set({ userId }),
   setToday: (today) => set({ today }),
 
-  run: (action, okText) => {
+  run: (action, okText, errText) => {
     const s = get().state;
     if (!s) return { code: 'not_found', message: 'No state' };
     const r = action(s);
     if (!r.ok) {
-      get().toast('error', cs.errors[r.error.code] ?? r.error.message);
+      get().toast('error', errText ?? cs.errors[r.error.code] ?? r.error.message);
       return r.error;
     }
     set({ state: r.value });

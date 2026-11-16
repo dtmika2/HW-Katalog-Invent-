@@ -43,3 +43,13 @@ Ambiguities resolved during implementation. Format: date — question → choice
 - 2026-11-16 — **Planned transfer source** → the line's source dropdown offers other orders that end within 14 days before this booking and contain the same item ("z akce …").
 - 2026-11-16 — **Fonts** → IBM Plex Sans / Plex Sans Condensed bundled via `@fontsource` (no CDN at runtime).
 - 2026-11-16 — **Screenshots** → `scripts/shot.mjs` (Playwright) captures pages of the running dev server for visual review; `PW_CHROME` may point at a local Chromium.
+
+## M5 — independent prototypes
+
+- 2026-11-16 — **Catalogue editing lives in core** (`catalog/edit.ts`): items, stock, connections, case types, cases, completeness and `importItems` are permission-checked core actions with tests, so Batch 2 can reuse them on the server. The UI only parses the sheet (SheetJS) into rows.
+- 2026-11-16 — **Import matching** → rows update an existing item when the id or the exact name (case-insensitive) matches; otherwise they create one. Invalid rows are skipped and reported with row number and column; valid rows are applied (partial import), so a half-filled sheet is still useful.
+- 2026-11-16 — **Stock cannot be set below the pieces inside cases** in that warehouse; adjust case contents first. Case contents cannot exceed warehouse stock.
+- 2026-11-16 — **Completeness** = photo, home location, price > 0, at least one connection (in or out). "Potřebuje doplnit" lists items with fewer than 4/4.
+- 2026-11-16 — **Packing**: the packer ticks lines and chooses specific case numbers (only complete cases not out on another order). For loose items the packer may name the case they were taken from; that case becomes incomplete. Ship quantity defaults to the remaining count and can be lowered (rest goes in a later batch).
+- 2026-11-16 — **Vratka UI**: one card per line and one card per case; counts start at 0; "Kompletní dle standardu" fills one case only; there is no select-all. Damaged pieces in a case are counted against the case type's primary item (first standard content) in Batch 1.
+- 2026-11-16 — **Service status flow** buttons follow the concept's order; "Odepsáno" is available from any open status. The responsible person, a Chief or anyone with `canManageService` may change status.

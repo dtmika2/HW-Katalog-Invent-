@@ -5,7 +5,7 @@ import { Empty } from './components/ui';
 import { cs } from './i18n/cs';
 import { BookingEditor } from './routes/BookingEditor';
 import { Bookings, NewBooking, Notifications } from './routes/Bookings';
-import { CatalogBrowse } from './routes/Catalog';
+import { Catalog } from './routes/CatalogEditor';
 import { Dashboard } from './routes/Dashboard';
 import { EventCalendar } from './routes/EventCalendar';
 import { CaseTypeDetail, ItemDetail } from './routes/ItemDetail';
@@ -29,7 +29,7 @@ export function AppRoutes() {
         <Route path="/bookings/:id" element={<BookingEditor />} />
         <Route path="/notifications" element={<Notifications />} />
         <Route path="/calendar" element={<EventCalendar />} />
-        <Route path="/catalog" element={<CatalogBrowse />} />
+        <Route path="/catalog" element={<Catalog />} />
         <Route path="/items/:id" element={<ItemDetail />} />
         <Route path="/case-types/:id" element={<CaseTypeDetail />} />
         <Route path="/packing/:id" element={<Packing />} />
