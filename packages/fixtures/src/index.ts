@@ -1,5 +1,6 @@
 /** Deterministic demo data (seed 2027, today 2027-04-20) and scenarios for the prototypes. */
 import type { AppState } from '@quix/core';
+import { CATEGORY_COLOR } from './catalog-data';
 import { generateState } from './generate';
 import { caseBreaking } from './scenarios/case-breaking';
 import { conflictChain } from './scenarios/conflict-chain';
@@ -17,6 +18,25 @@ export { BREAKING, caseBreaking } from './scenarios/case-breaking';
 
 /** Seed of the deterministic generator. */
 export const FIXTURES_SEED = 2027;
+
+/**
+ * Version of the demo data. Bump it whenever the generated data changes (new items,
+ * categories, …) so a prototype with older data saved in the browser can tell the user.
+ */
+export const DATA_VERSION = 3;
+
+/**
+ * Safe, additive upgrade of demo data saved by an older prototype: fills in what can be
+ * added without touching the user's own changes (currently: category colours).
+ */
+export function migrateSavedState(s: AppState): AppState {
+  return {
+    ...s,
+    categories: s.categories.map((c) =>
+      !c.parentId && !c.color && CATEGORY_COLOR[c.id] ? { ...c, color: CATEGORY_COLOR[c.id] } : c,
+    ),
+  };
+}
 
 export type ScenarioId = 'base' | 'galaDinner' | 'conflictChain' | 'transfer' | 'caseBreaking';
 

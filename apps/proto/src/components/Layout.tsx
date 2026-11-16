@@ -124,6 +124,33 @@ function Controls() {
   );
 }
 
+function StaleDataBanner() {
+  const { staleData, dismissStale, loadScenario, scenarioId } = useProto();
+  if (!staleData) return null;
+  return (
+    <div
+      role="status"
+      data-testid="stale-data"
+      className="mx-auto mt-4 flex max-w-6xl flex-wrap items-center gap-3 rounded border border-warn/40 bg-warn-light px-4 py-3 text-sm text-ink"
+    >
+      <p className="min-w-60 flex-1">{cs.shell.staleData}</p>
+      <button
+        type="button"
+        className="btn btn-sm btn-primary"
+        onClick={() => {
+          clearPersisted();
+          loadScenario(scenarioId);
+        }}
+      >
+        {cs.shell.reset}
+      </button>
+      <button type="button" className="btn btn-sm" onClick={dismissStale}>
+        {cs.shell.staleDismiss}
+      </button>
+    </div>
+  );
+}
+
 export function Layout({ children }: { children: ReactNode }) {
   const user = useUser();
   const [open, setOpen] = useState(false);
@@ -183,6 +210,7 @@ export function Layout({ children }: { children: ReactNode }) {
           <Controls />
           <Bell />
         </header>
+        <StaleDataBanner />
         <main className="mx-auto max-w-6xl px-4 py-5">{children}</main>
       </div>
       <Toasts />

@@ -11,7 +11,13 @@ import {
   type Result,
   type User,
 } from '@quix/core';
-import { DEMO_TODAY, SCENARIOS, type ScenarioId } from '@quix/fixtures';
+import {
+  DATA_VERSION,
+  DEMO_TODAY,
+  migrateSavedState,
+  SCENARIOS,
+  type ScenarioId,
+} from '@quix/fixtures';
 import { cs } from '../i18n/cs';
 
 const STORAGE_KEY = 'quix-hw-proto-v1';
@@ -28,6 +34,9 @@ export interface ProtoState {
   today: string;
   userId: string;
   toasts: Toast[];
+  /** True when the browser held demo data from an older prototype version. */
+  staleData: boolean;
+  dismissStale: () => void;
   /** Load a scenario from fixtures (synchronous). */
   loadScenario: (id: ScenarioId) => void;
   /** Restore from localStorage or build the default scenario. */
@@ -53,6 +62,8 @@ interface Persisted {
   scenarioId: ScenarioId;
   today: string;
   userId: string;
+  /** DATA_VERSION of the fixtures the state was generated from. */
+  dataVersion?: number;
 }
 
 function readPersisted(): Persisted | undefined {
@@ -94,20 +105,30 @@ export const useProto = create<ProtoState>()((set, get) => ({
   today: DEMO_TODAY,
   userId: 'u-petr',
   toasts: [],
+  staleData: false,
+  dismissStale: () => set({ staleData: false }),
 
   loadScenario: (id) => {
     const sc = SCENARIOS.find((s) => s.id === id) ?? SCENARIOS[0];
     if (!sc) return;
     const state = sc.build();
     const userId = sc.focus?.userId ?? get().userId;
-    set({ state, scenarioId: sc.id, today: DEMO_TODAY, userId });
+    set({ state, scenarioId: sc.id, today: DEMO_TODAY, userId, staleData: false });
   },
 
   init: () => {
     if (get().state) return;
     const p = readPersisted();
-    if (p) set({ state: p.state, scenarioId: p.scenarioId, today: p.today, userId: p.userId });
-    else get().loadScenario('galaDinner');
+    if (p) {
+      const old = p.dataVersion !== DATA_VERSION;
+      set({
+        state: old ? migrateSavedState(p.state) : p.state,
+        scenarioId: p.scenarioId,
+        today: p.today,
+        userId: p.userId,
+        staleData: old,
+      });
+    } else get().loadScenario('galaDinner');
   },
 
   setUser: (userId) => set({ userId }),
@@ -154,7 +175,14 @@ export const useProto = create<ProtoState>()((set, get) => ({
 
 useProto.subscribe((s) => {
   if (s.state)
-    persist({ state: s.state, scenarioId: s.scenarioId, today: s.today, userId: s.userId });
+    persist({
+      state: s.state,
+      scenarioId: s.scenarioId,
+      today: s.today,
+      userId: s.userId,
+      // still "old" until the user reloads the demo data
+      dataVersion: s.staleData ? 0 : DATA_VERSION,
+    });
 });
 
 /** The loaded state (components below the loader can rely on it). */

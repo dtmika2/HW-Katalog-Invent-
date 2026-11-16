@@ -43,6 +43,9 @@ export const cs = {
     jobsDone: (n: number, expired: number) =>
       `Noční úlohy hotové: ${n} nových upozornění${expired ? `, ${expired} předrezervací propadlo` : ''}.`,
     reset: 'Obnovit demo data',
+    staleData:
+      'V prohlížeči máte uložená demo data ze starší verze prototypu. Barvy kategorií jsme doplnili; další novinky (např. nové kategorie kabelů) uvidíte až po obnovení demo dat. Vaše změny se tím zahodí.',
+    staleDismiss: 'Ponechat moje data',
     resetConfirm: 'Zahodit všechny změny a načíst scénář znovu?',
     bell: (n: number) => (n ? `Upozornění, ${n} nepřečtených` : 'Upozornění'),
     menu: 'Menu',
