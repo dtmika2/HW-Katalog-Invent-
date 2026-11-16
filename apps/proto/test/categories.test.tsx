@@ -134,4 +134,21 @@ describe('categories', () => {
     ]);
     expect(options[0]).toHaveTextContent('Kabeláž›Optické kabely');
   });
+
+  it('categories have tame colours; subcategories inherit them; the colour can be changed', () => {
+    renderApp('/catalog?cat=kab-opt', { scenario: 'base', user: 'u-tomas' });
+    for (const label of screen.getAllByTestId('category-label'))
+      expect(label).toHaveAttribute('data-color', 'sage');
+    fireEvent.click(screen.getByRole('tab', { name: 'Kategorie' }));
+    const group = screen.getByRole('radiogroup', { name: 'Barva: Kabeláž' });
+    expect(within(group).getByRole('radio', { name: 'šalvějová' })).toHaveAttribute(
+      'aria-checked',
+      'true',
+    );
+    fireEvent.click(within(group).getByRole('radio', { name: 'nebeská' }));
+    expect(state().categories.find((c) => c.id === 'kabelaz')?.color).toBe('sky');
+    fireEvent.click(screen.getByRole('tab', { name: 'Karty' }));
+    for (const label of screen.getAllByTestId('category-label'))
+      expect(label).toHaveAttribute('data-color', 'sky');
+  });
 });

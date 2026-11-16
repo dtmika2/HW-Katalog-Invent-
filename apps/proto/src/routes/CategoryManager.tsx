@@ -1,6 +1,12 @@
 import { useState } from 'react';
 import { deleteCategory, upsertCategory, type AppState, type Category } from '@quix/core';
-import { CATEGORY_ICON_KEYS, CategoryIcon } from '../components/Category';
+import {
+  CATEGORY_COLOR_KEYS,
+  CATEGORY_ICON_KEYS,
+  CategoryIcon,
+  CategoryLabel,
+  Swatch,
+} from '../components/Category';
 import { Section } from '../components/ui';
 import { cs } from '../i18n/cs';
 import { useAppState, useProto, useUser } from '../store';
@@ -62,12 +68,13 @@ export function CategoryManager() {
 
   const save = (c: Category, patch: Partial<Category>) => {
     const next = { ...c, ...patch };
-    const input: { id: string; name: string; parentId?: string; icon?: string } = {
+    const input: { id: string; name: string; parentId?: string; icon?: string; color?: string } = {
       id: c.id,
       name: next.name,
     };
     if (next.parentId) input.parentId = next.parentId;
     if (next.icon) input.icon = next.icon;
+    if (next.color) input.color = next.color;
     return !run(
       (st) => asState(upsertCategory(st, user, input)),
       cs.categories.saved,
@@ -105,6 +112,27 @@ export function CategoryManager() {
                   </option>
                 ))}
               </select>
+              <div
+                className="flex items-center gap-1"
+                role="radiogroup"
+                aria-label={`${cs.categories.color}: ${t.name}`}
+                title={cs.categories.colorHint}
+              >
+                {CATEGORY_COLOR_KEYS.map((k) => (
+                  <button
+                    key={k}
+                    type="button"
+                    role="radio"
+                    aria-checked={t.color === k}
+                    aria-label={cs.categories.colors[k] ?? k}
+                    onClick={() => save(t, { color: k })}
+                    className={`grid h-6 w-6 place-items-center rounded-full border ${t.color === k ? 'border-ink' : 'border-transparent hover:border-alu-line'}`}
+                  >
+                    <Swatch color={k} className="h-4 w-4" />
+                  </button>
+                ))}
+              </div>
+              <CategoryLabel s={s} categoryId={t.id} link={false} />
               <span className="text-xs text-muted">{cs.categories.itemsCount(count(s, t.id))}</span>
               <button
                 type="button"

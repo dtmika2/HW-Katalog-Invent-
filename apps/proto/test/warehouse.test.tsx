@@ -38,7 +38,8 @@ describe('M5b packing (mobile)', () => {
         lines: [{ lineId: ax9, qty: 1, caseIds: ['case-ax9-02'] }],
       }),
     ]);
-    expect(booking(GALA_ID)?.status).toBe('shipped');
+    // only the AX9 case left: the order is still being packed
+    expect(booking(GALA_ID)?.status).toBe('packing');
   });
 
   it('records loose pieces taken out of a case (the case becomes incomplete)', () => {
@@ -79,8 +80,9 @@ describe('M5b packing — partial batches', () => {
     const first = screen.getAllByTestId(/^pack-/)[0]!;
     fireEvent.click(within(first).getAllByRole('checkbox')[0]!);
     fireEvent.click(screen.getByRole('button', { name: 'Odvézt zatržené (1)' }));
-    expect(booking('bk-letni-warmup')?.status).toBe('shipped');
+    expect(booking('bk-letni-warmup')?.status).toBe('packing');
     fireEvent.click(screen.getByRole('link', { name: 'Přehled' }));
+    expect(screen.getAllByText('Balí se').length).toBeGreaterThan(0);
     const row = within(screen.getByTestId('packing-soon'))
       .getByText('Letní noc – warm-up')
       .closest('li')!;

@@ -419,6 +419,15 @@ export function categoryPath(state: Pick<AppState, 'categories'>, id: Id): Categ
   return parent ? [parent, c] : [c];
 }
 
+/** Colour of a category: its own, else its parent's. */
+export function categoryColor(state: Pick<AppState, 'categories'>, id: Id): string | undefined {
+  const c = state.categories.find((x) => x.id === id);
+  if (!c) return undefined;
+  return (
+    c.color ?? (c.parentId ? state.categories.find((x) => x.id === c.parentId)?.color : undefined)
+  );
+}
+
 /** Items in a category; for a top category also those in its subcategories. */
 export function itemsInCategory(
   state: Pick<AppState, 'categories' | 'items'>,
@@ -437,7 +446,7 @@ export function itemsInCategory(
 export function upsertCategory(
   state: AppState,
   user: User,
-  cat: { id?: Id; name: string; parentId?: Id; icon?: string },
+  cat: { id?: Id; name: string; parentId?: Id; icon?: string; color?: string },
 ): Result<{ state: AppState; categoryId: Id }> {
   if (!can(user, 'edit_catalogue')) return forbidden();
   const name = cat.name.trim();
@@ -467,6 +476,7 @@ export function upsertCategory(
     const clean: Category = { id, name };
     if (cat.parentId) clean.parentId = cat.parentId;
     if (cat.icon?.trim()) clean.icon = cat.icon.trim();
+    if (cat.color?.trim()) clean.color = cat.color.trim();
     const i = d.categories.findIndex((c) => c.id === id);
     if (i >= 0) d.categories[i] = clean;
     else d.categories.push(clean);

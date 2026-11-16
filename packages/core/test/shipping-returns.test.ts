@@ -82,7 +82,8 @@ describe('packing and shipping', () => {
 
   it('ships in two batches and notifies PM and Chief with what is missing', () => {
     const s1 = shippedAll(packing(), [{ lineId: 'l1', qty: 6 }]);
-    expect(get(s1, 'o1').status).toBe('shipped');
+    // still "Balí se" while something is left to ship
+    expect(get(s1, 'o1').status).toBe('packing');
     expect(
       s1.notifications
         .filter((n) => n.type === 'batch_shipped')
@@ -101,6 +102,7 @@ describe('packing and shipping', () => {
       }),
     );
     expect(s2.shipments.map((x) => x.label)).toEqual(['Dodávka 1', 'Dodávka 2']);
+    expect(get(s2, 'o1').status).toBe('shipped');
     expect(
       packingList(s2, 'o1')!
         .byWarehouse[0]!.groups.flatMap((g) => g.lines)
@@ -186,6 +188,25 @@ describe('vratka', () => {
       { lineId: 'l1', qty: 8 },
       { lineId: 'l2', qty: 1 },
     ]);
+
+  it('vratka works for a partly shipped order still being packed, not before anything left', () => {
+    const p = packing();
+    expect(
+      recordReturnSession(p, U.martin, R, 'o1', {
+        lines: [],
+        unexpected: [{ itemId: 'clamp', qty: 1, note: 'x' }],
+      }),
+    ).toMatchObject({
+      ok: false,
+      error: { code: 'invalid_state' },
+    });
+    const s = shipped();
+    expect(get(s, 'o1').status).toBe('packing');
+    const s2 = unwrap(
+      recordReturnSession(s, U.martin, R, 'o1', { lines: [ret('l1', 8), ret('l2', 1)] }),
+    );
+    expect(get(s2, 'o1').status).toBe('returned');
+  });
 
   it('the return sheet lists shipped quantities, not ordered ones', () => {
     const sheet = returnSheet(shipped(), 'o1');

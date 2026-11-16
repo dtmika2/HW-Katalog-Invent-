@@ -54,6 +54,8 @@ export interface Category {
   name: string;
   parentId?: Id;
   icon?: string;
+  /** Colour key from the UI palette; subcategories inherit their parent's colour. */
+  color?: string;
 }
 
 export interface Item {

@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { caseMissing, categoryPath, itemsInCategory, topCategoryId, totalStock } from '@quix/core';
-import { CategoryIcon, CategoryLabel } from '../components/Category';
+import { CategoryIcon, CategoryLabel, colorOf, Swatch, tint } from '../components/Category';
 import { CaseLabel, Empty } from '../components/ui';
 import { cs } from '../i18n/cs';
 import { useAppState } from '../store';
@@ -61,9 +61,12 @@ export function CatalogBrowse() {
                   aria-current={cat === t.id}
                   aria-expanded={open}
                   onClick={() => setCat(t.id)}
-                  className={`flex w-full items-center gap-2 rounded px-2 py-1.5 text-left font-medium ${cat === t.id ? 'bg-tape text-white' : open ? 'bg-tape-light' : 'hover:bg-alu'}`}
+                  className={`flex w-full items-center gap-2 rounded border-l-4 px-2 py-1.5 text-left font-medium ${cat === t.id ? 'font-semibold' : open ? '' : 'border-transparent hover:bg-alu'}`}
+                  style={cat === t.id || open ? tint(s, t.id, cat === t.id) : undefined}
                 >
-                  <CategoryIcon icon={t.icon} />
+                  <span style={{ color: colorOf(s, t.id)?.mark }}>
+                    <CategoryIcon icon={t.icon} />
+                  </span>
                   <span className="flex-1">{t.name}</span>
                   <span className="text-xs opacity-70">{itemsInCategory(s, t.id).length}</span>
                 </button>
@@ -75,7 +78,8 @@ export function CatalogBrowse() {
                           type="button"
                           aria-current={cat === sc.id}
                           onClick={() => setCat(sc.id)}
-                          className={`flex w-full items-center justify-between rounded px-2 py-1 text-left ${cat === sc.id ? 'bg-tape text-white' : 'hover:bg-alu'}`}
+                          className={`flex w-full items-center justify-between gap-2 rounded border px-2 py-1 text-left ${cat === sc.id ? 'font-semibold' : 'border-transparent hover:bg-alu'}`}
+                          style={cat === sc.id ? tint(s, sc.id, true) : undefined}
                         >
                           <span>{sc.name}</span>
                           <span className="text-xs opacity-70">
@@ -137,8 +141,10 @@ export function CatalogBrowse() {
                 type="button"
                 aria-pressed={cat === sc.id}
                 onClick={() => setCat(cat === sc.id ? selectedTop : sc.id)}
-                className={`rounded-full border px-3 py-1 text-sm ${cat === sc.id ? 'border-tape bg-tape text-white' : 'border-alu-line bg-white hover:bg-alu'}`}
+                className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-sm ${cat === sc.id ? 'font-semibold' : 'border-alu-line bg-white hover:bg-alu'}`}
+                style={cat === sc.id ? tint(s, sc.id, true) : undefined}
               >
+                <Swatch color={s.categories.find((x) => x.id === selectedTop)?.color} />
                 {sc.name}{' '}
                 <span className="text-xs opacity-70">{itemsInCategory(s, sc.id).length}</span>
               </button>
@@ -151,7 +157,11 @@ export function CatalogBrowse() {
         ) : (
           <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3" data-testid="catalog-cards">
             {items.map((i) => (
-              <li key={i.id} className="panel flex gap-3 p-3">
+              <li
+                key={i.id}
+                className="panel flex gap-3 border-l-4 p-3"
+                style={{ borderLeftColor: colorOf(s, i.categoryId)?.mark }}
+              >
                 <div className="grid h-14 w-14 shrink-0 place-items-center overflow-hidden rounded bg-alu text-[10px] text-muted">
                   {i.photos?.[0] ? (
                     <img src={i.photos[0]} alt="" className="h-full w-full object-cover" />

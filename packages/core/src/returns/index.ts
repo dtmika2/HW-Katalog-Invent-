@@ -405,6 +405,9 @@ export function recordReturnSession(
   const g = guard(state, user, 'recordReturnSession', bookingId);
   if (!g.ok) return g;
   const b = g.value;
+  if (!state.shipments.some((s) => s.bookingId === bookingId)) {
+    return err('invalid_state', 'Nothing has been shipped yet');
+  }
   if (input.lines.length === 0 && (input.unexpected ?? []).length === 0)
     return err('validation', 'Nothing to record');
   const v = validate(state, b, input);

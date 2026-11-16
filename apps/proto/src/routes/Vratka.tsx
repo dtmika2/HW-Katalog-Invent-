@@ -97,7 +97,8 @@ export function Vratka() {
   const settled = sheet.filter((l) => !pending.includes(l));
   const canRecord =
     can(user, 'record_return') &&
-    ['shipped', 'returning', 'returned_with_issues'].includes(b.status);
+    ['packing', 'shipped', 'returning', 'returned_with_issues'].includes(b.status) &&
+    s.shipments.some((x) => x.bookingId === id);
   const locations = s.locations.filter((l) => l.name.startsWith('Police'));
   const targets = s.bookings.filter(
     (x) =>

@@ -9,7 +9,7 @@ import {
   refillTasksWithAge,
   remainingToShip,
 } from '@quix/core';
-import { CaseLabel, Section, StatusChip } from '../components/ui';
+import { CaseLabel, PartlyShipped, Section, StatusChip } from '../components/ui';
 import { cs, fmtDate } from '../i18n/cs';
 import { caseNumber, itemName, userName } from '../lib/names';
 import { useAppState, useProto, useToday, useUser } from '../store';
@@ -31,7 +31,11 @@ export function WarehouseDashboard() {
     )
     .sort((a, b) => (firstBookedFrom(a) < firstBookedFrom(b) ? -1 : 1));
   const returns = s.bookings
-    .filter((b) => ['shipped', 'returning'].includes(b.status))
+    .filter(
+      (b) =>
+        ['shipped', 'returning'].includes(b.status) ||
+        (b.status === 'packing' && s.shipments.some((x) => x.bookingId === b.id)),
+    )
     .sort((a, b) => (lastBookedUntil(a) < lastBookedUntil(b) ? -1 : 1));
   const open = s.serviceCases.filter(isOpenService);
   const check = open.filter((sc) => sc.status === 'back_to_check' || sc.status === 'reported');
@@ -48,11 +52,9 @@ export function WarehouseDashboard() {
                 <span className="block text-xs text-muted">
                   {cs.warehouseUi.loading(fmtDate(firstBookedFrom(b)))}
                 </span>
-                {b.status === 'shipped' && (
-                  <span className="block text-xs font-semibold text-warn">
-                    {cs.warehouseUi.partlyShipped(remainingToShip(s, b.id))}
-                  </span>
-                )}
+                <span className="block">
+                  <PartlyShipped s={s} b={b} />
+                </span>
               </span>
               <span className="flex items-center gap-2">
                 <StatusChip status={b.status} />

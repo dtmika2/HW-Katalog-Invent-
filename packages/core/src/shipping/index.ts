@@ -263,7 +263,8 @@ export function shipBatch(
         if (st) st.qty = Math.max(0, st.qty - sl.qty);
       }
     }
-    booking.status = 'shipped';
+    // The order stays "Balí se" until everything has left; only then it is "Odvezeno".
+    booking.status = remainingToShip(d, bookingId) === 0 ? 'shipped' : 'packing';
     const remaining = booking.lines
       .filter((l) => isActiveLine(l) && !l.fromBookingId)
       .reduce((n, l) => n + Math.max(0, effectiveQty(l) - shippedQty(d, booking.id, l.id)), 0);

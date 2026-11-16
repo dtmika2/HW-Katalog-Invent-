@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  categoryColor,
   categoryPath,
   deleteCategory,
   itemsInCategory,
@@ -79,6 +80,24 @@ describe('categories', () => {
       'Kabeláž',
       'PowerCON a napájení',
     ]);
+  });
+
+  it('subcategories inherit the colour of their category', () => {
+    const { s, top, sub } = withTree();
+    const s2 = unwrap(
+      upsertCategory(s, U.tomas, { id: top, name: 'Kabeláž', icon: 'cable', color: 'sage' }),
+    ).state;
+    expect(categoryColor(s2, top)).toBe('sage');
+    expect(categoryColor(s2, sub)).toBe('sage');
+    const s3 = unwrap(
+      upsertCategory(s2, U.tomas, {
+        id: sub,
+        name: 'Napájecí kabely',
+        parentId: top,
+        color: 'sand',
+      }),
+    ).state;
+    expect(categoryColor(s3, sub)).toBe('sand');
   });
 
   it('only empty categories can be deleted', () => {

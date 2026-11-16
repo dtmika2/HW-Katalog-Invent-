@@ -10,7 +10,7 @@ import {
   periodWithBuffer,
   type AppState,
 } from '@quix/core';
-import { Field, StatusChip } from '../components/ui';
+import { Field, PartlyShipped, StatusChip } from '../components/ui';
 import { cs, fmtDate, fmtRange } from '../i18n/cs';
 import { bookingSpan, clientName, userName } from '../lib/names';
 import { useAppState, useProto, useToday, useUser } from '../store';
@@ -86,7 +86,7 @@ export function Bookings() {
                   <td className="px-3 py-2">{userName(s, b.pmId)}</td>
                   <td className="whitespace-nowrap px-3 py-2">{fmtRange(span.from, span.to)}</td>
                   <td className="px-3 py-2">
-                    <StatusChip status={b.status} />
+                    <StatusChip status={b.status} /> <PartlyShipped s={s} b={b} />
                     {pre && (
                       <span className="ml-1 text-xs text-muted">
                         {cs.bookings.expiresIn(diffDays(today, firstEventDay(b)))}

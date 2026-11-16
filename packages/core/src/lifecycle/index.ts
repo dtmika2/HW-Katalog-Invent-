@@ -38,7 +38,11 @@ export const TRANSITIONS: Record<
   startPacking: { from: ['confirmed'], to: 'packing' },
   ship: { from: ['packing', 'shipped'], to: 'shipped' },
   addLinesAfterShipping: { from: ['shipped', 'returning'], to: 'packing' },
-  recordReturnSession: { from: ['shipped', 'returning', 'returned_with_issues'], to: 'computed' },
+  // 'packing' too: part of the order may already be out (batches) and come back
+  recordReturnSession: {
+    from: ['packing', 'shipped', 'returning', 'returned_with_issues'],
+    to: 'computed',
+  },
   resolveIssue: {
     from: ['returned_with_issues', 'returning', 'returned', 'closed'],
     to: 'computed',

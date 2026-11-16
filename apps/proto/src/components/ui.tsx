@@ -1,5 +1,11 @@
 import type { ReactNode } from 'react';
-import type { BookingStatus, LineAvailability } from '@quix/core';
+import {
+  remainingToShip,
+  type AppState,
+  type Booking,
+  type BookingStatus,
+  type LineAvailability,
+} from '@quix/core';
 import { cs } from '../i18n/cs';
 import { useProto } from '../store';
 
@@ -132,5 +138,18 @@ export function Toasts() {
         </button>
       ))}
     </div>
+  );
+}
+
+/** "část odvezena, zbývá N ks" while an order is still being packed but a batch has left. */
+export function PartlyShipped({ s, b }: { s: AppState; b: Booking }) {
+  if (b.status !== 'packing' && b.status !== 'shipped') return null;
+  const left = remainingToShip(s, b.id);
+  const anyOut = s.shipments.some((x) => x.bookingId === b.id && !x.transferFromBookingId);
+  if (!anyOut || left === 0) return null;
+  return (
+    <span data-testid="partly-shipped" className="text-xs font-semibold text-warn">
+      {cs.warehouseUi.partlyShipped(left)}
+    </span>
   );
 }

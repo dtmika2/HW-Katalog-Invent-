@@ -46,7 +46,15 @@ import {
   type User,
 } from '@quix/core';
 import { CategoryLabel } from '../components/Category';
-import { AvailabilityBadge, CaseLabel, Empty, Field, Section, StatusChip } from '../components/ui';
+import {
+  AvailabilityBadge,
+  CaseLabel,
+  Empty,
+  Field,
+  PartlyShipped,
+  Section,
+  StatusChip,
+} from '../components/ui';
 import { cs, fmtDate } from '../i18n/cs';
 import {
   ageDays,
@@ -328,7 +336,8 @@ function Editor({ stored }: { stored: Booking }) {
             {cs.editor.actions.openPacking}
           </Link>
         )}
-        {['shipped', 'returning', 'returned_with_issues'].includes(stored.status) && (
+        {(['shipped', 'returning', 'returned_with_issues'].includes(stored.status) ||
+          (stored.status === 'packing' && s.shipments.some((x) => x.bookingId === stored.id))) && (
           <Link to={`/vratka/${stored.id}`} className="btn">
             {cs.editor.actions.openVratka}
           </Link>
@@ -374,6 +383,7 @@ function Header({
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <span className="text-xs font-medium text-muted">{cs.bookingType[stored.type]}</span>
         <StatusChip status={stored.status} />
+        <PartlyShipped s={s} b={stored} />
         <span className="text-xs text-muted">
           {cs.common.pm}: {userName(s, stored.pmId)}
         </span>

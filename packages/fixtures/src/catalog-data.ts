@@ -160,8 +160,21 @@ const CATEGORY_TREE: [string, string, string, [string, string][]][] = [
   ],
 ];
 
+/** Tame colour per top category (keys of the UI palette); subcategories inherit it. */
+export const CATEGORY_COLOR: Record<string, string> = {
+  audio: 'lavender',
+  svetla: 'sand',
+  video: 'teal',
+  led: 'sky',
+  rigging: 'slate',
+  elektro: 'clay',
+  kabelaz: 'sage',
+  stage: 'olive',
+  ostatni: 'stone',
+};
+
 export const CATEGORIES: Category[] = CATEGORY_TREE.flatMap(([id, name, icon, subs]) => [
-  { id, name, icon },
+  { id, name, icon, ...(CATEGORY_COLOR[id] ? { color: CATEGORY_COLOR[id] } : {}) },
   ...subs.map(([sid, sname]) => ({ id: sid, name: sname, parentId: id })),
 ]);
 

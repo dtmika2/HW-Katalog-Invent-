@@ -163,7 +163,7 @@ export function bookingHolds(state: HoldState, booking: Booking, asDemand = fals
   else return out;
 
   const postShip = !asDemand && POST_SHIP.has(booking.status);
-  const shippedStatus = !asDemand && booking.status === 'shipped';
+  const shippedStatus = !asDemand && (booking.status === 'shipped' || booking.status === 'packing');
 
   for (const line of booking.lines) {
     if (!isActiveLine(line) || isExternal(line.target)) continue;
