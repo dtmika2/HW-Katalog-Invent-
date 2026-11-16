@@ -377,9 +377,7 @@ describe('vratka', () => {
       }),
     );
     expect(get(s, 'o1').status).toBe('returned_with_issues');
-    s = unwrap(
-      recordReturnSession(s, U.ondra ?? U.karel, '2027-04-27', 'o1', { lines: [ret('l1', 3)] }),
-    );
+    s = unwrap(recordReturnSession(s, U.karel, '2027-04-27', 'o1', { lines: [ret('l1', 3)] }));
     expect(get(s, 'o1').status).toBe('returned');
     expect(s.issues[0]).toMatchObject({ archivedOn: '2027-04-27', resolutionKind: 'found' });
     expect(s.returnSessions).toHaveLength(3);

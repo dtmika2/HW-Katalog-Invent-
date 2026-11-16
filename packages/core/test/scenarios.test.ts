@@ -225,7 +225,7 @@ describe('scenario: Gala Dinner, 24 Apr 2027', () => {
     // Van 2 on the morning of the event: everything else.
     const rest = get(s, 'gala').lines.filter((l) => l.id !== ax9Line.id && l.id !== sbLine.id);
     s = unwrap(
-      shipBatch(s, U.ondra ?? U.martin, '2027-04-24', 'gala', {
+      shipBatch(s, U.martin, '2027-04-24', 'gala', {
         label: 'Dodávka 2',
         lines: rest.map((l) => ({ lineId: l.id, qty: l.qty })),
       }),
