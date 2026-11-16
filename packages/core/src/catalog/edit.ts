@@ -4,7 +4,7 @@
  */
 import type { IsoDate } from '../dates';
 import { can } from '../lifecycle/permissions';
-import type { AppState, Case, CaseType, Connection, Id, Item, User } from '../types';
+import type { AppState, Case, CaseType, Category, Connection, Id, Item, User } from '../types';
 import { err, nextId, ok, produce, type Result } from '../util';
 import { caseContentQty, contentsMatchStandard } from './index';
 
@@ -401,4 +401,98 @@ export function importItems(state: AppState, user: User, rows: ImportRow[]): Res
     else created += 1;
   }
   return ok({ state: s, created, updated, errors });
+}
+
+// ---------------------------------------------------------------------------
+// Categories (two levels: category → subcategory)
+
+/** Top-level category of a category id (itself when it is top-level). */
+export function topCategoryId(state: Pick<AppState, 'categories'>, id: Id): Id {
+  return state.categories.find((c) => c.id === id)?.parentId ?? id;
+}
+
+/** [top, sub] for an item's category (sub missing when the item sits in a top category). */
+export function categoryPath(state: Pick<AppState, 'categories'>, id: Id): Category[] {
+  const c = state.categories.find((x) => x.id === id);
+  if (!c) return [];
+  const parent = c.parentId ? state.categories.find((x) => x.id === c.parentId) : undefined;
+  return parent ? [parent, c] : [c];
+}
+
+/** Items in a category; for a top category also those in its subcategories. */
+export function itemsInCategory(
+  state: Pick<AppState, 'categories' | 'items'>,
+  id: Id,
+  includeArchived = false,
+): Item[] {
+  const ids = new Set([id, ...state.categories.filter((c) => c.parentId === id).map((c) => c.id)]);
+  return state.items.filter((i) => ids.has(i.categoryId) && (includeArchived || !i.archived));
+}
+
+/**
+ * Create or update a category. Two levels only: a subcategory's parent must be a top-level
+ * category, and a category with subcategories cannot itself become a subcategory.
+ * Names are unique among siblings (case-insensitive).
+ */
+export function upsertCategory(
+  state: AppState,
+  user: User,
+  cat: { id?: Id; name: string; parentId?: Id; icon?: string },
+): Result<{ state: AppState; categoryId: Id }> {
+  if (!can(user, 'edit_catalogue')) return forbidden();
+  const name = cat.name.trim();
+  if (!name) return err('validation', 'Name is required', { field: 'name' });
+  if (cat.parentId) {
+    const parent = state.categories.find((c) => c.id === cat.parentId);
+    if (!parent) return err('validation', 'Unknown parent', { field: 'parentId' });
+    if (parent.parentId)
+      return err('validation', 'Only two levels are allowed', { field: 'parentId' });
+    if (cat.id && cat.id === cat.parentId)
+      return err('validation', 'A category cannot be its own parent', { field: 'parentId' });
+    if (cat.id && state.categories.some((c) => c.parentId === cat.id)) {
+      return err('validation', 'A category with subcategories cannot become a subcategory', {
+        field: 'parentId',
+      });
+    }
+  }
+  const sibling = state.categories.find(
+    (c) =>
+      c.id !== cat.id &&
+      (c.parentId ?? '') === (cat.parentId ?? '') &&
+      c.name.toLowerCase() === name.toLowerCase(),
+  );
+  if (sibling) return err('validation', 'Name already used at this level', { field: 'name' });
+  const { state: next, result } = produce(state, (d) => {
+    const id = cat.id || nextId(d, 'cat');
+    const clean: Category = { id, name };
+    if (cat.parentId) clean.parentId = cat.parentId;
+    if (cat.icon?.trim()) clean.icon = cat.icon.trim();
+    const i = d.categories.findIndex((c) => c.id === id);
+    if (i >= 0) d.categories[i] = clean;
+    else d.categories.push(clean);
+    return id;
+  });
+  return ok({ state: next, categoryId: result });
+}
+
+/** Delete an empty category (no items, archived ones included, and no subcategories). */
+export function deleteCategory(state: AppState, user: User, id: Id): Result<AppState> {
+  if (!can(user, 'edit_catalogue')) return forbidden();
+  if (!state.categories.some((c) => c.id === id))
+    return err('not_found', `Category ${id} not found`);
+  const subs = state.categories.filter((c) => c.parentId === id).length;
+  if (subs > 0)
+    return err('validation', 'Remove the subcategories first', {
+      field: 'subcategories',
+      count: subs,
+    });
+  const items = state.items.filter((i) => i.categoryId === id).length;
+  if (items > 0)
+    return err('validation', 'Move the items to another category first', {
+      field: 'items',
+      count: items,
+    });
+  return ok(
+    produce(state, (d) => void (d.categories = d.categories.filter((c) => c.id !== id))).state,
+  );
 }

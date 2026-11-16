@@ -14,6 +14,7 @@ import {
   type Connection,
 } from '@quix/core';
 import { AvailabilityCalendar } from '../components/AvailabilityCalendar';
+import { CategoryLabel } from '../components/Category';
 import { CaseLabel, Empty, Field, Section } from '../components/ui';
 import { cs, fmtDate } from '../i18n/cs';
 import { itemName, locationPath, targetName, userName } from '../lib/names';
@@ -196,9 +197,9 @@ export function ItemDetail() {
         </div>
         <div className="min-w-0 flex-1">
           <p className="text-xs text-muted">
-            {item.manufacturer} · {item.model} ·{' '}
-            {s.categories.find((c) => c.id === item.categoryId)?.name}
+            {item.manufacturer} · {item.model}
           </p>
+          <CategoryLabel s={s} categoryId={item.categoryId} />
           <h1>{item.name}</h1>
           <p className="mt-1 text-sm">
             {cs.catalog.perDay(cs.common.czk(item.priceDay))}

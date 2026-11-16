@@ -21,14 +21,17 @@ import { cs } from '../i18n/cs';
 import { itemName, targetName } from '../lib/names';
 import { useAppState, useProto, useUser } from '../store';
 import { CatalogBrowse } from './Catalog';
+import { CategoryManager } from './CategoryManager';
 
-type Tab = 'cards' | 'table' | 'tryIt' | 'import';
+type Tab = 'cards' | 'table' | 'categories' | 'tryIt' | 'import';
 
 export function Catalog() {
   const user = useUser();
   const editor = can(user, 'edit_catalogue');
   const [tab, setTab] = useState<Tab>('cards');
-  const tabs: Tab[] = editor ? ['cards', 'table', 'tryIt', 'import'] : ['cards', 'tryIt'];
+  const tabs: Tab[] = editor
+    ? ['cards', 'table', 'categories', 'tryIt', 'import']
+    : ['cards', 'tryIt'];
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -50,6 +53,7 @@ export function Catalog() {
       </div>
       {tab === 'cards' && <CatalogBrowse />}
       {tab === 'table' && <CatalogTable />}
+      {tab === 'categories' && <CategoryManager />}
       {tab === 'tryIt' && <TryIt />}
       {tab === 'import' && <ImportExport />}
     </div>
@@ -297,11 +301,20 @@ function CatalogTable() {
                       value={i.categoryId}
                       onChange={(e) => save(i, { categoryId: e.target.value })}
                     >
-                      {subs.map((cat) => (
-                        <option key={cat.id} value={cat.id}>
-                          {cat.name}
-                        </option>
-                      ))}
+                      {s.categories
+                        .filter((t) => !t.parentId)
+                        .map((t) => (
+                          <optgroup key={t.id} label={t.name}>
+                            <option value={t.id}>{t.name}</option>
+                            {s.categories
+                              .filter((sc) => sc.parentId === t.id)
+                              .map((sc) => (
+                                <option key={sc.id} value={sc.id}>
+                                  {sc.name}
+                                </option>
+                              ))}
+                          </optgroup>
+                        ))}
                     </select>
                   </td>
                   <td className="px-1">

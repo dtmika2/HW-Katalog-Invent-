@@ -6,6 +6,7 @@ import {
   addLine,
   bookingPriceTotal,
   can,
+  categoryPath,
   chooseOr,
   clearOverride,
   closeBooking,
@@ -44,6 +45,7 @@ import {
   type Target,
   type User,
 } from '@quix/core';
+import { CategoryLabel } from '../components/Category';
 import { AvailabilityBadge, CaseLabel, Empty, Field, Section, StatusChip } from '../components/ui';
 import { cs, fmtDate } from '../i18n/cs';
 import {
@@ -577,12 +579,25 @@ function AddPanel({ s, onAdd }: { s: AppState; onAdd: (t: Target, qty: number) =
       .filter(
         (i) =>
           !i.archived &&
-          (i.name.toLowerCase().includes(needle) || i.model.toLowerCase().includes(needle)),
+          (i.name.toLowerCase().includes(needle) ||
+            i.model.toLowerCase().includes(needle) ||
+            // searching a category name ("optické", "kabely") finds everything in it
+            categoryPath(s, i.categoryId).some((c) => c.name.toLowerCase().includes(needle))),
       )
-      .map((i) => ({ target: { itemId: i.id } as Target, name: i.name, isCase: false }));
+      .map((i) => ({
+        target: { itemId: i.id } as Target,
+        name: i.name,
+        isCase: false,
+        categoryId: i.categoryId,
+      }));
     const types = s.caseTypes
       .filter((t) => !t.archived && t.name.toLowerCase().includes(needle))
-      .map((t) => ({ target: { caseTypeId: t.id } as Target, name: t.name, isCase: true }));
+      .map((t) => ({
+        target: { caseTypeId: t.id } as Target,
+        name: t.name,
+        isCase: true,
+        categoryId: '',
+      }));
     return [...types, ...items].slice(0, 12);
   }, [q, s]);
   return (
@@ -627,8 +642,11 @@ function AddPanel({ s, onAdd }: { s: AppState; onAdd: (t: Target, qty: number) =
                   setSel(m.target);
                 }}
               >
-                <span>{m.name}</span>
-                {m.isCase && <CaseLabel>{cs.editor.caseTag}</CaseLabel>}
+                <span aria-label={m.name}>{m.name}</span>
+                <span className="flex items-center gap-2" aria-hidden="true">
+                  {m.categoryId && <CategoryLabel s={s} categoryId={m.categoryId} link={false} />}
+                  {m.isCase && <CaseLabel>{cs.editor.caseTag}</CaseLabel>}
+                </span>
               </button>
             </li>
           ))}
