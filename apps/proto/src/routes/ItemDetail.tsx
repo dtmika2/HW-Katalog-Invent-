@@ -74,6 +74,10 @@ function FaultForm({ itemId }: { itemId: string }) {
   const [reason, setReason] = useState('');
   const [wh, setWh] = useState(stocked[0]?.warehouseId ?? '');
   const [back, setBack] = useState(addDays(today, 14));
+  const [caseId, setCaseId] = useState('');
+  const cases = s.cases.filter(
+    (c) => c.warehouseId === wh && !c.archived && c.contents.some((x) => x.itemId === itemId),
+  );
   if (!open) {
     return (
       <button type="button" className="btn btn-danger" onClick={() => setOpen(true)}>
@@ -93,6 +97,7 @@ function FaultForm({ itemId }: { itemId: string }) {
             qty,
             reason,
             expectedBack: back,
+            ...(caseId ? { caseId } : {}),
           });
           return r.ok ? { ok: true, value: r.value.state } : r;
         }, cs.catalog.faultDone);
@@ -121,6 +126,23 @@ function FaultForm({ itemId }: { itemId: string }) {
           ))}
         </select>
       </Field>
+      {cases.length > 0 && (
+        <Field label={cs.catalog.faultCase} htmlFor="f-case">
+          <select
+            id="f-case"
+            className="input"
+            value={caseId}
+            onChange={(e) => setCaseId(e.target.value)}
+          >
+            <option value="">{cs.catalog.faultNoCase}</option>
+            {cases.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.number}
+              </option>
+            ))}
+          </select>
+        </Field>
+      )}
       <Field label={cs.catalog.faultReason} htmlFor="f-reason">
         <input
           id="f-reason"

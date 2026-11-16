@@ -95,4 +95,26 @@ describe('M4 availability calendar', () => {
     fireEvent.change(screen.getAllByLabelText('PM').at(-1)!, { target: { value: 'u-lucie' } });
     expect(screen.queryAllByTestId('row-bk-firemni')).toHaveLength(0);
   });
+
+  it('a fault reported on a piece inside a case makes the May order short and notifies its PM', () => {
+    renderApp('/items/ax9', { scenario: 'galaDinner', user: 'u-karel' });
+    fireEvent.click(screen.getByRole('button', { name: 'Nahlásit závadu' }));
+    fireEvent.change(screen.getByLabelText('V casu (nepovinné)'), {
+      target: { value: 'case-ax9-02' },
+    });
+    fireEvent.change(screen.getByLabelText('Co je špatně'), { target: { value: 'Nesvítí' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Poslat do servisu' }));
+    expect(state().serviceCases.at(-1)).toMatchObject({ itemId: 'ax9', caseId: 'case-ax9-02' });
+    expect(state().conflicts.some((c) => c.bookingId === 'bk-kveten' && c.status === 'new')).toBe(
+      true,
+    );
+    expect(
+      state().notifications.some(
+        (n) =>
+          n.type === 'service_affects_order' &&
+          n.bookingId === 'bk-kveten' &&
+          n.userId === 'u-jana',
+      ),
+    ).toBe(true);
+  });
 });

@@ -402,6 +402,8 @@ export const cs = {
     faultReason: 'Co je špatně',
     faultWarehouse: 'Sklad',
     faultExpected: 'Očekávaný návrat',
+    faultCase: 'V casu (nepovinné)',
+    faultNoCase: 'volný kus',
     faultSubmit: 'Poslat do servisu',
     faultDone: 'Servisní případ založen',
     serviceHistory: 'Servisní historie',

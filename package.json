@@ -17,7 +17,8 @@
     "format": "node node_modules/prettier/bin/prettier.cjs --write .",
     "build": "npm run build --workspaces --if-present",
     "dev": "npm run dev -w apps/proto",
-    "coverage": "npm run coverage -w packages/core"
+    "coverage": "npm run coverage -w packages/core",
+    "e2e": "node node_modules/@playwright/test/cli.js test"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.5",
