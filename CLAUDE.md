@@ -8,7 +8,7 @@ Source of truth: `docs/concept.md` (the HW Catalogue concept). Current work plan
 All tool binaries are invoked as `node node_modules/<tool>/...` in npm scripts, because the
 repository path contains `&`, which breaks npm's Windows `.cmd` shims. Do not use `npx` here.
 
-- `npm run typecheck` · `npm test` · `npm run lint` · `npm run build` — the quality gate
+- `npm run typecheck` · `npm test` · `npm run lint` · `npm run build` — the quality gate (`bash scripts/gate.sh` runs all four and stops at the first failure)
 - `npm run dev` — prototype app (Vite)
 - `npm run coverage` — core coverage
 - `npm run format` — Prettier write
