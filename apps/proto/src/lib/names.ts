@@ -33,6 +33,15 @@ export function lineName(s: AppState, l: BookingLine): string {
   return targetName(s, l.target);
 }
 
+/** Category of a line: the item's own; a case takes it from its primary item (first standard content). */
+export function lineCategoryId(s: AppState, l: BookingLine): string | undefined {
+  if ('external' in l.target) return undefined;
+  const t = l.target;
+  const itemId =
+    'itemId' in t ? t.itemId : s.caseTypes.find((x) => x.id === t.caseTypeId)?.contents[0]?.itemId;
+  return s.items.find((i) => i.id === itemId)?.categoryId;
+}
+
 export const isCaseLine = (l: BookingLine): boolean => 'caseTypeId' in l.target;
 
 export function bookingSpan(b: Booking): { from: string; to: string } {

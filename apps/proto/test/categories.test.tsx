@@ -135,6 +135,37 @@ describe('categories', () => {
     expect(options[0]).toHaveTextContent('Kabeláž›Optické kabely');
   });
 
+  it('every item and case on the booking HW list shows its category; a case takes it from its primary item', () => {
+    renderApp(`/bookings/${GALA_ID}`, {
+      scenario: 'galaDinner',
+      user: 'u-petr',
+      prepare: GALA_STEPS.create,
+    });
+    const lines = screen.getByTestId('lines');
+    const rows = [...lines.querySelectorAll<HTMLElement>('[data-line-name]')];
+    expect(rows.length).toBeGreaterThan(3);
+    for (const row of rows) {
+      const label = within(row).getByTestId('category-label');
+      expect(label).not.toBeEmptyDOMElement();
+      expect(within(label).queryByRole('link')).toBeNull();
+    }
+    const label = (name: string) =>
+      within(rows.find((r) => r.dataset.lineName === name)!).getByTestId('category-label');
+    expect(label('CAT6 kabel 50 m (buben)')).toHaveTextContent('Kabeláž›Síťové kabely');
+    const ax9 = state().items.find((i) => i.id === 'ax9');
+    const ax9Category = state().categories.find((c) => c.id === ax9?.categoryId)?.name ?? '?';
+    expect(label('AX9 case (8×)')).toHaveTextContent(ax9Category);
+  });
+
+  it('item page: the "used by" list has its own title and no "Co k tomu nutně potřebuješ" subtitle', () => {
+    renderApp('/items/desk-power', { scenario: 'base', user: 'u-petr' });
+    const section = screen.getByText('Je používán následujícími:').closest('section')!;
+    expect(within(section).getAllByRole('link').length).toBeGreaterThan(0);
+    expect(section).not.toHaveTextContent('Co k tomu nutně potřebuješ');
+    renderApp('/items/ledbeam150', { scenario: 'base', user: 'u-petr' });
+    expect(screen.getAllByText('Co k tomu nutně potřebuješ').length).toBeGreaterThan(0);
+  });
+
   it('categories have tame colours; subcategories inherit them; the colour can be changed', () => {
     renderApp('/catalog?cat=kab-opt', { scenario: 'base', user: 'u-tomas' });
     for (const label of screen.getAllByTestId('category-label'))

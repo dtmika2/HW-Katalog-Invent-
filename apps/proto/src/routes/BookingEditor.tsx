@@ -61,6 +61,7 @@ import {
   caseTypeName,
   isCaseLine,
   itemName,
+  lineCategoryId,
   lineName,
   targetName,
   userName,
@@ -717,6 +718,7 @@ function LineRow({
 }: TreeProps & { line: BookingLine; depth: number }) {
   const a = av.get(line.id);
   const name = lineName(s, line);
+  const categoryId = lineCategoryId(s, line);
   const isAuto = line.origin === 'auto';
   const isExt = 'external' in line.target;
   const qty = line.overriddenQty ?? line.qty;
@@ -756,6 +758,8 @@ function LineRow({
           </Link>
         )}
         {isCaseLine(line) && <CaseLabel>{cs.editor.caseTag}</CaseLabel>}
+        {/* not a link: a click would leave the editor and lose unsaved changes */}
+        {categoryId && <CategoryLabel s={s} categoryId={categoryId} link={false} />}
         {isAuto && (
           <span className="rounded bg-alu px-1.5 text-[11px] font-medium text-muted">
             {cs.editor.autoTag}

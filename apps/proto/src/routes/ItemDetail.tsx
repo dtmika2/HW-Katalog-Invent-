@@ -31,7 +31,10 @@ function ConnectionList({ s, list, from }: { s: AppState; list: Connection[]; fr
         if (conns.length === 0) return null;
         return (
           <div key={k}>
-            <h3 className="text-sm font-semibold">{cs.catalog.kind[k]}</h3>
+            {/* "Co k tomu nutně potřebuješ" reads backwards in the "used by" list */}
+            {(from || k !== 'required') && (
+              <h3 className="text-sm font-semibold">{cs.catalog.kind[k]}</h3>
+            )}
             <ul className="mt-1 space-y-0.5 text-sm">
               {conns.map((c) => (
                 <li key={c.id}>

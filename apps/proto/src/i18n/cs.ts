@@ -385,7 +385,7 @@ export const cs = {
     inService: (n: number) => `v servisu ${n}`,
     looseVsCases: (loose: number, inCases: number) => `volně ${loose}, v casech ${inCases}`,
     connectionsOut: 'Propojení této položky',
-    connectionsIn: 'Používají ji',
+    connectionsIn: 'Je používán následujícími:',
     kind: {
       required: 'Co k tomu nutně potřebuješ',
       check: 'Máš aspoň jeden z těchto?',
