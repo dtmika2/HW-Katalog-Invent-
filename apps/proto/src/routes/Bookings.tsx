@@ -9,8 +9,10 @@ import {
   firstEventDay,
   periodWithBuffer,
   type AppState,
+  NOTIFICATION_LEVELS,
+  notificationLevel,
 } from '@quix/core';
-import { Field, PartlyShipped, StatusChip } from '../components/ui';
+import { Field, PartlyShipped, StatusChip, LEVEL_STYLE, LevelChip } from '../components/ui';
 import { cs, fmtDate, fmtRange } from '../i18n/cs';
 import { bookingSpan, clientName, userName } from '../lib/names';
 import { useAppState, useProto, useToday, useUser } from '../store';
@@ -259,24 +261,33 @@ export function Notifications() {
           {cs.notifications.markAll}
         </button>
       </div>
+      <ul
+        aria-label={cs.notifications.legend}
+        className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted"
+      >
+        {NOTIFICATION_LEVELS.map((l) => (
+          <li key={l} className="flex items-center gap-1.5">
+            <LevelChip level={l} /> {cs.notifications.levelHint[l]}
+          </li>
+        ))}
+      </ul>
       {mine.length === 0 ? (
         <p className="text-sm text-muted">{cs.notifications.empty}</p>
       ) : (
-        <ul data-testid="notifications" className="panel divide-y divide-alu-line">
+        <ul data-testid="notifications" className="panel overflow-hidden">
           {mine.map((n) => {
             const params = { ...n.params, itemName: itemNameOf(n.params.itemId) ?? '' };
             const text = cs.notifications.types[n.type](params);
+            const level = notificationLevel(n);
             return (
               <li
                 key={n.id}
-                className={`flex flex-wrap items-center gap-2 px-3 py-2 text-sm ${n.read ? 'text-muted' : 'font-medium'}`}
+                data-level={level}
+                data-read={n.read}
+                className={`flex flex-wrap items-center gap-2 border-b border-l-4 border-b-alu-line px-3 py-2 text-sm last:border-b-0 ${n.read ? `${LEVEL_STYLE[level].rowRead} text-muted` : LEVEL_STYLE[level].row}`}
               >
                 <span className="w-24 shrink-0 text-xs text-muted">{fmtDate(n.on)}</span>
-                {n.highPriority && (
-                  <span className="rounded bg-bad px-1.5 text-xs text-white">
-                    {cs.notifications.highPriority}
-                  </span>
-                )}
+                <LevelChip level={level} read={n.read} />
                 {n.bookingId ? (
                   <Link to={`/bookings/${n.bookingId}`} className="hover:underline">
                     {text}

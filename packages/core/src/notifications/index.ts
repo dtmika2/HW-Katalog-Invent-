@@ -6,6 +6,7 @@ import type {
   AppState,
   Id,
   Message,
+  Notification,
   NotificationType,
   Params,
   Role,
@@ -90,6 +91,57 @@ export function postMessage(
 /** Thread of a booking in insertion order. */
 export function thread(state: Pick<AppState, 'messages'>, bookingId: Id): Message[] {
   return state.messages.filter((m) => m.bookingId === bookingId);
+}
+
+/** How important a notification is, most important first. */
+export const NOTIFICATION_LEVELS = ['urgent', 'attention', 'info'] as const;
+export type NotificationLevel = (typeof NOTIFICATION_LEVELS)[number];
+
+/** Importance per type. A Record, so a new notification type cannot be left without a level. */
+const LEVEL_OF_TYPE: Record<NotificationType, NotificationLevel> = {
+  conflict_detected: 'urgent',
+  conflict_overridden: 'urgent',
+  conflict_unresolved: 'urgent',
+  order_edited_after_packing: 'urgent',
+  overdue_return: 'urgent',
+  service_affects_order: 'urgent',
+  external_not_returned: 'urgent',
+  returned_with_issues: 'attention',
+  prebooking_returned: 'attention',
+  prebooking_expiring: 'attention',
+  prebooking_expired: 'attention',
+  validation_waiting: 'attention',
+  upcoming_loading: 'attention',
+  service_overdue: 'attention',
+  case_incomplete: 'info',
+  order_confirmed: 'info',
+  batch_shipped: 'info',
+  prebooking_submitted: 'info',
+  service_opened: 'info',
+  service_fixed: 'info',
+};
+
+/**
+ * Importance of a notification. Derived from its type, never stored: high priority is always
+ * urgent, and a case that stays incomplete for a week is raised from info to attention.
+ */
+export function notificationLevel(
+  n: Pick<Notification, 'type' | 'params' | 'highPriority'>,
+): NotificationLevel {
+  if (n.highPriority) return 'urgent';
+  if (n.type === 'case_incomplete' && n.params.escalated) return 'attention';
+  return LEVEL_OF_TYPE[n.type];
+}
+
+/** The most important level among a user's unread notifications. */
+export function highestUnreadLevel(
+  state: Pick<AppState, 'notifications'>,
+  userId: Id,
+): NotificationLevel | undefined {
+  const unread = new Set(
+    state.notifications.filter((n) => n.userId === userId && !n.read).map(notificationLevel),
+  );
+  return NOTIFICATION_LEVELS.find((l) => unread.has(l));
 }
 
 export function unreadCount(state: Pick<AppState, 'notifications'>, userId: Id): number {

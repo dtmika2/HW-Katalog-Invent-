@@ -8,6 +8,7 @@ import type {
   ConflictStatus,
   IssueResolutionKind,
   IssueType,
+  NotificationLevel,
   NotificationType,
   Params,
   Role,
@@ -50,7 +51,14 @@ export const cs = {
       'V prohlížeči máte uložená demo data ze starší verze prototypu. Barvy kategorií jsme doplnili; další novinky (např. nové kategorie kabelů) uvidíte až po obnovení demo dat. Vaše změny se tím zahodí.',
     staleDismiss: 'Ponechat moje data',
     resetConfirm: 'Zahodit všechny změny a načíst scénář znovu?',
-    bell: (n: number) => (n ? `Upozornění, ${n} nepřečtených` : 'Upozornění'),
+    bell: (n: number, level: string) =>
+      n ? `Upozornění, ${n} nepřečtených, nejdůležitější: ${level}` : 'Upozornění',
+    scenarioHelp: 'Co scénáře ukazují',
+    scenarioSee: 'Co uvidíte:',
+    scenarioTeaches: 'Co to ukazuje:',
+    scenarioCurrent: 'právě zvolený',
+    scenarioNote:
+      'Volba scénáře zahodí vaše změny. Základní data, Gala Dinner a Převoz mají stejná data, liší se jen příběh.',
     menu: 'Menu',
   },
   roles: {
@@ -66,6 +74,30 @@ export const cs = {
     transfer: 'Převoz z akce na akci',
     caseBreaking: 'Rozdělení obsahu casu (AX1)',
   } as Record<string, string>,
+  /** Explanations shown next to the scenario picker. */
+  scenarioInfo: {
+    base: {
+      see: 'Běžný provoz: rezervace ve všech stavech, otevřený servis, dva neúplné casy a jeden chybějící mikrofon.',
+      teaches: 'Jak vypadá den PM, šéfa techniky a skladu. Nejlepší na volné zkoušení.',
+    },
+    galaDinner: {
+      see: 'Gala Dinner si založíte sami jako Petr na 24. 4. 2027. Při 2× AX9 case jeden chybí, drží ho Firemní den.',
+      teaches: 'Celou cestu od poptávky po vratku a řešení konfliktu externím pronájmem.',
+    },
+    conflictChain: {
+      see: 'Robe LEDBeam 150, červen, sklad Brod: tři rezervace se překrývají, 9.–10. 6. je −2 z 16.',
+      teaches:
+        'Předrezervace techniku nedrží, potvrzená objednávka ano. Potvrdit přes konflikt jde jen s důvodem.',
+    },
+    transfer: {
+      see: 'Letní noc – warm-up má 8 LEDBeamů přímo z akce TechConf 2027. Ve vratce TechConf otevřete „Předat rovnou na jinou akci“.',
+      teaches: 'Technika může jít z akce na akci bez návratu do skladu.',
+    },
+    caseBreaking: {
+      see: 'Křest alba chce 6 volných AX1. Kusů je dost, ale objeví se „Rozdělí obsah casu“, celé casy má Výstava designu.',
+      teaches: 'Volný kus nemusí být použitelný: je v casu, který je celý slíbený jinam.',
+    },
+  } as Record<string, { see: string; teaches: string }>,
   status: {
     draft: 'Rozpracovaná',
     submitted: 'Ke schválení',
@@ -292,6 +324,17 @@ export const cs = {
     markAll: 'Označit vše jako přečtené',
     empty: 'Žádná upozornění.',
     highPriority: 'Důležité',
+    level: {
+      urgent: 'Naléhavé',
+      attention: 'Pozor',
+      info: 'Info',
+    } satisfies Record<NotificationLevel, string>,
+    levelHint: {
+      urgent: 'řešte hned',
+      attention: 'brzy to bude potřeba řešit',
+      info: 'jen pro přehled',
+    } satisfies Record<NotificationLevel, string>,
+    legend: 'Podle důležitosti',
     types: {
       prebooking_submitted: (p: Params) => `${p.event}: nová předrezervace ke schválení`,
       prebooking_returned: (p: Params) => `${p.event}: vráceno k doplnění — ${p.reason}`,

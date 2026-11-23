@@ -5,6 +5,7 @@ import {
   type Booking,
   type BookingStatus,
   type LineAvailability,
+  type NotificationLevel,
 } from '@quix/core';
 import { cs } from '../i18n/cs';
 import { useProto } from '../store';
@@ -28,6 +29,45 @@ export function StatusChip({ status }: { status: BookingStatus }) {
       className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${STATUS_STYLE[status]}`}
     >
       {cs.status[status]}
+    </span>
+  );
+}
+
+/** Notification colours: vibrant for what matters, tame for the rest; read ones fade. */
+export const LEVEL_STYLE: Record<
+  NotificationLevel,
+  { row: string; rowRead: string; chip: string; chipRead: string; bell: string }
+> = {
+  urgent: {
+    row: 'border-l-bad bg-bad-light font-semibold',
+    rowRead: 'border-l-bad/30',
+    chip: 'border-bad bg-bad text-white',
+    chipRead: 'border-bad/40 bg-white text-bad',
+    bell: 'bg-bad text-white',
+  },
+  attention: {
+    row: 'border-l-warn-bright bg-warn-light/50 font-medium',
+    rowRead: 'border-l-warn-bright/40',
+    chip: 'border-warn-bright bg-warn-light text-ink',
+    chipRead: 'border-warn-bright/60 bg-white text-ink-soft',
+    bell: 'bg-warn-bright text-ink',
+  },
+  info: {
+    row: 'border-l-alu-line bg-white font-medium',
+    rowRead: 'border-l-alu',
+    chip: 'border-alu-line bg-alu text-ink-soft',
+    chipRead: 'border-alu-line bg-white text-muted',
+    bell: 'bg-ink-soft text-white',
+  },
+};
+
+export function LevelChip({ level, read = false }: { level: NotificationLevel; read?: boolean }) {
+  const st = LEVEL_STYLE[level];
+  return (
+    <span
+      className={`inline-block w-20 shrink-0 rounded border px-1.5 text-center text-xs font-medium ${read ? st.chipRead : st.chip}`}
+    >
+      {cs.notifications.level[level]}
     </span>
   );
 }

@@ -1,19 +1,21 @@
 import { useState, type ReactNode } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { can, unreadCount, isIsoDate } from '@quix/core';
+import { can, highestUnreadLevel, isIsoDate, unreadCount } from '@quix/core';
 import { SCENARIOS, type ScenarioId } from '@quix/fixtures';
 import { cs } from '../i18n/cs';
 import { clearPersisted, useAppState, useProto, useToday, useUser } from '../store';
-import { Toasts } from './ui';
+import { ScenarioHelp } from './ScenarioHelp';
+import { LEVEL_STYLE, Toasts } from './ui';
 
 function Bell() {
   const s = useAppState();
   const user = useUser();
   const n = unreadCount(s, user.id);
+  const level = highestUnreadLevel(s, user.id) ?? 'info';
   return (
     <NavLink
       to="/notifications"
-      aria-label={cs.shell.bell(n)}
+      aria-label={cs.shell.bell(n, cs.notifications.level[level])}
       className="relative inline-flex h-9 w-9 items-center justify-center rounded border border-alu-line bg-white hover:bg-alu"
     >
       <svg
@@ -31,7 +33,8 @@ function Bell() {
       {n > 0 && (
         <span
           data-testid="unread"
-          className="absolute -right-1.5 -top-1.5 min-w-5 rounded-full bg-bad px-1 text-center text-[11px] font-bold leading-5 text-white"
+          data-level={level}
+          className={`absolute -right-1.5 -top-1.5 min-w-5 rounded-full px-1 text-center text-[11px] font-bold leading-5 ${LEVEL_STYLE[level].bell}`}
         >
           {n}
         </span>
@@ -66,12 +69,16 @@ function Controls() {
         </select>
       </div>
       <div>
-        <label className="label" htmlFor="ctl-scenario">
-          {cs.shell.scenario}
-        </label>
+        <div className="mb-1 flex items-center gap-1.5">
+          <label className="label mb-0" htmlFor="ctl-scenario">
+            {cs.shell.scenario}
+          </label>
+          <ScenarioHelp current={scenarioId} />
+        </div>
         <select
           id="ctl-scenario"
-          className="input w-auto"
+          className="input w-auto max-w-full"
+          title={cs.scenarioInfo[scenarioId]?.see}
           value={scenarioId}
           onChange={(e) => {
             loadScenario(e.target.value as ScenarioId);
@@ -79,7 +86,7 @@ function Controls() {
           }}
         >
           {SCENARIOS.map((sc) => (
-            <option key={sc.id} value={sc.id}>
+            <option key={sc.id} value={sc.id} title={cs.scenarioInfo[sc.id]?.see}>
               {cs.scenarios[sc.id]}
             </option>
           ))}
