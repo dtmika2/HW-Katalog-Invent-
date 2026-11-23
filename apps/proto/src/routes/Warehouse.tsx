@@ -146,7 +146,7 @@ export function WarehouseDashboard() {
         </ul>
       </Section>
       <Section title={cs.dashboard.pendingIssues}>
-        <IssuesList compact />
+        <IssuesList />
       </Section>
     </div>
   );

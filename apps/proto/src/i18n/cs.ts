@@ -64,7 +64,7 @@ export const cs = {
     galaDinner: 'Gala Dinner (modelový scénář)',
     conflictChain: 'Řetěz konfliktů (LEDBeam, červen)',
     transfer: 'Převoz z akce na akci',
-    caseBreaking: 'Rozbití casu (AX1)',
+    caseBreaking: 'Rozdělení obsahu casu (AX1)',
   } as Record<string, string>,
   status: {
     draft: 'Rozpracovaná',
@@ -238,7 +238,7 @@ export const cs = {
     amber: 'Jen pokud se zamítne předrezervace',
     red: (short: number, isCase: boolean) =>
       isCase ? `Chybí ${cases(short)}` : `Chybí ${pcs(short)}`,
-    breaksCase: (caseName: string) => `Rozbije case ${caseName}`,
+    breaksCase: (caseName: string) => `Rozdělí obsah casu: ${caseName}`,
     none: '',
     free: (n: number) => `volných ${n}`,
   },
@@ -723,6 +723,27 @@ export const cs = {
       charged_to_client: 'Přeúčtováno klientovi',
       other: 'Jinak',
     } satisfies Record<IssueResolutionKind, string>,
+    onBooking: 'Nevyřešené problémy z této akce',
+    returnedOf: (returned: number, shipped: number, transferred: number) =>
+      `Vrátilo se ${returned} z ${shipped} ks${transferred ? `, ${transferred} ks předáno na jinou akci` : ''}.`,
+    caseNotReturned: 'Celý case se z akce nevrátil.',
+    missingInCase: (n: string) => `Case ${n} se vrátil, ale tyto kusy v něm chybí.`,
+    unexpectedWhat: 'Vrátilo se navíc, na tuto akci se neodváželo.',
+    quote: (note: string) => `„${note}“`,
+    fromEvent: 'Z akce:',
+    reported: (who: string, date: string, age: string) => `Nahlášeno: ${who}, ${date} (${age})`,
+    blocks: (n: number, warehouse: string) =>
+      `Do vyřešení nejde rezervovat: ${n} ks, sklad ${warehouse}.`,
+    blocksCase: 'Do vyřešení nejde case ani jeho obsah rezervovat.',
+    nextMissing: 'Když se najde, sklad to zapíše do vratky, nebo šéf techniky klikne na Vyřešit.',
+    nextUnexpected: 'Zjistěte, odkud to je. Pak šéf techniky klikne na Vyřešit.',
+    openVratka: 'Otevřít vratku',
+    how: 'Jak to dopadlo',
+    howNote: 'Co se zjistilo (povinné)',
+    effectFree: 'Kusy půjdou znovu rezervovat, počet skladem se nezmění.',
+    effectLower: (n: number) => `Počet skladem se trvale sníží o ${n} ks.`,
+    effectLowerCase: 'Case i jeho obsah se trvale odepíšou ze skladu.',
+    effectNone: 'Počet skladem se nezmění.',
   },
 };
 

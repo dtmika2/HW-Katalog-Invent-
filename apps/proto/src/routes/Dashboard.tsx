@@ -122,7 +122,7 @@ function ChiefDashboard({ s, user, today }: { s: AppState; user: User; today: st
         <ConflictRecords s={s} user={user} today={today} />
       </Section>
       <Section title={`${cs.dashboard.pendingIssues} (${openIssues(s).length})`}>
-        <IssuesList compact />
+        <IssuesList />
       </Section>
       <Section title={`${cs.dashboard.overdueService} (${overdue.length})`}>
         {overdue.length === 0 ? (

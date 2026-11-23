@@ -139,6 +139,11 @@ describe('M3 order editor', () => {
     expect(screen.queryByRole('button', { name: 'Potvrdit objednávku' })).not.toBeInTheDocument();
   });
 
+  it('loose pieces that would split a case booked whole show "Rozdělí obsah casu"', () => {
+    renderApp(`/bookings/${BREAKING.y}`, { scenario: 'caseBreaking', user: 'u-lucie' });
+    expect(screen.getByTestId('lines')).toHaveTextContent('Rozdělí obsah casu: AX1 case (8×)');
+  });
+
   it('6. LEDBeam 10 → 4 recalculates clamps and splitters live and keeps an overridden rope count', () => {
     const prepare = (s0: AppState): AppState => {
       const petr = s0.users.find((u) => u.id === 'u-petr')!;

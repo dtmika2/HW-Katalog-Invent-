@@ -85,7 +85,7 @@ Prepare: `npm run dev`, open the app, click **Obnovit demo data**, scenario **Ga
 11. Switch to Jana and open *Firemní párty Horizont*. She can confirm her own booking but must write an override reason. Afterwards the Chief dashboard shows the conflict as **Nový**, and Petr has a notification.
 
 **5. Case breaking and calendars, 2 min**
-12. Scenario **Rozbití casu (AX1)**, user Lucie. Open *Křest alba*: 6 loose AX1 show the amber **Rozbije case** warning, naming *Výstava designu*. Lucie has no Confirm button.
+12. Scenario **Rozdělení obsahu casu (AX1)**, user Lucie. Open *Křest alba*: 6 loose AX1 show the amber **Rozdělí obsah casu** warning, naming *Výstava designu*. Lucie has no Confirm button.
 13. Open **Kalendář** (event bars by state, PM filter) and a case-type calendar (complete cases free per day).
 
 ## Questions for the Chief and PMs

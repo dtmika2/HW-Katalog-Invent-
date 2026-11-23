@@ -23,6 +23,7 @@ import {
   lastBookedUntil,
   markLine,
   minFreeInWarehouse,
+  openIssues,
   periodWithBuffer,
   postMessage,
   recalcBooking,
@@ -67,6 +68,7 @@ import {
   userName,
 } from '../lib/names';
 import { useAppState, useProto, useToday, useUser } from '../store';
+import { IssuesList } from './Issues';
 
 const EDITABLE = ['draft', 'submitted', 'confirmed', 'packing'];
 
@@ -131,6 +133,11 @@ function Editor({ stored }: { stored: Booking }) {
     <div className="space-y-4">
       <Header stored={stored} draft={booking} editable={editable} update={update} today={today} />
       {!editable && <p className="text-sm text-muted">{cs.editor.actions.readonly}</p>}
+      {openIssues(s).some((i) => i.bookingId === stored.id) && (
+        <Section title={cs.issues.onBooking}>
+          <IssuesList bookingId={stored.id} />
+        </Section>
+      )}
 
       <div className={`grid gap-4 ${hasSide ? 'xl:grid-cols-[1fr_22rem]' : ''}`}>
         <div className="space-y-4">
