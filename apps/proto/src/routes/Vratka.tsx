@@ -4,6 +4,7 @@ import {
   can,
   recordReturnSession,
   returnSheet,
+  transferTargets,
   type Condition,
   type Id,
   type ReturnLineInput,
@@ -100,12 +101,7 @@ export function Vratka() {
     ['packing', 'shipped', 'returning', 'returned_with_issues'].includes(b.status) &&
     s.shipments.some((x) => x.bookingId === id);
   const locations = s.locations.filter((l) => l.name.startsWith('Police'));
-  const targets = s.bookings.filter(
-    (x) =>
-      x.id !== id &&
-      x.type === 'order' &&
-      ['confirmed', 'packing', 'shipped', 'returning'].includes(x.status),
-  );
+  const targets = transferTargets(s, b, today);
 
   const key = (l: ReturnSheetLine, caseId?: string) =>
     caseId ? `${l.lineId}|${caseId}` : l.lineId;

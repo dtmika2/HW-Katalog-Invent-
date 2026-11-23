@@ -3,7 +3,7 @@
  * explicit count (default 0), location, condition and confirmation; nothing is assumed returned.
  */
 import type { IsoDate } from '../dates';
-import { shippedQty } from '../availability';
+import { lastBookedUntil, shippedQty } from '../availability';
 import {
   contentsMatchStandard,
   getCaseType,
@@ -192,7 +192,27 @@ export interface ReturnSessionInput {
 
 const TRANSFER_TARGET = new Set(['confirmed', 'packing', 'shipped', 'returning']);
 
-function validate(state: AppState, b: Booking, input: ReturnSessionInput): Result<true> {
+/**
+ * Orders that gear from `from` can be handed over to: other active orders, except those that
+ * ended before today and no later than `from` itself. An order that ended before today but
+ * after `from` stays allowed, so a real handover can still be recorded late.
+ */
+export function transferTargets(state: AppState, from: Booking, today: IsoDate): Booking[] {
+  const fromEnd = lastBookedUntil(from);
+  return state.bookings.filter((x) => {
+    if (x.id === from.id || x.type !== 'order' || !TRANSFER_TARGET.has(x.status)) return false;
+    const end = lastBookedUntil(x);
+    return end >= today || end > fromEnd;
+  });
+}
+
+function validate(
+  state: AppState,
+  b: Booking,
+  input: ReturnSessionInput,
+  today: IsoDate,
+): Result<true> {
+  const targetIds = new Set(transferTargets(state, b, today).map((x) => x.id));
   const sheet = new Map(returnSheet(state, b.id).map((s) => [s.lineId, s]));
   const byLine = new Map<Id, ReturnLineInput[]>();
   for (const e of input.lines) byLine.set(e.lineId, [...(byLine.get(e.lineId) ?? []), e]);
@@ -224,13 +244,7 @@ function validate(state: AppState, b: Booking, input: ReturnSessionInput): Resul
       if (tq > 0) {
         if (s.kind !== 'item')
           return err('validation', 'Only loose items can be transferred', { lineId });
-        const target = state.bookings.find((x) => x.id === e.transferredToBookingId);
-        if (
-          !target ||
-          target.id === b.id ||
-          target.type !== 'order' ||
-          !TRANSFER_TARGET.has(target.status)
-        ) {
+        if (!e.transferredToBookingId || !targetIds.has(e.transferredToBookingId)) {
           return err('validation', 'Transfer target must be another active order', { lineId });
         }
       }
@@ -410,7 +424,7 @@ export function recordReturnSession(
   }
   if (input.lines.length === 0 && (input.unexpected ?? []).length === 0)
     return err('validation', 'Nothing to record');
-  const v = validate(state, b, input);
+  const v = validate(state, b, input, today);
   if (!v.ok) return v;
   const sheetBefore = new Map(returnSheet(state, b.id).map((s) => [s.lineId, s]));
 

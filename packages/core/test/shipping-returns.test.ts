@@ -5,6 +5,7 @@ import {
   completeAsStandard,
   isCaseComplete,
   itemDay,
+  lastBookedUntil,
   looseStock,
   packingList,
   recordReturnSession,
@@ -13,6 +14,7 @@ import {
   returnSheet,
   shipBatch,
   stockQty,
+  transferTargets,
   unwrap,
   type AppState,
   type Booking,
@@ -350,6 +352,30 @@ describe('vratka', () => {
     expect(
       recordReturnSession(s, U.martin, R, 'o1', {
         lines: [ret('l1', 0, { transferredToBookingId: 'o1', transferredQty: 8 })],
+      }),
+    ).toMatchObject({ ok: false, error: { code: 'validation' } });
+  });
+
+  it('transfer target must not have ended, unless it ended after the order being returned (late recording)', () => {
+    // o1 is booked until 25 Apr
+    const until = (id: string, d: string) =>
+      order({ id, periods: [P('2027-04-20', '2027-04-21', '2027-04-19', d)] }, 5);
+    const s = withBookings(
+      shipped(),
+      until('past', '2027-04-22'),
+      until('sameEnd', lastBookedUntil(get(shipped(), 'o1'))),
+      until('later', '2027-04-30'),
+    );
+    const ids = (today: string) =>
+      transferTargets(s, get(s, 'o1'), today)
+        .map((b) => b.id)
+        .sort();
+    expect(ids('2027-04-22')).toEqual(['later', 'past', 'sameEnd']);
+    expect(ids('2027-04-23')).toEqual(['later', 'sameEnd']);
+    expect(ids('2027-05-05')).toEqual(['later']);
+    expect(
+      recordReturnSession(s, U.martin, '2027-05-05', 'o1', {
+        lines: [ret('l1', 0, { transferredToBookingId: 'past', transferredQty: 8 })],
       }),
     ).toMatchObject({ ok: false, error: { code: 'validation' } });
   });

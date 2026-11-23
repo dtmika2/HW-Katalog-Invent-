@@ -136,6 +136,17 @@ describe('M5c vratka (mobile)', () => {
     expect(result).toHaveTextContent('Vráceno s problémy');
   });
 
+  it('handover list offers upcoming orders, not ones that have already ended', () => {
+    renderApp(`/vratka/${TRANSFER.from}`, { scenario: 'transfer', user: 'u-martin' });
+    const lb = booking(TRANSFER.from)!.lines.find(
+      (l) => 'itemId' in l.target && l.target.itemId === 'ledbeam150',
+    )!;
+    const select = within(screen.getByTestId(`ret-${lb.id}`)).getByLabelText('Na akci');
+    const names = [...select.querySelectorAll('option')].map((o) => o.textContent);
+    expect(names).toContain('Letní noc – warm-up');
+    expect(names).not.toContain('Autosalon Morava – roadshow Brno');
+  });
+
   it('damaged → service case shown in the result; partial transfer to another order', () => {
     renderApp(`/vratka/${TRANSFER.from}`, { scenario: 'transfer', user: 'u-martin' });
     const b = state().bookings.find((x) => x.id === TRANSFER.from)!;

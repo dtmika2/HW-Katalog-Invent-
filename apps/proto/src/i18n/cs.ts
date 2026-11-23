@@ -16,6 +16,9 @@ import type {
 } from '@quix/core';
 
 const pcs = (n: number) => `${n} ks`;
+/** Dates travel in params as ISO days; show them the Czech way. */
+const paramDate = (d: string | number | undefined) =>
+  fmtDate(d === undefined ? undefined : String(d));
 const cases = (n: number) => (n === 1 ? '1 case' : `${n} casy`);
 
 export const cs = {
@@ -296,7 +299,7 @@ export const cs = {
       conflict_overridden: (p: Params) => `${p.event}: potvrzeno přes konflikt, chybí ${p.short}`,
       conflict_detected: (p: Params) => `${p.event}: nový konflikt, chybí ${p.short}`,
       order_edited_after_packing: (p: Params) => `${p.event}: změna po zahájení balení`,
-      upcoming_loading: (p: Params) => `${p.event}: nakládka ${p.date}`,
+      upcoming_loading: (p: Params) => `${p.event}: nakládka ${paramDate(p.date)}`,
       batch_shipped: (p: Params) =>
         `${p.event}: odvezeno ${p.label} (${p.shipped} ks), zbývá ${p.remaining}`,
       overdue_return: (p: Params) => `${p.event}: technika po termínu nevrácena`,
@@ -308,7 +311,7 @@ export const cs = {
       case_incomplete: (p: Params) =>
         `Case ${p.number} není kompletní${p.escalated ? ' už týden' : ''}`,
       validation_waiting: (p: Params) => `${p.event}: čeká na schválení`,
-      prebooking_expiring: (p: Params) => `${p.event}: předrezervace propadne ${p.date}`,
+      prebooking_expiring: (p: Params) => `${p.event}: předrezervace propadne ${paramDate(p.date)}`,
       prebooking_expired: (p: Params) => `${p.event}: předrezervace propadla`,
       external_not_returned: (p: Params) =>
         `${p.event}: ${p.name} nevráceno dodavateli ${p.supplier}`,
