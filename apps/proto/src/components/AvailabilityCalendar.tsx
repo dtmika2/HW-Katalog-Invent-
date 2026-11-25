@@ -6,11 +6,13 @@ import {
   itemCalendar,
   lastBookedUntil,
   startOfMonth,
+  visibleState,
   type AppState,
   type HoldKind,
 } from '@quix/core';
 import { cs, fmtDate } from '../i18n/cs';
 import { userName } from '../lib/names';
+import { useUser } from '../store';
 import { loanLine } from './Loans';
 import { MonthGrid, MonthNav, monthRange } from './MonthGrid';
 import { StatusChip } from './ui';
@@ -26,12 +28,16 @@ interface DayCell {
   loanIds: string[];
 }
 
+/** Asked for by pre-bookings somebody counts with. */
+const likelyHeld = (holders: DayCell['holders']) =>
+  holders.reduce((n, h) => n + (['requested', 'planned'].includes(h.kind) ? h.qty : 0), 0);
+
 /**
  * Month view of an item or case type: each day "volné / celkem"; soft holds striped, service
  * grey, over-booked red. Clicking a day lists who holds it.
  */
 export function AvailabilityCalendar({
-  s,
+  s: all,
   target,
   today,
   initialMonth,
@@ -41,6 +47,8 @@ export function AvailabilityCalendar({
   today: string;
   initialMonth?: string;
 }) {
+  const user = useUser();
+  const s = useMemo(() => visibleState(all, user), [all, user]);
   const [month, setMonth] = useState(startOfMonth(initialMonth ?? today));
   const [warehouse, setWarehouse] = useState<string>('all');
   const [picked, setPicked] = useState<string | undefined>();
@@ -54,7 +62,7 @@ export function AvailabilityCalendar({
           date: d.date,
           free: d.free,
           total: d.total,
-          soft: d.softHeld,
+          soft: likelyHeld(d.holders),
           service: d.outOfService,
           holders: d.holders,
           serviceCaseIds: d.serviceCaseIds,
@@ -67,7 +75,7 @@ export function AvailabilityCalendar({
           date: d.date,
           free: d.free,
           total: d.completeCases,
-          soft: d.softHeld,
+          soft: likelyHeld(d.holders),
           service: d.totalCases - d.completeCases,
           holders: d.holders,
           serviceCaseIds: [],
@@ -187,8 +195,12 @@ export function AvailabilityCalendar({
                     <span className="text-xs font-semibold">
                       {isCase ? cs.calendar.holdCases(h.qty) : cs.calendar.holdQty(h.qty)}
                     </span>
-                    {h.kind === 'soft' && (
-                      <span className="text-xs text-warn">{cs.calendar.soft}</span>
+                    {h.kind !== 'hard' && (
+                      <span
+                        className={`text-xs ${h.kind === 'maybe' ? 'text-muted' : 'text-warn'}`}
+                      >
+                        {cs.calendar.hold[h.kind]}
+                      </span>
                     )}
                     <StatusChip status={b.status} />
                   </li>

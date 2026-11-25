@@ -74,7 +74,7 @@ describe('M3 order editor', () => {
       user: 'u-petr',
       prepare: GALA_STEPS.create,
     });
-    const submit = screen.getByRole('button', { name: 'Odeslat ke schválení' });
+    const submit = screen.getByRole('button', { name: 'Potvrdit ke schválení' });
     expect(submit).toBeDisabled();
     fireEvent.click(screen.getByLabelText('Viděl(a) jsem konflikt'));
     expect(submit).toBeEnabled();
@@ -88,7 +88,7 @@ describe('M3 order editor', () => {
       user: 'u-tomas',
       prepare: (s) => GALA_STEPS.submit(GALA_STEPS.create(s)),
     });
-    const confirm = screen.getByRole('button', { name: 'Potvrdit objednávku' });
+    const confirm = screen.getByRole('button', { name: 'Schválit objednávku' });
     expect(confirm).toBeDisabled();
     fireEvent.click(screen.getByRole('button', { name: 'Pokrýt externím pronájmem' }));
     fireEvent.change(screen.getByLabelText('Dodavatel'), { target: { value: 'Astera Rent CZ' } });
@@ -107,9 +107,9 @@ describe('M3 order editor', () => {
 
   it('4. Jana confirms her own booking with an override → "Nový" conflict on the Chief dashboard, Petr notified', () => {
     renderApp(`/bookings/${CHAIN.c}`, { scenario: 'conflictChain', user: 'u-jana' });
-    const confirm = screen.getByRole('button', { name: 'Potvrdit objednávku' });
+    const confirm = screen.getByRole('button', { name: 'Schválit objednávku' });
     expect(confirm).toBeDisabled();
-    fireEvent.change(screen.getByLabelText('Potvrdit i přesto — důvod'), {
+    fireEvent.change(screen.getByLabelText('Schválit i přesto — důvod'), {
       target: { value: 'Klient trvá na termínu, řešíme s Petrem' },
     });
     expect(confirm).toBeEnabled();
@@ -135,8 +135,8 @@ describe('M3 order editor', () => {
 
   it('5. Lucie (no permission) has no Confirm button', () => {
     renderApp(`/bookings/${BREAKING.y}`, { scenario: 'caseBreaking', user: 'u-lucie' });
-    expect(screen.getByRole('button', { name: 'Odeslat ke schválení' })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Potvrdit objednávku' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Potvrdit ke schválení' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Schválit objednávku' })).not.toBeInTheDocument();
   });
 
   it('loose pieces that would split a case booked whole show "Rozdělí obsah casu"', () => {

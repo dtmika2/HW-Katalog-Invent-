@@ -40,6 +40,8 @@ import {
 } from '@quix/core';
 
 export type Stage =
+  | 'tentative'
+  | 'planned'
   | 'draft'
   | 'submitted'
   | 'expired'
@@ -142,6 +144,7 @@ export class Builder {
         purposeMessage: spec.purpose,
         periods,
         defaultWarehouseId: WAREHOUSE[spec.warehouse ?? 'brod'],
+        ...(spec.stage === 'tentative' || spec.stage === 'planned' ? { stage: spec.stage } : {}),
       }),
     ).state;
 
@@ -184,7 +187,7 @@ export class Builder {
         ],
       };
     }
-    if (spec.stage === 'draft') return;
+    if (['tentative', 'planned', 'draft'].includes(spec.stage)) return;
 
     // Submit (acknowledging conflicts) unless the PM confirms directly.
     const submitDay = addDays(created, 1);

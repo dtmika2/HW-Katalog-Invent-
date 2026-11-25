@@ -1,11 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
+  can,
   conflictDays,
   conflictOverview,
   eachDay,
+  RESERVATION_STATUSES,
   startOfMonth,
+  visibleState,
   weekday,
+  type Booking,
   type BookingStatus,
   type ConflictDay,
 } from '@quix/core';
@@ -14,9 +18,12 @@ import { MonthNav, monthRange } from '../components/MonthGrid';
 import { StatusChip } from '../components/ui';
 import { cs, fmtDate, fmtRange, fmtShort } from '../i18n/cs';
 import { targetName, userName, warehouseName } from '../lib/names';
-import { useAppState, useToday } from '../store';
+import { TierChip } from '../components/Conflicts';
+import { useAppState, useToday, useUser } from '../store';
 
 const BAR: Record<BookingStatus, string> = {
+  tentative: 'bg-muted/30',
+  planned: 'bg-muted/60',
   draft: 'bg-alu-line',
   submitted: 'bg-warn',
   confirmed: 'bg-tape',
@@ -28,12 +35,16 @@ const BAR: Record<BookingStatus, string> = {
   returned_with_issues: 'bg-bad',
   closed: 'bg-muted/50',
   expired: 'bg-muted/30',
+  cancelled:
+    'bg-[linear-gradient(to_bottom,transparent_45%,rgb(100_116_139)_45%,rgb(100_116_139)_58%,transparent_58%)] bg-alu-line',
 };
 
 const MARK: Record<ConflictDay['role'], string> = {
   short: 'border-white bg-bad text-white',
   partner: 'border-bad bg-white text-bad',
-  request: 'border-warn-bright bg-warn-light text-ink',
+  request: 'border-bad bg-bad-light text-bad',
+  likely: 'border-warn-bright bg-warn-light text-ink',
+  possible: 'border-muted bg-white text-ink-soft',
 };
 
 function Mark({ role }: { role: ConflictDay['role'] }) {
@@ -42,7 +53,7 @@ function Mark({ role }: { role: ConflictDay['role'] }) {
       aria-hidden="true"
       className={`grid h-[18px] w-[18px] shrink-0 place-items-center rounded-full border-2 text-[11px] font-bold leading-none ${MARK[role]}`}
     >
-      !
+      {role === 'possible' ? '?' : '!'}
     </span>
   );
 }
@@ -75,11 +86,11 @@ function ConflictDetail({
       </div>
       <ul className="divide-y divide-alu-line text-sm">
         {info.conflicts.map((c) => {
-          // pre-bookings only ask for the gear, they do not hold it
-          const holders = c.colliding.filter((x) => x.type === 'order');
+          const holders = c.colliding;
           return (
-            <li key={`${c.bookingId}-${c.lineId}`} className="space-y-0.5 py-2">
-              <p className="font-medium">
+            <li key={`${c.bookingId}-${c.lineId}-${c.tier}`} className="space-y-0.5 py-2">
+              <p className="flex flex-wrap items-center gap-2 font-medium">
+                <TierChip tier={c.tier} />
                 {cs.calendar.conflictMissing(
                   c.short,
                   targetName(s, c.target),
@@ -98,7 +109,7 @@ function ConflictDetail({
               </p>
               {holders.length > 0 && (
                 <p>
-                  {cs.calendar.conflictHeldBy}{' '}
+                  {c.tier === 'real' ? cs.calendar.conflictHeldBy : cs.calendar.conflictWantedBy}{' '}
                   {holders.map((x, i) => (
                     <span key={x.id}>
                       {i > 0 && '; '}
@@ -106,7 +117,7 @@ function ConflictDetail({
                         {x.eventName}
                       </Link>{' '}
                       <span className="text-xs text-muted">
-                        {userName(s, x.pmId)}, {fmtRange(x.from, x.to)}
+                        {userName(s, x.pmId)}, {fmtRange(x.from, x.to)}, {cs.status[x.status]}
                       </span>
                     </span>
                   ))}
@@ -124,17 +135,38 @@ function ConflictDetail({
   );
 }
 
+/** Reservations and cancelled bookings come last and thin. */
+const isLow = (b: Pick<Booking, 'status'>) =>
+  RESERVATION_STATUSES.includes(b.status) || b.status === 'cancelled';
+
 /** All bookings as bars per day, coloured by state; buffer days are lighter. */
 export function EventCalendar() {
-  const s = useAppState();
+  const all = useAppState();
+  const user = useUser();
+  const s = useMemo(() => visibleState(all, user), [all, user]);
+  const seesReservations = can(user, 'see_reservations');
   const today = useToday();
   const [month, setMonth] = useState(startOfMonth(today));
   const [pm, setPm] = useState('all');
   const [state, setState] = useState<'all' | BookingStatus>('all');
   const [hideClosed, setHideClosed] = useState(true);
   const [onlyConflicts, setOnlyConflicts] = useState(false);
+  const [reservations, setReservations] = useState(true);
+  const [cancelled, setCancelled] = useState(false);
+  const [level, setLevel] = useState<'real' | 'likely' | 'all'>('likely');
   const [picked, setPicked] = useState<{ id: string; day: string } | undefined>();
-  const marks = useMemo(() => conflictDays(s, conflictOverview(s, today)), [s, today]);
+  const overview = useMemo(() => conflictOverview(s, today), [s, today]);
+  const marks = useMemo(
+    () =>
+      conflictDays(
+        s,
+        overview.filter(
+          (c) =>
+            c.tier === 'real' || level === 'all' || (c.tier === 'likely' && level === 'likely'),
+        ),
+      ),
+    [s, overview, level],
+  );
   const { from, to } = monthRange(month);
   const days = eachDay(from, to);
   const rows = useMemo(
@@ -142,18 +174,29 @@ export function EventCalendar() {
       s.bookings
         .filter((b) => b.periods.some((p) => p.bookedFrom <= to && p.bookedUntil >= from))
         .filter((b) => pm === 'all' || b.pmId === pm)
-        .filter((b) => state === 'all' || b.status === state)
-        .filter((b) => !hideClosed || !['closed', 'expired'].includes(b.status))
+        .filter((b) => {
+          // a state picked on purpose wins over the switches
+          if (state !== 'all') return b.status === state;
+          if (b.status === 'cancelled') return cancelled;
+          if (RESERVATION_STATUSES.includes(b.status)) return reservations;
+          return !hideClosed || !['closed', 'expired'].includes(b.status);
+        })
         .filter(
           (b) =>
             !onlyConflicts ||
             [...(marks.get(b.id)?.keys() ?? [])].some((d) => d >= from && d <= to),
         )
-        .sort((a, b) => (a.periods[0]!.bookedFrom < b.periods[0]!.bookedFrom ? -1 : 1)),
-    [s, from, to, pm, state, hideClosed, onlyConflicts, marks],
+        .sort(
+          (a, b) =>
+            Number(isLow(a)) - Number(isLow(b)) ||
+            (a.periods[0]!.bookedFrom < b.periods[0]!.bookedFrom ? -1 : 1),
+        ),
+    [s, from, to, pm, state, hideClosed, reservations, cancelled, onlyConflicts, marks],
   );
   const pickedInfo = picked && marks.get(picked.id)?.get(picked.day);
-  const statuses = Object.keys(cs.status) as BookingStatus[];
+  const statuses = (Object.keys(cs.status) as BookingStatus[]).filter(
+    (x) => seesReservations || !RESERVATION_STATUSES.includes(x),
+  );
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
@@ -199,6 +242,41 @@ export function EventCalendar() {
             ))}
           </select>
         </div>
+        <div>
+          <label className="label" htmlFor="ec-level">
+            {cs.calendar.conflictLevel}
+          </label>
+          <select
+            id="ec-level"
+            className="input w-auto"
+            value={level}
+            onChange={(e) => setLevel(e.target.value as typeof level)}
+          >
+            {(['real', 'likely', 'all'] as const).map((x) => (
+              <option key={x} value={x}>
+                {cs.calendar.conflictLevels[x]}
+              </option>
+            ))}
+          </select>
+        </div>
+        {seesReservations && (
+          <label className="flex items-center gap-2 pb-2">
+            <input
+              type="checkbox"
+              checked={reservations}
+              onChange={(e) => setReservations(e.target.checked)}
+            />
+            {cs.calendar.showReservations}
+          </label>
+        )}
+        <label className="flex items-center gap-2 pb-2">
+          <input
+            type="checkbox"
+            checked={cancelled}
+            onChange={(e) => setCancelled(e.target.checked)}
+          />
+          {cs.calendar.showCancelled}
+        </label>
         <label className="flex items-center gap-2 pb-2">
           <input
             type="checkbox"
@@ -217,7 +295,7 @@ export function EventCalendar() {
         </label>
       </div>
       <ul className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted">
-        {(['short', 'partner', 'request'] as const).map((r) => (
+        {(['short', 'partner', 'request', 'likely', 'possible'] as const).map((r) => (
           <li key={r} className="flex items-center gap-1.5">
             <Mark role={r} /> {cs.calendar.conflict[r]}
           </li>
@@ -289,7 +367,8 @@ export function EventCalendar() {
                     const mark = p && marks.get(b.id)?.get(d);
                     const bar = (
                       <span
-                        className={`block h-5 ${BAR[b.status]} ${isEvent ? '' : 'opacity-40'} ${b.type === 'prebooking' ? 'bg-[length:8px_8px]' : ''}`}
+                        data-status={b.status}
+                        className={`block ${isLow(b) ? 'my-1 h-3' : 'h-5'} ${BAR[b.status]} ${isEvent ? '' : 'opacity-40'} ${b.type === 'prebooking' ? 'bg-[length:8px_8px]' : ''}`}
                       />
                     );
                     const text =

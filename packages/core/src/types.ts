@@ -152,6 +152,8 @@ export interface Client {
 export type BookingType = 'prebooking' | 'order';
 
 export type BookingStatus =
+  | 'tentative'
+  | 'planned'
   | 'draft'
   | 'submitted'
   | 'confirmed'
@@ -162,7 +164,18 @@ export type BookingStatus =
   | 'returned'
   | 'returned_with_issues'
   | 'closed'
-  | 'expired';
+  | 'expired'
+  | 'cancelled';
+
+/** A date noted by a PM, with or without gear: nobody but PMs and the Chief sees it. */
+export const RESERVATION_STATUSES: readonly BookingStatus[] = ['tentative', 'planned'];
+/** Stages the PM sets freely, before anybody is asked for anything. */
+export const FREE_STAGES = ['tentative', 'planned', 'draft'] as const;
+export type FreeStage = (typeof FREE_STAGES)[number];
+/** Pre-bookings that can still become an order. */
+export const PRE_STATUSES: readonly BookingStatus[] = [...FREE_STAGES, 'submitted'];
+/** Finished one way or another: read-only, hold nothing. */
+export const ARCHIVED_STATUSES: readonly BookingStatus[] = ['closed', 'expired', 'cancelled'];
 
 export interface BookingPeriod {
   eventFrom: IsoDate;
@@ -519,7 +532,8 @@ export type NotificationType =
   | 'promised_missing'
   | 'shipping_cancelled'
   | 'cancel_requested'
-  | 'cancel_decided';
+  | 'cancel_decided'
+  | 'reservation_affected';
 
 export type Params = Record<string, string | number>;
 
@@ -539,6 +553,7 @@ export interface Notification {
 
 export type SystemEventType =
   | 'created'
+  | 'stage_changed'
   | 'submitted'
   | 'returned_to_pm'
   | 'confirmed'

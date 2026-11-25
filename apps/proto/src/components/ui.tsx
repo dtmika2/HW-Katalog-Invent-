@@ -11,6 +11,8 @@ import { cs } from '../i18n/cs';
 import { useProto } from '../store';
 
 const STATUS_STYLE: Record<BookingStatus, string> = {
+  tentative: 'bg-white text-ink-soft border-dashed border-muted',
+  planned: 'bg-white text-ink-soft border-muted',
   draft: 'bg-alu text-ink-soft border-alu-line',
   submitted: 'bg-warn-light text-warn border-warn/40',
   confirmed: 'bg-tape-light text-tape-dark border-tape/30',
@@ -22,6 +24,7 @@ const STATUS_STYLE: Record<BookingStatus, string> = {
   returned_with_issues: 'bg-bad-light text-bad border-bad/40',
   closed: 'bg-white text-muted border-alu-line',
   expired: 'bg-white text-muted border-alu-line line-through',
+  cancelled: 'bg-alu text-muted border-alu-line line-through',
 };
 
 export function StatusChip({ status }: { status: BookingStatus }) {
@@ -73,7 +76,7 @@ export function LevelChip({ level, read = false }: { level: NotificationLevel; r
   );
 }
 
-/** Availability as a strip of tape: green / amber / red with the short count. */
+/** Availability as a strip of tape: the worst tier with the short count. */
 export function AvailabilityBadge({
   a,
   isCase,
@@ -90,8 +93,14 @@ export function AvailabilityBadge({
     text = cs.badge.red(a.short, isCase);
     cls = 'bg-bad text-white';
   } else if (a.badge === 'amber') {
-    text = a.breaksCase ? cs.badge.breaksCase(caseName ?? '') : cs.badge.amber;
+    text =
+      a.breaksCase || !a.likely
+        ? cs.badge.breaksCase(caseName ?? '')
+        : cs.badge.likely(a.likely.short, isCase);
     cls = 'bg-warn text-white';
+  } else if (a.badge === 'possible') {
+    text = cs.badge.possible(a.possible?.short ?? 0, isCase);
+    cls = 'bg-alu text-ink-soft ring-1 ring-inset ring-muted';
   } else {
     text = cs.badge.green;
     cls = 'bg-ok text-white';

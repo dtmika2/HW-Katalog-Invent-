@@ -58,13 +58,26 @@ function Internal({
             `, ${cs.loans.alsoLoaned} ${loans.map((l) => loanLine(s, l)).join('; ')}`}
         </strong>
       )}
-      {a?.badge === 'amber' && (
+      {a?.breaksCase && (
         <span className="block">
-          {a.breaksCase
-            ? cs.badge.breaksCase(caseTypeName(s, a.breaksCase.caseTypeId))
-            : cs.badge.amber}
+          {cs.badge.breaksCase(caseTypeName(s, a.breaksCase.caseTypeId))}
         </span>
       )}
+      {(['likely', 'possible'] as const).map((tier) => {
+        const x = a?.[tier];
+        return (
+          x && (
+            <span key={tier} className="block">
+              {cs.badge[tier](x.short, 'caseTypeId' in t)} (
+              {x.days.map((d) => fmtShort(d)).join(', ')},{' '}
+              {x.bookingIds
+                .map((id) => s.bookings.find((y) => y.id === id)?.eventName ?? '')
+                .join(', ')}
+              )
+            </span>
+          )
+        );
+      })}
       {line.overrideReason?.trim() && (
         <span className="block">{cs.editor.print.override(line.overrideReason.trim())}</span>
       )}

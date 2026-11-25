@@ -71,7 +71,7 @@ describe('notifications', () => {
         ],
       }),
     });
-    const li = screen.getByText('Testovací akce: objednávka potvrzena').closest('li')!;
+    const li = screen.getByText('Testovací akce: objednávka schválena').closest('li')!;
     expect(li).toHaveAttribute('data-level', 'info');
     expect(li).toHaveTextContent('Info');
     expect(li).toHaveClass('bg-white');

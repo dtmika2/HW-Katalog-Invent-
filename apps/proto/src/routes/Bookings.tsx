@@ -2,13 +2,18 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   addDays,
+  ARCHIVED_STATUSES,
   bookingPriceTotal,
   can,
   createBooking,
   diffDays,
   firstEventDay,
+  FREE_STAGES,
   periodWithBuffer,
+  PRE_STATUSES,
+  visibleState,
   type AppState,
+  type FreeStage,
   NOTIFICATION_LEVELS,
   notificationLevel,
 } from '@quix/core';
@@ -19,28 +24,34 @@ import { DateInput } from '../components/DateInput';
 import { bookingSpan, clientName, userName } from '../lib/names';
 import { useAppState, useProto, useToday, useUser } from '../store';
 
-type Filter = 'active' | 'mine' | 'all';
+type Filter = 'active' | 'mine' | 'archive' | 'all';
+
+const FILTER_NAME: Record<Filter, string> = {
+  active: cs.bookings.filterActive,
+  mine: cs.bookings.filterMine,
+  archive: cs.bookings.filterArchive,
+  all: cs.bookings.filterAll,
+};
 
 export function Bookings() {
   const s = useAppState();
   const user = useUser();
   const today = useToday();
   const [filter, setFilter] = useState<Filter>(user.role === 'pm' ? 'mine' : 'active');
-  const list = s.bookings
-    .filter((b) =>
-      filter === 'mine'
-        ? b.pmId === user.id
-        : filter === 'active'
-          ? !['closed', 'expired'].includes(b.status)
-          : true,
-    )
+  const list = visibleState(s, user)
+    .bookings.filter((b) => {
+      const archived = ARCHIVED_STATUSES.includes(b.status);
+      if (filter === 'all') return true;
+      if (filter === 'archive') return archived;
+      return !archived && (filter === 'active' || b.pmId === user.id);
+    })
     .sort((a, b) => (bookingSpan(a).from < bookingSpan(b).from ? -1 : 1));
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h1>{cs.bookings.title}</h1>
         <div className="flex gap-1" role="group">
-          {(['active', 'mine', 'all'] as Filter[]).map((f) => (
+          {(['active', 'mine', 'archive', 'all'] as Filter[]).map((f) => (
             <button
               key={f}
               type="button"
@@ -48,11 +59,7 @@ export function Bookings() {
               aria-pressed={filter === f}
               onClick={() => setFilter(f)}
             >
-              {f === 'active'
-                ? cs.bookings.filterActive
-                : f === 'mine'
-                  ? cs.bookings.filterMine
-                  : cs.bookings.filterAll}
+              {FILTER_NAME[f]}
             </button>
           ))}
         </div>
@@ -72,7 +79,7 @@ export function Bookings() {
           <tbody className="divide-y divide-alu-line">
             {list.map((b) => {
               const span = bookingSpan(b);
-              const pre = b.type === 'prebooking' && ['draft', 'submitted'].includes(b.status);
+              const pre = PRE_STATUSES.includes(b.status);
               return (
                 <tr key={b.id} className="hover:bg-alu/50">
                   <td className="px-3 py-2">
@@ -122,6 +129,7 @@ export function NewBooking() {
   const [from, setFrom] = useState(addDays(today, 14));
   const [to, setTo] = useState(addDays(today, 14));
   const [purpose, setPurpose] = useState('');
+  const [stage, setStage] = useState<FreeStage>('draft');
   const [wh, setWh] = useState(s.warehouses[0]?.id ?? '');
   const [pmId, setPmId] = useState(
     user.role === 'pm' ? user.id : (s.users.find((u) => u.role === 'pm')?.id ?? user.id),
@@ -141,6 +149,7 @@ export function NewBooking() {
             purposeMessage: purpose,
             periods: [periodWithBuffer(from, to < from ? from : to, st.settings)],
             defaultWarehouseId: wh,
+            stage,
             ...(clientId ? { clientId } : {}),
             ...(user.role === 'chief' ? { pmId } : {}),
           });
@@ -191,6 +200,21 @@ export function NewBooking() {
           </select>
         </Field>
       </div>
+      <Field label={cs.newBooking.stage} htmlFor="nb-stage">
+        <select
+          id="nb-stage"
+          className="input"
+          value={stage}
+          onChange={(e) => setStage(e.target.value as FreeStage)}
+        >
+          {FREE_STAGES.map((x) => (
+            <option key={x} value={x}>
+              {cs.status[x]}
+            </option>
+          ))}
+        </select>
+      </Field>
+      <p className="text-xs text-muted">{cs.stages.info[stage].means}</p>
       {user.role === 'chief' && (
         <Field label={cs.newBooking.pmFor} htmlFor="nb-pm">
           <select

@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import {
+  ARCHIVED_STATUSES,
   can,
   isServiceOverdue,
   loansOn,
@@ -200,7 +201,7 @@ function ChiefDashboard({ s, user, today }: { s: AppState; user: User; today: st
 
 function PmDashboard({ s, user, today }: { s: AppState; user: User; today: string }) {
   const mine = s.bookings
-    .filter((b) => b.pmId === user.id && !['closed', 'expired'].includes(b.status))
+    .filter((b) => b.pmId === user.id && !ARCHIVED_STATUSES.includes(b.status))
     .sort((a, b) => (bookingSpan(a).from < bookingSpan(b).from ? -1 : 1));
   const returned = mine.filter((b) => b.status === 'draft' && b.returnedToPm);
   const mineLoans = openLoans(s)

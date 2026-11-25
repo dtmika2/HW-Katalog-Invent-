@@ -45,7 +45,7 @@ describe('daily jobs', () => {
   });
 
   it('pre-booking about to expire (3 days before) and expired on the event’s first day', () => {
-    const s = withBookings(baseState(), bk({ id: 'p1', status: 'draft' }));
+    const s = withBookings(baseState(), bk({ id: 'p1', status: 'submitted' }));
     const { s: after, fired } = runDays(s, range(18, 24));
     expect(daysOf(fired, 'prebooking_expiring')).toEqual(['2027-04-20']);
     expect(fired.find((f) => f.type === 'prebooking_expiring')?.users).toEqual(

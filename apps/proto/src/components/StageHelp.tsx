@@ -3,14 +3,19 @@
  * A window over the page, not a page of its own, so unsaved edits underneath stay.
  */
 import { useEffect, useId, useRef, useState, type KeyboardEvent } from 'react';
-import type { BookingStatus } from '@quix/core';
+import { CONFLICT_TIERS, type BookingStatus } from '@quix/core';
 import { cs } from '../i18n/cs';
+import { TierChip } from './Conflicts';
 import { StatusChip } from './ui';
 
 const GROUPS: { key: keyof typeof cs.stages.groups; stages: BookingStatus[] }[] = [
+  { key: 'reservation', stages: ['tentative', 'planned'] },
   { key: 'prebooking', stages: ['draft', 'submitted', 'expired'] },
   { key: 'order', stages: ['confirmed', 'packing', 'packed', 'shipped'] },
-  { key: 'vratka', stages: ['returning', 'returned_with_issues', 'returned', 'closed'] },
+  {
+    key: 'vratka',
+    stages: ['returning', 'returned_with_issues', 'returned', 'closed', 'cancelled'],
+  },
 ];
 
 /** The usual way of a booking, without detours. */
@@ -153,6 +158,23 @@ function Window({ onClose }: { onClose: () => void }) {
                 </li>
               ))}
             </ul>
+          </section>
+
+          <section data-testid="stage-tiers">
+            <h3 className="mb-1 font-cond text-lg font-bold">{cs.stages.tiersTitle}</h3>
+            <p className="mb-2 text-sm text-muted">{cs.stages.tiersHint}</p>
+            <dl className="divide-y divide-alu-line rounded border border-alu-line text-sm">
+              {CONFLICT_TIERS.map((tier) => (
+                <div key={tier} className="grid gap-x-4 gap-y-1 p-3 md:grid-cols-[11rem_1fr]">
+                  <dt>
+                    <TierChip tier={tier} />
+                  </dt>
+                  <dd>
+                    {cs.tiers.hint[tier]} {cs.stages.tiersEffect[tier]}
+                  </dd>
+                </div>
+              ))}
+            </dl>
           </section>
 
           <section data-testid="stage-notes">

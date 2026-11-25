@@ -5,12 +5,25 @@
 import type { IsoDate } from '../dates';
 import { evaluateBooking, firstEventDay } from '../availability';
 import { checkBookingClient } from '../clients';
-import { addConflictRecord, detectConflicts, recomputeConflictRecords } from '../conflicts';
+import {
+  addConflictRecord,
+  detectConflicts,
+  newShortages,
+  recomputeConflictRecords,
+} from '../conflicts';
 import { chiefIds, notify, postEvent, warehouseIds } from '../notifications';
 import { earlyPackingHits, isEarlyPacking, statusAfter } from '../packing';
-import type { AppState, Booking, BookingPeriod, BookingStatus, Id, User } from '../types';
-import { SYSTEM_USER_ID } from '../types';
-import { err, isExternal, nextId, ok, produce, type Result } from '../util';
+import type {
+  AppState,
+  Booking,
+  BookingPeriod,
+  BookingStatus,
+  FreeStage,
+  Id,
+  User,
+} from '../types';
+import { FREE_STAGES, PRE_STATUSES, SYSTEM_USER_ID } from '../types';
+import { err, isExternal, nextId, ok, produce, uniq, type Result } from '../util';
 import { recalcBooking } from './edit';
 import { cleanOrganisation, sameExceptOrganisation } from './organise';
 import { can, type Action } from './permissions';
@@ -20,6 +33,7 @@ export * from './organise';
 export * from './permissions';
 
 export type LifecycleAction =
+  | 'setStage'
   | 'submit'
   | 'returnToPm'
   | 'confirm'
@@ -37,7 +51,9 @@ export const TRANSITIONS: Record<
   LifecycleAction,
   { from: BookingStatus[]; to: BookingStatus | 'computed' }
 > = {
-  submit: { from: ['draft'], to: 'submitted' },
+  setStage: { from: [...FREE_STAGES], to: 'computed' },
+  // an unconfirmed reservation has to be confirmed first
+  submit: { from: ['planned', 'draft'], to: 'submitted' },
   returnToPm: { from: ['submitted'], to: 'draft' },
   confirm: { from: ['draft', 'submitted'], to: 'confirmed' },
   startPacking: { from: ['confirmed'], to: 'packing' },
@@ -54,10 +70,11 @@ export const TRANSITIONS: Record<
     to: 'computed',
   },
   close: { from: ['returned'], to: 'closed' },
-  expire: { from: ['draft', 'submitted'], to: 'expired' },
+  expire: { from: [...PRE_STATUSES], to: 'expired' },
 };
 
 const PERMISSION_OF: Record<LifecycleAction, Action> = {
+  setStage: 'edit_booking',
   submit: 'submit',
   returnToPm: 'return_to_pm',
   confirm: 'confirm',
@@ -112,9 +129,11 @@ export interface NewBookingInput {
   /** Chief creating on behalf of a PM. */
   pmId?: Id;
   id?: Id;
+  /** A reservation of the date, or (default) a list being prepared. */
+  stage?: FreeStage;
 }
 
-/** Create an empty pre-booking (draft). */
+/** Create an empty pre-booking. */
 export function createBooking(
   state: AppState,
   user: User,
@@ -137,7 +156,7 @@ export function createBooking(
     const b: Booking = {
       id,
       type: 'prebooking',
-      status: 'draft',
+      status: input.stage ?? 'draft',
       eventName: input.eventName.trim(),
       purposeMessage: input.purposeMessage ?? '',
       pmId: input.pmId ?? user.id,
@@ -158,7 +177,13 @@ export function createBooking(
   return ok({ state: next, bookingId: id });
 }
 
-const EDITABLE: BookingStatus[] = ['draft', 'submitted', 'confirmed', 'packing', 'packed'];
+/** Statuses in which a booking can be edited. */
+export const EDITABLE: readonly BookingStatus[] = [
+  ...PRE_STATUSES,
+  'confirmed',
+  'packing',
+  'packed',
+];
 
 /**
  * Store an edited booking (header fields and lines). PMs edit their own pre-bookings; the Chief
@@ -247,6 +272,27 @@ export function saveBooking(
     }
   }).state;
   return ok(recomputeConflictRecords(next, today));
+}
+
+/** Move between unconfirmed reservation, confirmed reservation and list in preparation. */
+export function setReservationStage(
+  state: AppState,
+  user: User,
+  today: IsoDate,
+  bookingId: Id,
+  stage: FreeStage,
+): Result<AppState> {
+  const g = guard(state, user, 'setStage', bookingId);
+  if (!g.ok) return g;
+  const from = g.value.status;
+  if (from === stage) return ok(state);
+  return ok(
+    produce(state, (d) => {
+      const b = d.bookings.find((x) => x.id === bookingId) as Booking;
+      b.status = stage;
+      postEvent(d, b.id, user.id, today, 'stage_changed', { from, to: stage });
+    }).state,
+  );
 }
 
 /** PM submits a pre-booking for validation. Red lines must be acknowledged. */
@@ -359,7 +405,7 @@ export function confirmBooking(
       },
     );
   }
-  const next = produce(state, (d) => {
+  const { state: approved } = produce(state, (d) => {
     const b = d.bookings.find((x) => x.id === bookingId) as Booking;
     b.lines = booking.lines;
     b.type = 'order';
@@ -385,7 +431,31 @@ export function confirmBooking(
       },
       today,
     );
-  }).state;
+  });
+  // What was only likely is real now for whoever counted with the same gear.
+  const hit = uniq(
+    newShortages(state, approved, today, '9999-12-31', (b) => b.id !== bookingId, PRE_STATUSES)
+      .filter((h) => h.level === 'prebooking')
+      .map((h) => h.bookingId),
+  );
+  const { state: next } = produce(approved, (d) => {
+    for (const id of hit) {
+      const b = d.bookings.find((x) => x.id === id) as Booking;
+      // whoever approved it has just seen it
+      if (b.pmId === user.id) continue;
+      notify(
+        d,
+        [b.pmId],
+        {
+          type: 'reservation_affected',
+          text: `${b.eventName} is short now: ${booking.eventName} was approved`,
+          params: { event: b.eventName, other: booking.eventName },
+          bookingId: id,
+        },
+        today,
+      );
+    }
+  });
   return ok(recomputeConflictRecords(next, today));
 }
 

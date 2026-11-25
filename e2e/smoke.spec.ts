@@ -15,7 +15,7 @@ test('Gala Dinner: Petr creates the pre-booking and sees the AX9 case conflict',
   await page.getByRole('option', { name: /AX9 case/ }).click();
   await expect(page.getByTestId('badge').first()).toHaveText('Chybí 1 case');
   await expect(page.getByTestId('conflict-panel')).toContainText('Firemní den — Jana Nováková');
-  await expect(page.getByRole('button', { name: 'Odeslat ke schválení' })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Potvrdit ke schválení' })).toBeDisabled();
 });
 
 test('conflictChain: LEDBeam calendar shows the over-booked days', async ({ page }) => {

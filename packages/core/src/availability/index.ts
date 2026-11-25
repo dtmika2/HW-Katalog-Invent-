@@ -29,7 +29,22 @@ import {
   targetKey,
 } from '../util';
 
-export type HoldKind = 'hard' | 'soft';
+/**
+ * hard: an order; requested: waits for the Chief; planned: a pre-booking the PM counts with;
+ * maybe: an unconfirmed reservation. Only 'hard' takes gear, the others only warn.
+ */
+export type HoldKind = 'hard' | 'requested' | 'planned' | 'maybe';
+
+const PRE_KIND: Partial<Record<Booking['status'], HoldKind>> = {
+  submitted: 'requested',
+  draft: 'planned',
+  planned: 'planned',
+  tentative: 'maybe',
+};
+
+const REAL: readonly HoldKind[] = ['hard'];
+const LIKELY: readonly HoldKind[] = ['requested', 'planned'];
+const POSSIBLE: readonly HoldKind[] = ['maybe'];
 
 /** One booking (or open issue) holding a quantity of a resource in a warehouse over a range. */
 export interface Hold {
@@ -233,9 +248,10 @@ function earlyPacking(
  */
 export function bookingHolds(state: HoldState, booking: Booking, asDemand = false): Hold[] {
   const out: Hold[] = [];
+  const pre = booking.type === 'prebooking' ? PRE_KIND[booking.status] : undefined;
   let kind: HoldKind;
   if (asDemand) kind = 'hard';
-  else if (booking.type === 'prebooking' && booking.status === 'submitted') kind = 'soft';
+  else if (pre) kind = pre;
   else if (booking.type === 'order' && HARD_STATUSES.has(booking.status)) kind = 'hard';
   else return out;
 
@@ -364,7 +380,12 @@ export interface ItemDay {
   /** Out on quick loans. */
   loaned: number;
   hardHeld: number;
+  /** Asked for by pre-bookings waiting for the Chief. */
   softHeld: number;
+  /** Pre-bookings a PM counts with. */
+  plannedHeld: number;
+  /** Unconfirmed reservations. */
+  maybeHeld: number;
   /** Hard held by loose-item lines only. */
   looseHardHeld: number;
   free: number;
@@ -407,12 +428,16 @@ export function itemDay(state: AvState, idx: HoldIndex, itemId: Id, w: Id, d: Is
   const loaned = loanedOn(state, itemId, w, d);
   let hard = 0;
   let soft = 0;
+  let planned = 0;
+  let maybe = 0;
   let looseHard = 0;
   for (const h of holdsOn(idx, `item:${itemId}`, w, d)) {
     if (h.kind === 'hard') {
       hard += h.qty;
       if (h.loose) looseHard += h.qty;
-    } else soft += h.qty;
+    } else if (h.kind === 'requested') soft += h.qty;
+    else if (h.kind === 'planned') planned += h.qty;
+    else maybe += h.qty;
   }
   return {
     total,
@@ -420,6 +445,8 @@ export function itemDay(state: AvState, idx: HoldIndex, itemId: Id, w: Id, d: Is
     loaned,
     hardHeld: hard,
     softHeld: soft,
+    plannedHeld: planned,
+    maybeHeld: maybe,
     looseHardHeld: looseHard,
     free: total - oos - loaned - hard,
   };
@@ -433,6 +460,8 @@ export function itemDayTotal(state: AvState, idx: HoldIndex, itemId: Id, d: IsoD
     loaned: 0,
     hardHeld: 0,
     softHeld: 0,
+    plannedHeld: 0,
+    maybeHeld: 0,
     looseHardHeld: 0,
     free: 0,
   };
@@ -443,6 +472,8 @@ export function itemDayTotal(state: AvState, idx: HoldIndex, itemId: Id, d: IsoD
     acc.loaned += x.loaned;
     acc.hardHeld += x.hardHeld;
     acc.softHeld += x.softHeld;
+    acc.plannedHeld += x.plannedHeld;
+    acc.maybeHeld += x.maybeHeld;
     acc.looseHardHeld += x.looseHardHeld;
     acc.free += x.free;
   }
@@ -482,7 +513,8 @@ export function completeCases(state: AvState, caseTypeId: Id, w: Id, d?: IsoDate
 
 /**
  * Case-type availability. `extraLooseDemand` adds loose-item demand (item id → qty) on top of
- * other bookings' loose holds, e.g. the booking being edited.
+ * other bookings' loose holds, e.g. the booking being edited. `kinds` says whose demand counts
+ * as if it were taken (for what might happen).
  */
 export function caseDay(
   state: AvState,
@@ -491,21 +523,22 @@ export function caseDay(
   w: Id,
   d: IsoDate,
   extraLooseDemand?: Map<Id, number>,
+  kinds: readonly HoldKind[] = REAL,
 ): CaseDay {
   const t = getCaseType(state, caseTypeId);
   const complete = completeCases(state, caseTypeId, w, d);
   let held = 0;
   let soft = 0;
   for (const h of holdsOn(idx, `case:${caseTypeId}`, w, d)) {
-    if (h.kind === 'hard') held += h.qty;
-    else soft += h.qty;
+    if (kinds.includes(h.kind)) held += h.qty;
+    else if (h.kind === 'requested') soft += h.qty;
   }
   let broken = 0;
   for (const c of t?.contents ?? []) {
     if (c.qty <= 0) continue;
     let looseDemand = (extraLooseDemand?.get(c.itemId) ?? 0) + loanedOn(state, c.itemId, w, d);
     for (const h of holdsOn(idx, `item:${c.itemId}`, w, d))
-      if (h.kind === 'hard' && h.loose) looseDemand += h.qty;
+      if (kinds.includes(h.kind) && h.loose) looseDemand += h.qty;
     const overflow = Math.max(0, looseDemand - looseStock(state, c.itemId, w));
     broken = Math.max(broken, Math.ceil(overflow / c.qty));
   }
@@ -521,7 +554,17 @@ export function caseDay(
 // ---------------------------------------------------------------------------
 // Line badges
 
-export type Badge = 'green' | 'amber' | 'red';
+/** red: short because of orders; amber: likely short (or breaks a case); possible: perhaps. */
+export type Badge = 'green' | 'possible' | 'amber' | 'red';
+
+/** A shortage that depends on bookings which are not approved. */
+export interface TierShortage {
+  /** Missing on the worst day if they all happen. */
+  short: number;
+  worstDay: IsoDate;
+  days: IsoDate[];
+  bookingIds: Id[];
+}
 
 export interface LineAvailability {
   lineId: Id;
@@ -539,11 +582,13 @@ export interface LineAvailability {
   collidingBookingIds: Id[];
   /** Loans that are out on short days. */
   collidingLoanIds: Id[];
-  /** Pre-bookings that make the line amber. */
-  softBookingIds: Id[];
+  /** Short if the pre-bookings others count with become orders too. */
+  likely?: TierShortage;
+  /** Short if unconfirmed reservations happen too. */
+  possible?: TierShortage;
 }
 
-const rank: Record<Badge, number> = { green: 0, amber: 1, red: 2 };
+const rank: Record<Badge, number> = { green: 0, possible: 1, amber: 2, red: 3 };
 
 function sumOn(holds: Hold[], d: IsoDate, pred: (h: Hold) => boolean): number {
   let n = 0;
@@ -576,6 +621,8 @@ export function evaluateBooking(
   const index = idx ?? buildHoldIndex(state, filterFor(booking));
   const post =
     booking.type === 'order' && (booking.status === 'shipped' || POST_SHIP.has(booking.status));
+  // an order holds its gear, what might happen is the others' concern
+  const isOrder = booking.type === 'order' && HARD_STATUSES.has(booking.status);
   const own = bookingHolds(state, booking, !post);
   const ownByRes = new Map<string, Hold[]>();
   for (const h of own) {
@@ -595,7 +642,6 @@ export function evaluateBooking(
       minFree: 0,
       collidingBookingIds: [],
       collidingLoanIds: [],
-      softBookingIds: [],
     };
     if (!isActiveLine(line) || isExternal(line.target)) {
       out.set(line.id, none);
@@ -614,14 +660,17 @@ export function evaluateBooking(
     let minFree = Infinity;
     const shortDays: IsoDate[] = [];
     const colliding = new Set<Id>();
-    const softIds = new Set<Id>();
+    let likely: TierShortage | undefined;
+    let possible: TierShortage | undefined;
     const loanIds = new Set<Id>();
     let breaksCase: LineAvailability['breaksCase'];
 
     for (const d of [...days].sort()) {
       const req = sumOn(ownHolds, d, () => true);
       let free: number;
-      let soft: number;
+      let freeLikely: number;
+      let freePossible: number;
+      const t = line.target;
       if (isCaseTarget(line.target)) {
         const ownLoose = new Map<Id, number>();
         for (const c of getCaseType(state, line.target.caseTypeId)?.contents ?? []) {
@@ -633,20 +682,27 @@ export function evaluateBooking(
         }
         const cd = caseDay(state, index, line.target.caseTypeId, w, d, ownLoose);
         free = cd.free;
-        soft = cd.softHeld;
+        const caseTypeId = line.target.caseTypeId;
+        const freeWith = (kinds: readonly HoldKind[]) =>
+          isOrder ? free : caseDay(state, index, caseTypeId, w, d, ownLoose, kinds).free;
+        freeLikely = freeWith([...REAL, ...LIKELY]);
+        freePossible = freeWith([...REAL, ...LIKELY, ...POSSIBLE]);
       } else {
         const id = itemDay(state, index, (line.target as { itemId: Id }).itemId, w, d);
         free = id.free;
-        soft = id.softHeld;
+        freeLikely = isOrder ? free : free - id.softHeld - id.plannedHeld;
+        freePossible = isOrder ? free : freeLikely - id.maybeHeld;
       }
       minFree = Math.min(minFree, free);
       let dayBadge: Badge = 'green';
       if (free - req < 0) dayBadge = 'red';
-      else if (free - soft - req < 0) dayBadge = 'amber';
+      else if (freeLikely - req < 0) dayBadge = 'amber';
+      else if (freePossible - req < 0) dayBadge = 'possible';
 
       if (dayBadge === 'red') {
         shortDays.push(d);
-        for (const h of holdsOn(index, res, w, d)) colliding.add(h.bookingId);
+        for (const h of holdsOn(index, res, w, d))
+          if (h.kind === 'hard') colliding.add(h.bookingId);
         const items = isCaseTarget(line.target)
           ? (getCaseType(state, line.target.caseTypeId)?.contents ?? []).map((c) => c.itemId)
           : [(line.target as { itemId: Id }).itemId];
@@ -658,12 +714,35 @@ export function evaluateBooking(
           }
         }
       }
-      if (dayBadge === 'amber') {
-        for (const h of holdsOn(index, res, w, d)) if (h.kind === 'soft') softIds.add(h.bookingId);
-      }
+      const worse = (
+        was: TierShortage | undefined,
+        short: number,
+        before: number,
+        kinds: readonly HoldKind[],
+      ): TierShortage | undefined => {
+        // only what these bookings add
+        if (short <= 0 || short <= before) return was;
+        const loose = isCaseTarget(t)
+          ? (getCaseType(state, t.caseTypeId)?.contents ?? []).flatMap((c) =>
+              holdsOn(index, `item:${c.itemId}`, w, d).filter((h) => h.loose),
+            )
+          : [];
+        const ids = new Set(was?.bookingIds);
+        for (const h of [...holdsOn(index, res, w, d), ...loose])
+          if (kinds.includes(h.kind)) ids.add(h.bookingId);
+        const worst = !was || short > was.short;
+        return {
+          short: worst ? short : was.short,
+          worstDay: worst ? d : was.worstDay,
+          days: [...(was?.days ?? []), d],
+          bookingIds: [...ids],
+        };
+      };
+      likely = worse(likely, req - freeLikely, req - free, LIKELY);
+      possible = worse(possible, req - freePossible, req - freeLikely, POSSIBLE);
 
       // Loose demand forcing open cases that another order booked whole → amber "rozbije case".
-      if (dayBadge === 'green' && isItemTarget(line.target)) {
+      if (rank[dayBadge] < rank.amber && isItemTarget(line.target)) {
         const itemId = line.target.itemId;
         for (const t of caseTypesContaining(state, itemId)) {
           const held = holdsOn(index, `case:${t.id}`, w, d).filter((h) => h.kind === 'hard');
@@ -704,8 +783,9 @@ export function evaluateBooking(
       minFree: minFree === Infinity ? 0 : minFree,
       collidingBookingIds: [...colliding],
       collidingLoanIds: [...loanIds],
-      softBookingIds: [...softIds],
     };
+    if (likely) la.likely = likely;
+    if (possible) la.possible = possible;
     if (worstDay) la.worstDay = worstDay;
     if (breaksCase) la.breaksCase = breaksCase;
     out.set(line.id, la);

@@ -11,9 +11,20 @@ import {
   firstBookedFrom,
   lastBookedUntil,
   type LineAvailability,
+  type TierShortage,
 } from '../availability';
 import { chiefIds, notify } from '../notifications';
-import type { AppState, Booking, ConflictRecord, Id, Target, User } from '../types';
+import {
+  ARCHIVED_STATUSES,
+  PRE_STATUSES,
+  type AppState,
+  type Booking,
+  type BookingStatus,
+  type ConflictRecord,
+  type Id,
+  type Target,
+  type User,
+} from '../types';
 import { err, isActiveLine, isExternal, nextId, ok, produce, type Result } from '../util';
 
 export interface CollidingBooking {
@@ -79,6 +90,81 @@ export function detectConflicts(
     });
   }
   return out;
+}
+
+/**
+ * How real a conflict is, by the state of the other booking: 'possible' with an unconfirmed
+ * reservation, 'likely' with anything on its way to approval, 'real' with an approved order.
+ */
+export const CONFLICT_TIERS = ['real', 'likely', 'possible'] as const;
+export type ConflictTier = (typeof CONFLICT_TIERS)[number];
+
+/** Tier of a conflict with a booking in `status`; undefined when it cannot collide. */
+export function tierOf(status: BookingStatus): ConflictTier | undefined {
+  if (ARCHIVED_STATUSES.includes(status)) return undefined;
+  if (status === 'tentative') return 'possible';
+  return PRE_STATUSES.includes(status) ? 'likely' : 'real';
+}
+
+export interface ConflictTiers extends Record<ConflictTier, LineConflict[]> {
+  /** Bookings on the same days where one side has no gear yet, worst first. */
+  sameDay: { tier: ConflictTier; booking: CollidingBooking }[];
+}
+
+/** Everything a booking collides with, by tier. An approved order has real conflicts only. */
+export function conflictTiers(
+  state: AppState,
+  booking: Booking,
+  availability?: Map<Id, LineAvailability>,
+): ConflictTiers {
+  const av = availability ?? evaluateBooking(state, booking);
+  const tier = (pick: (a: LineAvailability) => TierShortage | undefined): LineConflict[] =>
+    booking.lines.flatMap((line) => {
+      const a = av.get(line.id);
+      const t = a && pick(a);
+      if (!t || isExternal(line.target)) return [];
+      return [
+        {
+          lineId: line.id,
+          target: line.target,
+          warehouseId: a.warehouseId ?? booking.defaultWarehouseId,
+          short: t.short,
+          worstDay: t.worstDay,
+          days: t.days,
+          colliding: describe(state, t.bookingIds),
+          loanIds: [],
+        },
+      ];
+    });
+  return {
+    real: detectConflicts(state, booking, av),
+    likely: tier((a) => a.likely),
+    possible: tier((a) => a.possible),
+    sameDay: sameDayUnknown(state, booking),
+  };
+}
+
+const hasGear = (b: Pick<Booking, 'lines'>) => b.lines.some(isActiveLine);
+
+/** Overlapping bookings that cannot be compared yet, because one side lists no gear. */
+export function sameDayUnknown(
+  state: Pick<AppState, 'bookings'>,
+  booking: Booking,
+): ConflictTiers['sameDay'] {
+  if (!PRE_STATUSES.includes(booking.status)) return [];
+  const gear = hasGear(booking);
+  return state.bookings
+    .flatMap((b) => {
+      const tier = tierOf(b.status);
+      if (b.id === booking.id || !tier || (gear && hasGear(b))) return [];
+      // what is back holds nothing any more
+      if (b.status === 'returned' || b.status === 'returned_with_issues') return [];
+      const overlaps = b.periods.some((p) =>
+        booking.periods.some((q) => p.bookedFrom <= q.bookedUntil && q.bookedFrom <= p.bookedUntil),
+      );
+      return overlaps ? describe(state, [b.id]).map((x) => ({ tier, booking: x })) : [];
+    })
+    .sort((a, b) => CONFLICT_TIERS.indexOf(a.tier) - CONFLICT_TIERS.indexOf(b.tier));
 }
 
 /** Create a conflict record in a draft state and notify the Chief and PMs of colliding orders. */
@@ -200,9 +286,8 @@ export interface OverviewConflict extends LineConflict {
   bookingId: Id;
   /** 'order': a confirmed order is short; 'prebooking': a request would be short. */
   level: 'order' | 'prebooking';
+  tier: ConflictTier;
 }
-
-const OVERVIEW_PRE = new Set(['draft', 'submitted']);
 
 /**
  * All live conflicts of bookings that have not ended, computed the same way as on the booking
@@ -215,28 +300,35 @@ export function conflictOverview(state: AppState, today: IsoDate): OverviewConfl
     const level =
       b.type === 'order' && DETECT_STATUSES.has(b.status)
         ? 'order'
-        : b.type === 'prebooking' && OVERVIEW_PRE.has(b.status)
+        : b.type === 'prebooking' && PRE_STATUSES.includes(b.status)
           ? 'prebooking'
           : undefined;
     if (!level) continue;
-    for (const c of detectConflicts(state, b)) {
+    const tiers = conflictTiers(state, b);
+    for (const tier of ['likely', 'possible'] as const)
+      for (const c of tiers[tier]) out.push({ ...c, bookingId: b.id, level, tier });
+    for (const c of tiers.real) {
       const records = state.conflicts.filter((r) => r.bookingId === b.id && r.lineId === c.lineId);
       const closed =
         records.some((r) => r.status === 'resolved' && r.resolvedBy) &&
         records.every((r) => r.status === 'resolved');
-      if (!closed) out.push({ ...c, bookingId: b.id, level });
+      if (!closed) out.push({ ...c, bookingId: b.id, level, tier: 'real' });
     }
   }
   return out;
 }
 
 export interface ConflictDay {
-  /** 'short': this order misses gear; 'partner': its gear is what another order misses; 'request': a pre-booking would be short. */
-  role: 'short' | 'partner' | 'request';
+  /**
+   * 'short': this order misses gear; 'partner': its gear is what another order misses;
+   * 'request': a pre-booking is short because of orders; 'likely' / 'possible': it would be short
+   * if other pre-bookings happen.
+   */
+  role: 'short' | 'partner' | 'request' | 'likely' | 'possible';
   conflicts: OverviewConflict[];
 }
 
-const ROLE_RANK = { request: 0, partner: 1, short: 2 };
+const ROLE_RANK = { possible: 0, likely: 1, request: 2, partner: 3, short: 4 };
 
 /** Booking id → day → what collides there (the strongest role wins). */
 export function conflictDays(
@@ -256,7 +348,8 @@ export function conflictDays(
   };
   for (const c of overview) {
     for (const day of c.days) {
-      mark(c.bookingId, day, c.level === 'order' ? 'short' : 'request', c);
+      const role = c.tier !== 'real' ? c.tier : c.level === 'order' ? 'short' : 'request';
+      mark(c.bookingId, day, role, c);
       if (c.level !== 'order') continue;
       for (const x of c.colliding) {
         if (x.type !== 'order') continue;
@@ -287,13 +380,14 @@ export function newShortages(
   from: IsoDate,
   to: IsoDate,
   relevant: (b: Booking) => boolean = () => true,
+  pre: readonly BookingStatus[] = ['submitted'],
 ): ShortageHit[] {
   const out: ShortageHit[] = [];
   for (const b of after.bookings) {
     const level =
       b.type === 'order' && DETECT_STATUSES.has(b.status)
         ? 'order'
-        : b.type === 'prebooking' && b.status === 'submitted'
+        : b.type === 'prebooking' && pre.includes(b.status)
           ? 'prebooking'
           : undefined;
     if (!level || lastBookedUntil(b) < from || firstBookedFrom(b) > to || !relevant(b)) continue;

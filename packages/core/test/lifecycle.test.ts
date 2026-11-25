@@ -433,6 +433,8 @@ describe('lifecycle — editing and transitions', () => {
 
   it('every illegal transition returns a typed error', () => {
     const statuses: BookingStatus[] = [
+      'tentative',
+      'planned',
       'draft',
       'submitted',
       'confirmed',
@@ -443,8 +445,10 @@ describe('lifecycle — editing and transitions', () => {
       'returned_with_issues',
       'closed',
       'expired',
+      'cancelled',
     ];
     const actorFor: Record<LifecycleAction, (typeof U)[keyof typeof U]> = {
+      setStage: U.tomas,
       submit: U.tomas,
       returnToPm: U.tomas,
       confirm: U.tomas,
@@ -464,7 +468,9 @@ describe('lifecycle — editing and transitions', () => {
           bk({
             id: 'b',
             status,
-            type: ['draft', 'submitted', 'expired'].includes(status) ? 'prebooking' : 'order',
+            type: ['tentative', 'planned', 'draft', 'submitted', 'expired'].includes(status)
+              ? 'prebooking'
+              : 'order',
           }),
         );
         const r = guard(s, actorFor[action], action, 'b');

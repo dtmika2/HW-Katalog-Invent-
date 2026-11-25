@@ -54,7 +54,7 @@ describe('availability — items', () => {
     expect(day(s, 'ledbeam', '2027-04-23')).toMatchObject({ free: 12, softHeld: 10, hardHeld: 0 });
     const a = evaluateBooking(s, draft).get('l1');
     expect(a?.badge).toBe('amber');
-    expect(a?.softBookingIds).toEqual(['p1']);
+    expect(a?.likely?.bookingIds).toEqual(['p1']);
   });
 
   it('draft pre-bookings do not hold anything', () => {

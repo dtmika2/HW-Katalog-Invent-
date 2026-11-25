@@ -89,11 +89,11 @@ describe('M4 availability calendar', () => {
       .map((h) => h.textContent ?? '');
     expect(holders).toHaveLength(3);
     expect(holders.find((h) => h.includes('Koncert v parku'))).toMatch(
-      /Petr Dvořák, 07\.06\.2027 – 10\.06\.2027.*10 ks.*Potvrzená/,
+      /Petr Dvořák, 07\.06\.2027 – 10\.06\.2027.*10 ks.*Schválená/,
     );
     expect(holders.find((h) => h.includes('Módní přehlídka'))).toMatch(/Lucie Malá.*8 ks/);
     expect(holders.find((h) => h.includes('Firemní párty Horizont'))).toMatch(
-      /Jana Nováková.*6 ks.*předrezervace.*Ke schválení/,
+      /Jana Nováková.*6 ks.*předrezervace.*Potvrzeno k expedici/,
     );
   });
 

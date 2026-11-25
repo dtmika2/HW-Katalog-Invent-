@@ -570,6 +570,26 @@ export const BOOKINGS: BookingSpec[] = [
       },
     ],
   },
+  {
+    id: 'bk-mozna-svatba',
+    name: 'Možná svatba, Hotel Grand',
+    pm: U.lucie,
+    client: 'cl-grand',
+    purpose: 'Klient se ozve do konce dubna, techniku zatím neznáme',
+    periods: [['2027-05-20', '2027-05-21']],
+    stage: 'tentative',
+    lines: [],
+  },
+  {
+    id: 'bk-rodinny-den',
+    name: 'Rodinný den Morava',
+    pm: U.lucie,
+    client: 'cl-morava',
+    purpose: 'Termín potvrzen, seznam techniky se ještě upřesní',
+    periods: [['2027-05-30', '2027-05-30']],
+    stage: 'planned',
+    lines: [I('par-rgbw', 20)],
+  },
 ];
 
 /** Small items used by the PRNG filler bookings (no LEDBeams, cases or AX9 so scenarios stay exact). */

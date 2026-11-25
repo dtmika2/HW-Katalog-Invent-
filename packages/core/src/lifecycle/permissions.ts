@@ -2,10 +2,11 @@
  * Roles are presets of permissions; per-user flags add to them. Every state-changing action
  * checks `can()` first.
  */
-import type { Booking, User } from '../types';
+import { RESERVATION_STATUSES, type AppState, type Booking, type User } from '../types';
 
 export type Action =
   | 'create_booking'
+  | 'see_reservations'
   | 'edit_booking'
   | 'submit'
   | 'return_to_pm'
@@ -36,6 +37,17 @@ export type Action =
 
 const isChief = (u: User) => u.role === 'chief';
 
+/** Reservations without an order behind them are no concern of the warehouse. */
+export function canSeeBooking(user: User, b: Pick<Booking, 'status'>): boolean {
+  return !RESERVATION_STATUSES.includes(b.status) || can(user, 'see_reservations');
+}
+
+/** The state as `user` may see it, for lists, calendars and conflicts. */
+export function visibleState<S extends Pick<AppState, 'bookings'>>(state: S, user: User): S {
+  if (can(user, 'see_reservations')) return state;
+  return { ...state, bookings: state.bookings.filter((b) => canSeeBooking(user, b)) };
+}
+
 /** True when `user` may perform `action` (on `booking`, when given). */
 export function can(user: User, action: Action, booking?: Booking): boolean {
   if (!user.active) return false;
@@ -43,6 +55,8 @@ export function can(user: User, action: Action, booking?: Booking): boolean {
   switch (action) {
     case 'create_booking':
       return user.role === 'pm' || isChief(user);
+    case 'see_reservations':
+      return user.role !== 'warehouse';
     case 'edit_booking':
       if (isChief(user)) return true;
       return user.role === 'pm' && own && booking?.type === 'prebooking';

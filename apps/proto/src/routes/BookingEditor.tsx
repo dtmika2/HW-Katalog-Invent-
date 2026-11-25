@@ -9,6 +9,12 @@ import {
   can,
   canLeave,
   canNest,
+  canSeeBooking,
+  conflictTiers,
+  EDITABLE,
+  FREE_STAGES,
+  PRE_STATUSES,
+  setReservationStage,
   groupOfLine,
   moveToGroup,
   nestLine,
@@ -17,7 +23,6 @@ import {
   closeBooking,
   confirmBooking,
   coverWithExternal,
-  detectConflicts,
   diffDays,
   dismissCheck,
   dismissRecommendation,
@@ -46,11 +51,14 @@ import {
   type BookingGroup,
   type BookingLine,
   type BookingPeriod,
+  type ConflictTiers,
+  type FreeStage,
   type LineAvailability,
   type Target,
   type User,
 } from '@quix/core';
 import { CategoryLabel } from '../components/Category';
+import { CollidingLink, SameDaySection, TierChip, TierSection } from '../components/Conflicts';
 import { ClientPicker } from '../components/Clients';
 import { CancelRequests, promisedRow } from '../components/Delivery';
 import { BookingPrint } from '../components/BookingPrint';
@@ -66,13 +74,12 @@ import { LineList } from '../components/lines/LineList';
 import { DEFAULT_VIEW } from '../components/lines/view';
 import { IssuesList } from './Issues';
 
-const EDITABLE = ['draft', 'submitted', 'confirmed', 'packing', 'packed'];
-
 export function BookingEditor() {
   const { id = '' } = useParams();
   const s = useAppState();
+  const user = useUser();
   const stored = s.bookings.find((b) => b.id === id);
-  if (!stored) return <Empty>{cs.errors.not_found}</Empty>;
+  if (!stored || !canSeeBooking(user, stored)) return <Empty>{cs.errors.not_found}</Empty>;
   return <Editor key={`${stored.id}`} stored={stored} />;
 }
 
@@ -101,7 +108,8 @@ function Editor({ stored }: { stored: Booking }) {
 
   const { booking, expansion } = useMemo(() => recalcBooking(s, draft), [s, draft]);
   const av = useMemo(() => evaluateBooking(s, booking), [s, booking]);
-  const conflicts = useMemo(() => detectConflicts(s, booking, av), [s, booking, av]);
+  const tiers = useMemo(() => conflictTiers(s, booking, av), [s, booking, av]);
+  const conflicts = tiers.real;
   const unacked = conflicts.filter(
     (c) => !booking.lines.find((l) => l.id === c.lineId)?.conflictAck,
   );
@@ -110,12 +118,13 @@ function Editor({ stored }: { stored: Booking }) {
   );
 
   const hasSide =
-    conflicts.length > 0 ||
+    Object.values(tiers).some((x) => x.length > 0) ||
     [...av.values()].some((x) => x.breaksCase) ||
     expansion.checkWarnings.length > 0 ||
     (editable && expansion.recommendations.length > 0);
   const isPre = stored.type === 'prebooking';
-  const canSubmit = isPre && stored.status === 'draft' && can(user, 'submit', stored);
+  const canSubmit =
+    isPre && ['planned', 'draft'].includes(stored.status) && can(user, 'submit', stored);
   const canConfirm =
     isPre && ['draft', 'submitted'].includes(stored.status) && can(user, 'confirm', stored);
   const canReturn = isPre && stored.status === 'submitted' && can(user, 'return_to_pm', stored);
@@ -291,7 +300,7 @@ function Editor({ stored }: { stored: Booking }) {
               s={s}
               booking={booking}
               av={av}
-              conflicts={conflicts}
+              tiers={tiers}
               user={user}
               editable={editable}
               update={update}
@@ -394,6 +403,9 @@ function Editor({ stored }: { stored: Booking }) {
             >
               {cs.editor.actions.save}
             </button>
+          )}
+          {stored.status === 'tentative' && editable && (
+            <span className="text-xs text-muted">{cs.editor.actions.submitFirst}</span>
           )}
           {canSubmit && (
             <>
@@ -509,6 +521,9 @@ function Header({
   today: string;
 }) {
   const s = useAppState();
+  const user = useUser();
+  const run = useProto((p) => p.run);
+  const free = FREE_STAGES.some((x) => x === stored.status);
   const setPeriod = (i: number, p: BookingPeriod) => {
     const periods = draft.periods.map((x, j) => (j === i ? p : x));
     update(recalcBooking(s, { ...draft, periods }).booking);
@@ -517,12 +532,31 @@ function Header({
     <div className="panel p-4">
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <span className="text-xs font-medium text-muted">{cs.bookingType[stored.type]}</span>
-        <StatusChip status={stored.status} />
+        {free && editable ? (
+          <select
+            aria-label={cs.newBooking.stage}
+            className="input w-auto py-1 text-xs"
+            value={stored.status}
+            onChange={(e) =>
+              run((st) =>
+                setReservationStage(st, user, today, stored.id, e.target.value as FreeStage),
+              )
+            }
+          >
+            {FREE_STAGES.map((x) => (
+              <option key={x} value={x}>
+                {cs.status[x]}
+              </option>
+            ))}
+          </select>
+        ) : (
+          <StatusChip status={stored.status} />
+        )}
         <PartlyShipped s={s} b={stored} />
         <span className="text-xs text-muted">
           {cs.common.pm}: {userName(s, stored.pmId)}
         </span>
-        {stored.type === 'prebooking' && ['draft', 'submitted'].includes(stored.status) && (
+        {PRE_STATUSES.includes(stored.status) && (
           <span className="text-xs text-muted">
             {cs.editor.expires(
               fmtDate(firstEventDay(stored)),
@@ -813,7 +847,7 @@ function ConflictPanel({
   s,
   booking,
   av,
-  conflicts,
+  tiers,
   user,
   editable,
   update,
@@ -821,17 +855,26 @@ function ConflictPanel({
   s: AppState;
   booking: Booking;
   av: Map<string, LineAvailability>;
-  conflicts: ReturnType<typeof detectConflicts>;
+  tiers: ConflictTiers;
   user: User;
   editable: boolean;
   update: (b: Booking) => void;
 }) {
   const amberBreaks = booking.lines.filter((l) => av.get(l.id)?.breaksCase);
-  if (conflicts.length === 0 && amberBreaks.length === 0) return null;
+  const conflicts = tiers.real;
+  if (Object.values(tiers).every((x) => x.length === 0) && amberBreaks.length === 0) return null;
   const canOverride = can(user, 'override_conflict', booking);
   return (
-    <section data-testid="conflict-panel" className="panel border-bad/50 p-4">
-      <h2 className="mb-2 text-bad">{cs.conflict.title}</h2>
+    <section
+      data-testid="conflict-panel"
+      className={`panel p-4 ${conflicts.length > 0 ? 'border-bad/50' : ''}`}
+    >
+      <h2 className={`mb-2 ${conflicts.length > 0 ? 'text-bad' : ''}`}>{cs.conflict.title}</h2>
+      {conflicts.length > 0 && (
+        <p className="mb-2 flex flex-wrap items-center gap-2 text-xs text-muted">
+          <TierChip tier="real" /> {cs.tiers.hint.real}
+        </p>
+      )}
       <ul className="space-y-4">
         {conflicts.map((c) => {
           const line = booking.lines.find((l) => l.id === c.lineId);
@@ -854,15 +897,7 @@ function ConflictPanel({
               <ul className="ml-3 list-disc text-xs">
                 {c.colliding.map((b) => (
                   <li key={b.id} data-testid="colliding">
-                    <Link to={`/bookings/${b.id}`} className="underline">
-                      {cs.conflict.collidingRow(
-                        b.eventName,
-                        userName(s, b.pmId),
-                        fmtDate(b.from),
-                        fmtDate(b.to),
-                        cs.status[b.status],
-                      )}
-                    </Link>
+                    <CollidingLink b={b} />
                   </li>
                 ))}
               </ul>
@@ -929,6 +964,9 @@ function ConflictPanel({
           );
         })}
       </ul>
+      <TierSection tier="likely" conflicts={tiers.likely} booking={booking} />
+      <TierSection tier="possible" conflicts={tiers.possible} booking={booking} />
+      <SameDaySection list={tiers.sameDay} />
     </section>
   );
 }

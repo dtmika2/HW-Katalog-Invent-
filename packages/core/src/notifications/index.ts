@@ -113,6 +113,7 @@ const LEVEL_OF_TYPE: Record<NotificationType, NotificationLevel> = {
   shipping_cancelled: 'attention',
   cancel_requested: 'attention',
   cancel_decided: 'attention',
+  reservation_affected: 'attention',
   order_packed: 'info',
   prebooking_returned: 'attention',
   prebooking_expiring: 'attention',

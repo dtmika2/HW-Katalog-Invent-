@@ -11,7 +11,7 @@ import { chiefIds, notify, postEvent, warehouseIds } from '../notifications';
 import { returnSheet } from '../returns';
 import { casesOut } from '../packing';
 import type { AppState, Notification } from '../types';
-import { SYSTEM_USER_ID } from '../types';
+import { PRE_STATUSES, SYSTEM_USER_ID } from '../types';
 import { produce } from '../util';
 
 export interface DailyJobResult {
@@ -52,7 +52,7 @@ export function runDailyJobs(state: AppState, today: IsoDate): DailyJobResult {
 
     for (const b of d.bookings) {
       const params = { event: b.eventName };
-      if (b.type === 'prebooking' && (b.status === 'draft' || b.status === 'submitted')) {
+      if (b.type === 'prebooking' && PRE_STATUSES.includes(b.status)) {
         const first = firstEventDay(b);
         if (today >= first) {
           b.status = 'expired';
@@ -95,7 +95,8 @@ export function runDailyJobs(state: AppState, today: IsoDate): DailyJobResult {
         if (due(`expiring:${b.id}`, addDays(first, -r.prebookingExpiryWarnBefore))) {
           notify(
             d,
-            [...chiefIds(d), b.pmId],
+            // the Chief hears of it only once asked to approve
+            [...(b.status === 'submitted' ? chiefIds(d) : []), b.pmId],
             {
               type: 'prebooking_expiring',
               text: `${b.eventName} expires on ${first}`,

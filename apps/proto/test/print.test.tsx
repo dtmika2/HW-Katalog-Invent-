@@ -96,7 +96,7 @@ describe('booking sheet', () => {
     fireEvent.click(options().getByLabelText('S interními údaji'));
     expect(paper()).toHaveTextContent('Chybí 2 ks (09.06., 10.06.), drží: Koncert v parku');
     expect(paper()).toHaveTextContent(
-      'Potvrzeno přes konflikt: Koncert v parku vrátí 2 kusy dřív, domluveno s Petrem',
+      'Schváleno přes konflikt: Koncert v parku vrátí 2 kusy dřív, domluveno s Petrem',
     );
     expect(paper()).toHaveTextContent('Zdroj: Brod');
     expect(paper()).toHaveTextContent('Schválil (šéf techniky)');

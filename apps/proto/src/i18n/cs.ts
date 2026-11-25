@@ -7,6 +7,8 @@ import type {
   BookingStatus,
   Condition,
   ConflictStatus,
+  ConflictTier,
+  HoldKind,
   IssueResolutionKind,
   IssueType,
   NotificationLevel,
@@ -22,6 +24,23 @@ const pcs = (n: number) => `${n} ks`;
 const paramDate = (d: string | number | undefined) =>
   fmtDate(d === undefined ? undefined : String(d));
 const cases = (n: number) => (n === 1 ? '1 case' : `${n} casy`);
+
+const STATUS = {
+  tentative: 'Nepotvrzená rezervace',
+  planned: 'Potvrzená rezervace',
+  draft: 'Rozpracovaná',
+  submitted: 'Potvrzeno k expedici',
+  confirmed: 'Schválená',
+  packing: 'Balí se',
+  packed: 'Zabaleno',
+  shipped: 'Odvezeno',
+  returning: 'Vratka probíhá',
+  returned: 'Vráceno',
+  returned_with_issues: 'Vráceno s problémy',
+  closed: 'Uzavřeno',
+  expired: 'Propadlá',
+  cancelled: 'Zrušeno',
+} satisfies Record<BookingStatus, string>;
 
 export const cs = {
   app: {
@@ -90,7 +109,7 @@ export const cs = {
     conflictChain: {
       see: 'Robe LEDBeam 150, červen, sklad Brod: tři rezervace se překrývají, 09.–10.06. je −2 z 16.',
       teaches:
-        'Předrezervace techniku nedrží, potvrzená objednávka ano. Potvrdit přes konflikt jde jen s důvodem.',
+        'Předrezervace techniku nedrží, schválená objednávka ano. Schválit přes konflikt jde jen s důvodem.',
     },
     transfer: {
       see: 'Letní noc – warm-up má 8 LEDBeamů přímo z akce TechConf 2027. Ve vratce TechConf otevřete „Předat rovnou na jinou akci“.',
@@ -101,46 +120,65 @@ export const cs = {
       teaches: 'Volný kus nemusí být použitelný: je v casu, který je celý slíbený jinam.',
     },
   } as Record<string, { see: string; teaches: string }>,
-  status: {
-    draft: 'Rozpracovaná',
-    submitted: 'Ke schválení',
-    confirmed: 'Potvrzená',
-    packing: 'Balí se',
-    packed: 'Zabaleno',
-    shipped: 'Odvezeno',
-    returning: 'Vratka probíhá',
-    returned: 'Vráceno',
-    returned_with_issues: 'Vráceno s problémy',
-    closed: 'Uzavřeno',
-    expired: 'Propadlá',
-  } satisfies Record<BookingStatus, string>,
+  status: STATUS,
+  /** How real a conflict is, by the state of the other booking. */
+  tiers: {
+    name: { real: 'Skutečný', likely: 'Pravděpodobný', possible: 'Možný' },
+    mark: { real: '!', likely: '!', possible: '?' },
+    hint: {
+      real: 'Techniku drží schválená objednávka, výpůjčka nebo servis.',
+      likely: 'Jiná předrezervace s technikou počítá, ale schválená ještě není.',
+      possible: 'Jen pokud se uskuteční nepotvrzená rezervace.',
+    },
+    sameDay: 'Ve stejné dny, technika zatím neznámá',
+  } satisfies {
+    name: Record<ConflictTier, string>;
+    mark: Record<ConflictTier, string>;
+    hint: Record<ConflictTier, string>;
+    sameDay: string;
+  },
   bookingType: { prebooking: 'Předrezervace', order: 'Objednávka' },
   /** "Vysvětlivky": stages of a booking. Keep in step with `TRANSITIONS` in core. */
   stages: {
     button: 'Vysvětlivky',
     title: 'Vysvětlivky: stavy rezervace',
     flow: 'Obvyklá cesta',
-    groups: { prebooking: 'Předrezervace', order: 'Objednávka', vratka: 'Vratka a uzavření' },
+    groups: {
+      reservation: 'Rezervace termínu',
+      prebooking: 'Předrezervace',
+      order: 'Objednávka',
+      vratka: 'Vratka a uzavření',
+    },
     next: 'Co dál:',
     holds: 'Drží techniku:',
     info: {
+      tentative: {
+        means: 'Na ten den možná něco bude. Technika může a nemusí být vyplněná.',
+        next: 'PM ji přepne na Potvrzenou rezervaci nebo Rozpracovanou. Šéf techniky nedostává žádné upozornění.',
+        holds: 'ne, ostatním jen ukazuje možný konflikt',
+      },
+      planned: {
+        means: 'Akce bude, technika může a nemusí být vyplněná.',
+        next: 'PM nebo šéf techniky ji potvrdí ke schválení.',
+        holds: 'ne, ostatním jen ukazuje pravděpodobný konflikt',
+      },
       draft: {
         means: 'PM sestavuje seznam techniky.',
-        next: 'PM nebo šéf techniky ji odešle ke schválení. Šéf techniky (nebo PM s oprávněním) ji může rovnou potvrdit.',
-        holds: 'ne',
+        next: 'PM nebo šéf techniky ji potvrdí ke schválení. Šéf techniky (nebo PM s oprávněním) ji může rovnou schválit.',
+        holds: 'ne, ostatním jen ukazuje pravděpodobný konflikt',
       },
       submitted: {
-        means: 'Čeká na šéfa techniky.',
-        next: 'Šéf techniky (nebo PM s oprávněním) ji potvrdí. Šéf techniky ji může vrátit PM.',
-        holds: 'jen měkce, ostatní ji vidí jako požadavek',
+        means: 'Čeká na schválení. Teprve teď o ní dostane upozornění šéf techniky.',
+        next: 'Šéf techniky (nebo PM s oprávněním) ji schválí. Šéf techniky ji může vrátit PM.',
+        holds: 'ne, ostatním jen ukazuje pravděpodobný konflikt',
       },
       expired: {
-        means: 'Do dne akce nebyla potvrzena.',
+        means: 'Do dne akce nebyla schválena.',
         next: 'Konec. Propadne sama při nočních úlohách.',
         holds: 'ne',
       },
       confirmed: {
-        means: 'Potvrzená objednávka, ještě se nebalí.',
+        means: 'Schválená objednávka, ještě se nebalí.',
         next: 'Sklad začne balit. Je-li nakládka dál než za týden, musí ji nejdřív aktivovat.',
         holds: 'ano, v rezervovaných dnech',
       },
@@ -175,6 +213,7 @@ export const cs = {
         holds: 'ne',
       },
       closed: { means: 'Hotovo, jen ke čtení.', next: 'Konec.', holds: 'ne' },
+      cancelled: { means: 'Akce byla zrušena, jen ke čtení.', next: 'Konec.', holds: 'ne' },
     } satisfies Record<BookingStatus, { means: string; next: string; holds: string }>,
     arrow: 'zpět na',
     backTitle: 'Cesty zpátky',
@@ -196,6 +235,14 @@ export const cs = {
         how: 'Zrušit odvoz, do první vratky. Sklad potvrdí, že je vše zpátky. Od prvního dne akce jen šéf techniky; sklad ho může o zrušení požádat.',
       },
     ] satisfies { from: BookingStatus[]; to: BookingStatus[]; how: string }[],
+    tiersTitle: 'Jak vážný je konflikt',
+    tiersHint: 'Podle stavu té druhé rezervace. Sklad rezervace termínu nevidí.',
+    tiersEffect: {
+      real: 'Před odesláním ho PM odklikne, schválit jde jen s důvodem nebo externím pronájmem.',
+      likely:
+        'Jen varuje. Skutečný je od chvíle, kdy druhou akci někdo schválí; PM dostane upozornění.',
+      possible: 'Jen informuje.',
+    } satisfies Record<ConflictTier, string>,
     notesTitle: 'Co není samostatný stav',
     notesHint: 'Tyto poznámky se ukazují vedle stavu.',
     notes: [
@@ -284,6 +331,7 @@ export const cs = {
     filterAll: 'Všechny',
     filterMine: 'Moje',
     filterActive: 'Aktivní',
+    filterArchive: 'Archiv',
     columns: {
       event: 'Akce',
       client: 'Klient',
@@ -306,6 +354,7 @@ export const cs = {
     purposeHint: 'Firemní večírek, 200 lidí, venkovní stage',
     warehouse: 'Výchozí sklad',
     create: 'Vytvořit předrezervaci',
+    stage: 'Stav',
     pmFor: 'Za PM',
   },
   editor: {
@@ -360,14 +409,15 @@ export const cs = {
     cycle: 'Pozor: v propojeních je smyčka',
     actions: {
       save: 'Uložit',
-      submit: 'Odeslat ke schválení',
+      submit: 'Potvrdit ke schválení',
+      submitFirst: 'Nepotvrzenou rezervaci nejdřív přepněte na Potvrzenou rezervaci.',
       submitBlocked: 'Nejdřív potvrďte, že jste viděli všechny konflikty.',
       returnToPm: 'Vrátit PM s dotazem',
       returnPrompt: 'Co má PM doplnit nebo upravit?',
-      confirm: 'Potvrdit objednávku',
+      confirm: 'Schválit objednávku',
       confirmBlockedOr: 'Vyberte možnost ve všech skupinách „vyber jednu“.',
       confirmBlockedConflict:
-        'Chybějící položky pokryjte externím pronájmem nebo potvrďte s důvodem.',
+        'Chybějící položky pokryjte externím pronájmem nebo schvalte s důvodem.',
       readonly: 'Tuto rezervaci nemůžete upravovat.',
       openPacking: 'Balicí list',
       openVratka: 'Vratka',
@@ -390,13 +440,13 @@ export const cs = {
       externalPrice: 'externě, cena zvlášť',
       notBinding: 'Nejde o závaznou nabídku.',
       heldBy: (events: string) => `drží: ${events}`,
-      override: (r: string) => `Potvrzeno přes konflikt: ${r}`,
+      override: (r: string) => `Schváleno přes konflikt: ${r}`,
       openChoices: (items: string) => `Zbývá vybrat možnost pro: ${items}`,
       refused: 'Nemáme nebo nahrazeno',
       askedBy: 'Žádá (PM)',
       approvedBy: 'Schválil (šéf techniky)',
       internalNote: 'Interní dokument.',
-      confirmedOn: (d: string) => `Potvrzeno ${d}.`,
+      confirmedOn: (d: string) => `Schváleno ${d}.`,
       empty: 'Seznam je prázdný.',
     },
     expires: (date: string, age: string) => `Propadne ${date} · vytvořeno ${age}`,
@@ -458,7 +508,10 @@ export const cs = {
   },
   badge: {
     green: 'Volné',
-    amber: 'Jen pokud se zamítne předrezervace',
+    likely: (short: number, isCase: boolean) =>
+      `Pravděpodobně chybí ${isCase ? cases(short) : pcs(short)}`,
+    possible: (short: number, isCase: boolean) =>
+      `Možná chybí ${isCase ? cases(short) : pcs(short)}`,
     red: (short: number, isCase: boolean) =>
       isCase ? `Chybí ${cases(short)}` : `Chybí ${pcs(short)}`,
     breaksCase: (caseName: string) => `Rozdělí obsah casu: ${caseName}`,
@@ -469,12 +522,11 @@ export const cs = {
     title: 'Konflikty',
     lineShort: (name: string, short: string, day: string) => `${name}: ${short} (nejhůř ${day})`,
     heldBy: 'Drží:',
-    softBy: 'Předrezervace, které mohou ubrat:',
     collidingRow: (event: string, pm: string, from: string, to: string, state: string) =>
       `${event} — ${pm}, ${from}–${to}, ${state}`,
     ack: 'Viděl(a) jsem konflikt',
     waysOut: 'Možnosti: snížit počet, nahradit jinou položkou, externí pronájem, jiný termín.',
-    override: 'Potvrdit i přesto — důvod',
+    override: 'Schválit i přesto — důvod',
     overridePlaceholder: 'Proč to i tak půjde (uvidí šéf a dotčení PM)',
     externalTitle: 'Pokrýt externím pronájmem',
     externalQty: 'Kolik',
@@ -493,10 +545,12 @@ export const cs = {
   },
   events: {
     created: () => 'Rezervace vytvořena',
-    submitted: () => 'Odesláno ke schválení',
+    stage_changed: (p: Params) =>
+      `Stav změněn: ${STATUS[p.from as BookingStatus]} → ${STATUS[p.to as BookingStatus]}`,
+    submitted: () => 'Potvrzeno ke schválení',
     returned_to_pm: (p: Params) => `Vráceno PM: ${p.reason ?? ''}`,
-    confirmed: () => 'Potvrzeno jako objednávka',
-    override: (p: Params) => `Potvrzeno přes konflikt: ${p.reason ?? ''}`,
+    confirmed: () => 'Schváleno jako objednávka',
+    override: (p: Params) => `Schváleno přes konflikt: ${p.reason ?? ''}`,
     packing_started: (p: Params) =>
       p.reason ? `Sklad začal balit předem. Důvod: ${p.reason}` : 'Sklad začal balit',
     packed: (p: Params) =>
@@ -547,8 +601,8 @@ export const cs = {
     types: {
       prebooking_submitted: (p: Params) => `${p.event}: nová předrezervace ke schválení`,
       prebooking_returned: (p: Params) => `${p.event}: vráceno k doplnění — ${p.reason}`,
-      order_confirmed: (p: Params) => `${p.event}: objednávka potvrzena`,
-      conflict_overridden: (p: Params) => `${p.event}: potvrzeno přes konflikt, chybí ${p.short}`,
+      order_confirmed: (p: Params) => `${p.event}: objednávka schválena`,
+      conflict_overridden: (p: Params) => `${p.event}: schváleno přes konflikt, chybí ${p.short}`,
       conflict_detected: (p: Params) => `${p.event}: nový konflikt, chybí ${p.short}`,
       order_edited_after_packing: (p: Params) => `${p.event}: změna po zahájení balení`,
       upcoming_loading: (p: Params) => `${p.event}: nakládka ${paramDate(p.date)}`,
@@ -575,6 +629,8 @@ export const cs = {
         `${p.event}: odvoz zrušen (${p.label}, ${p.count} ks)${p.reason ? `, důvod: ${p.reason}` : ''}`,
       cancel_requested: (p: Params) =>
         `${p.event}: ${p.who} žádá o zrušení ${p.label ? `odvozu ${p.label}` : 'balení'}, důvod: ${p.reason}`,
+      reservation_affected: (p: Params) =>
+        `${p.event}: technika už skutečně chybí, byla schválena akce ${p.other}`,
       cancel_decided: (p: Params) =>
         p.approved
           ? `${p.event}: zrušení ${p.label ? `odvozu ${p.label}` : 'balení'} schváleno`
@@ -625,7 +681,7 @@ export const cs = {
     nobody: 'Nikomu nebude chybět.',
     leftFree: (n: number, range: string) => `Zbude volných: ${n} ks (${range}).`,
     hits: {
-      order: 'Pozor, tuto techniku potřebuje potvrzená objednávka:',
+      order: 'Pozor, tuto techniku potřebuje schválená objednávka:',
       prebooking: 'Počítá s ní předrezervace:',
     },
     wouldMiss: (n: number, item: string, days: string) => `bude chybět ${n}× ${item} (${days})`,
@@ -744,7 +800,12 @@ export const cs = {
     dayEmpty: 'Ten den nic nedrží.',
     holdQty: (n: number) => `${n} ks`,
     holdCases: (n: number) => `${n} casů`,
-    soft: 'předrezervace',
+    hold: {
+      hard: '',
+      requested: 'předrezervace, pravděpodobné',
+      planned: 'předrezervace, pravděpodobné',
+      maybe: 'předrezervace, možné',
+    } satisfies Record<HoldKind, string>,
     serviceRow: (qty: number, status: string, back: string) =>
       `Servis: ${qty} ks, ${status}, zpět ${back}`,
     filterPm: 'PM',
@@ -756,10 +817,16 @@ export const cs = {
     eventDays: 'dny akce',
     bufferDays: 'balení / vratka',
     onlyConflicts: 'Jen s konfliktem',
+    conflictLevel: 'Konflikty',
+    conflictLevels: { real: 'jen skutečné', likely: 'i pravděpodobné', all: 'všechny' },
+    showReservations: 'Zobrazit rezervace termínu',
+    showCancelled: 'Zobrazit zrušené',
     conflict: {
-      short: 'potvrzené objednávce chybí technika',
+      short: 'schválené objednávce chybí technika',
       partner: 'drží techniku, která chybí jiné objednávce',
-      request: 'předrezervaci by technika chyběla',
+      request: 'předrezervaci chybí technika, drží ji objednávka',
+      likely: 'pravděpodobný: počítá s ní i jiná předrezervace',
+      possible: 'možný: jen když se uskuteční nepotvrzená rezervace',
     },
     conflictMark: (event: string, day: string, what: string) => `${event}, ${day}: ${what}`,
     conflictJump: (event: string) => `Zobrazit konflikt akce ${event}`,
@@ -768,6 +835,7 @@ export const cs = {
       `chybí ${n}× ${item} (sklad ${warehouse})`,
     conflictDays: (range: string) => `Dny: ${range}`,
     conflictHeldBy: 'Techniku drží:',
+    conflictWantedBy: 'Počítá s ní:',
     conflictOf: 'Komu:',
     noConflicts: 'V tomto měsíci nejsou žádné konflikty.',
   },
@@ -1000,7 +1068,7 @@ export const cs = {
   packing: {
     title: (event: string) => `Balicí list: ${event}`,
     start: 'Začít balit',
-    notStarted: 'Objednávka je potvrzená, balení ještě nezačalo.',
+    notStarted: 'Objednávka je schválená, balení ještě nezačalo.',
     early: {
       activate: 'Aktivovat',
       activateLabel: (event: string) => `Aktivovat balení: ${event}`,
@@ -1018,8 +1086,8 @@ export const cs = {
       button: 'Zrušit balení',
       ask: (n: number) =>
         n > 0
-          ? `Vybalí se ${n} ks a technika bude zase volná pro ostatní. Objednávka se vrátí do stavu Potvrzená.`
-          : 'Objednávka se vrátí do stavu Potvrzená.',
+          ? `Vybalí se ${n} ks a technika bude zase volná pro ostatní. Objednávka se vrátí do stavu Schválená.`
+          : 'Objednávka se vrátí do stavu Schválená.',
       askPartly: (n: number) =>
         `Vybalí se ${n} ks, které jsou ještě ve skladu. Co už odjelo, zůstane odvezené.`,
       reason: 'Důvod (nepovinné)',

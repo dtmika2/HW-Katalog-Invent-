@@ -66,7 +66,7 @@ export function shownLines(s: AppState, b: Booking, v: ListView): BookingLine[] 
     });
 }
 
-const BADGE_RANK = { red: 0, amber: 1, green: 2, none: 3 } as const;
+const BADGE_RANK = { red: 0, amber: 1, possible: 2, green: 3, none: 4 } as const;
 
 function comparer(
   s: AppState,
