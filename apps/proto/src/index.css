@@ -48,6 +48,27 @@
   }
 }
 
+@page {
+  size: A4;
+  margin: 14mm;
+  @bottom-right {
+    content: counter(page) ' / ' counter(pages);
+    font: 8pt sans-serif;
+  }
+}
+
+@media print {
+  html,
+  body {
+    background: white;
+  }
+  /* keep the grey section bars and tick boxes readable on paper */
+  * {
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   * {
     transition: none !important;

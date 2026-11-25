@@ -10,6 +10,7 @@ import {
   type PackLine,
   type ShipmentLine,
 } from '@quix/core';
+import { PackingPrint } from '../components/PackingPrint';
 import { CaseLabel, Empty, StatusChip } from '../components/ui';
 import { cs, fmtDate } from '../i18n/cs';
 import { itemName, locationPath, userName, warehouseName } from '../lib/names';
@@ -222,112 +223,128 @@ export function Packing() {
   };
 
   const shipments = s.shipments.filter((x) => x.bookingId === id);
+  const pickedCases = Object.fromEntries(
+    allLines.map((l) => [l.lineId, pick(l).ticked ? pick(l).caseIds : []]),
+  );
   return (
-    <div className="mx-auto max-w-2xl space-y-4">
-      <div>
-        <Link to={`/bookings/${id}`} className="text-sm underline">
-          {cs.common.back}
-        </Link>
-        <h1 className="mt-1">{cs.packing.title(b.eventName)}</h1>
-        <p className="mt-1 flex items-center gap-2 text-sm text-muted">
-          <StatusChip status={b.status} /> {fmtDate(firstBookedFrom(b))}
-        </p>
-      </div>
-      {b.editedAfterShipping && newLinesPending && (
-        <p
-          role="alert"
-          data-testid="high-priority"
-          className="rounded border-2 border-bad bg-bad-light p-3 text-sm font-semibold text-bad"
-        >
-          {cs.packing.highPriority}
-        </p>
-      )}
-      {b.status === 'confirmed' && (
-        <div className="panel p-3 text-sm">
-          <p>{cs.packing.notStarted}</p>
-          {can(user, 'start_packing') && (
+    <>
+      <PackingPrint s={s} b={b} list={pl} pickedCases={pickedCases} />
+      <div className="mx-auto max-w-2xl space-y-4 print:hidden">
+        <div>
+          <Link to={`/bookings/${id}`} className="text-sm underline">
+            {cs.common.back}
+          </Link>
+          <div className="mt-1 flex flex-wrap items-start justify-between gap-2">
+            <h1>{cs.packing.title(b.eventName)}</h1>
             <button
               type="button"
-              className="btn btn-primary mt-2"
-              onClick={() => run((st) => startPacking(st, user, today, id))}
+              className="btn"
+              title={cs.packing.print.buttonHint}
+              onClick={() => globalThis.print()}
             >
-              {cs.packing.start}
+              {cs.packing.print.button}
             </button>
-          )}
+          </div>
+          <p className="mt-1 flex items-center gap-2 text-sm text-muted">
+            <StatusChip status={b.status} /> {fmtDate(firstBookedFrom(b))}
+          </p>
         </div>
-      )}
-      {pl.byWarehouse.map((w) => (
-        <section key={w.warehouseId} className="space-y-2">
-          <h2>{cs.packing.warehouse(warehouseName(s, w.warehouseId))}</h2>
-          {w.groups.map((g) => (
-            <div key={g.locationId ?? 'none'}>
-              <h3 className="mb-1 text-xs font-semibold text-muted">
-                {g.locationId ? locationPath(s, g.locationId) : cs.packing.noLocation}
-              </h3>
-              <ul className="space-y-2">{g.lines.map(card)}</ul>
-            </div>
-          ))}
-        </section>
-      ))}
-      {pl.external.length > 0 && (
-        <section className="space-y-2">
-          <h2>{cs.packing.external}</h2>
-          <ul className="space-y-2">{pl.external.map(card)}</ul>
-        </section>
-      )}
-      {pl.transfers.length > 0 && (
-        <section className="space-y-2">
-          <h2>{cs.packing.transfers}</h2>
-          <ul className="space-y-1 text-sm">
-            {pl.transfers.map((l) => (
-              <li key={l.lineId} className="panel p-3">
-                {l.qty}× {l.name} —{' '}
-                {cs.packing.transferFrom(
-                  s.bookings.find((x) => x.id === l.fromBookingId)?.eventName ?? '',
-                )}
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
-      {canShip && (
-        <div className="sticky bottom-0 -mx-4 space-y-2 border-t border-alu-line bg-alu/95 px-4 py-3 backdrop-blur">
-          <label className="block">
-            <span className="label">{cs.packing.label}</span>
-            <input
-              className="input"
-              placeholder={cs.packing.labelDefault(batchNo)}
-              value={label}
-              onChange={(e) => setLabel(e.target.value)}
-            />
-          </label>
-          <button
-            type="button"
-            className="btn btn-primary min-h-12 w-full text-base"
-            disabled={ticked.length === 0}
-            onClick={ship}
+        {b.editedAfterShipping && newLinesPending && (
+          <p
+            role="alert"
+            data-testid="high-priority"
+            className="rounded border-2 border-bad bg-bad-light p-3 text-sm font-semibold text-bad"
           >
-            {cs.packing.ship(ticked.length)}
-          </button>
-        </div>
-      )}
-      {shipments.length > 0 && (
-        <section>
-          <h2>{cs.packing.batches}</h2>
-          <ul className="mt-1 text-sm">
-            {shipments.map((sh) => (
-              <li key={sh.id}>
-                {cs.packing.batchRow(
-                  sh.label,
-                  fmtDate(sh.shippedOn),
-                  sh.lines.reduce((n, x) => n + x.qty, 0),
-                  userName(s, sh.userId),
-                )}
-              </li>
+            {cs.packing.highPriority}
+          </p>
+        )}
+        {b.status === 'confirmed' && (
+          <div className="panel p-3 text-sm">
+            <p>{cs.packing.notStarted}</p>
+            {can(user, 'start_packing') && (
+              <button
+                type="button"
+                className="btn btn-primary mt-2"
+                onClick={() => run((st) => startPacking(st, user, today, id))}
+              >
+                {cs.packing.start}
+              </button>
+            )}
+          </div>
+        )}
+        {pl.byWarehouse.map((w) => (
+          <section key={w.warehouseId} className="space-y-2">
+            <h2>{cs.packing.warehouse(warehouseName(s, w.warehouseId))}</h2>
+            {w.groups.map((g) => (
+              <div key={g.locationId ?? 'none'}>
+                <h3 className="mb-1 text-xs font-semibold text-muted">
+                  {g.locationId ? locationPath(s, g.locationId) : cs.packing.noLocation}
+                </h3>
+                <ul className="space-y-2">{g.lines.map(card)}</ul>
+              </div>
             ))}
-          </ul>
-        </section>
-      )}
-    </div>
+          </section>
+        ))}
+        {pl.external.length > 0 && (
+          <section className="space-y-2">
+            <h2>{cs.packing.external}</h2>
+            <ul className="space-y-2">{pl.external.map(card)}</ul>
+          </section>
+        )}
+        {pl.transfers.length > 0 && (
+          <section className="space-y-2">
+            <h2>{cs.packing.transfers}</h2>
+            <ul className="space-y-1 text-sm">
+              {pl.transfers.map((l) => (
+                <li key={l.lineId} className="panel p-3">
+                  {l.qty}× {l.name} —{' '}
+                  {cs.packing.transferFrom(
+                    s.bookings.find((x) => x.id === l.fromBookingId)?.eventName ?? '',
+                  )}
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+        {canShip && (
+          <div className="sticky bottom-0 -mx-4 space-y-2 border-t border-alu-line bg-alu/95 px-4 py-3 backdrop-blur">
+            <label className="block">
+              <span className="label">{cs.packing.label}</span>
+              <input
+                className="input"
+                placeholder={cs.packing.labelDefault(batchNo)}
+                value={label}
+                onChange={(e) => setLabel(e.target.value)}
+              />
+            </label>
+            <button
+              type="button"
+              className="btn btn-primary min-h-12 w-full text-base"
+              disabled={ticked.length === 0}
+              onClick={ship}
+            >
+              {cs.packing.ship(ticked.length)}
+            </button>
+          </div>
+        )}
+        {shipments.length > 0 && (
+          <section>
+            <h2>{cs.packing.batches}</h2>
+            <ul className="mt-1 text-sm">
+              {shipments.map((sh) => (
+                <li key={sh.id}>
+                  {cs.packing.batchRow(
+                    sh.label,
+                    fmtDate(sh.shippedOn),
+                    sh.lines.reduce((n, x) => n + x.qty, 0),
+                    userName(s, sh.userId),
+                  )}
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+      </div>
+    </>
   );
 }

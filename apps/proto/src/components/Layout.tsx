@@ -171,8 +171,8 @@ export function Layout({ children }: { children: ReactNode }) {
     ['/clients', cs.nav.clients, can(user, 'manage_clients')],
   ];
   return (
-    <div className="min-h-screen lg:grid lg:grid-cols-[13rem_1fr]">
-      <aside className="border-b border-alu-line bg-ink text-white lg:min-h-screen lg:border-b-0">
+    <div className="min-h-screen lg:grid lg:grid-cols-[13rem_1fr] print:block">
+      <aside className="border-b border-alu-line bg-ink text-white lg:min-h-screen lg:border-b-0 print:hidden">
         <div className="flex items-center justify-between px-4 py-3">
           <NavLink to="/" className="font-cond text-xl font-bold tracking-wide">
             {cs.app.title}
@@ -214,14 +214,18 @@ export function Layout({ children }: { children: ReactNode }) {
         </nav>
       </aside>
       <div className="min-w-0">
-        <header className="flex items-start justify-between gap-3 border-b border-alu-line bg-alu-dark/60 px-4 py-3">
+        <header className="flex items-start justify-between gap-3 border-b border-alu-line bg-alu-dark/60 px-4 py-3 print:hidden">
           <Controls />
           <Bell />
         </header>
-        <StaleDataBanner />
-        <main className="mx-auto max-w-6xl px-4 py-5">{children}</main>
+        <div className="print:hidden">
+          <StaleDataBanner />
+        </div>
+        <main className="mx-auto max-w-6xl px-4 py-5 print:max-w-none print:p-0">{children}</main>
       </div>
-      <Toasts />
+      <div className="print:hidden">
+        <Toasts />
+      </div>
     </div>
   );
 }
