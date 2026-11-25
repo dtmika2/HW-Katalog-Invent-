@@ -148,6 +148,9 @@ describe('cancelling a booking', () => {
       'Zrušeno 20.04.2027, Petr Dvořák. Důvod: Klient akci zrušil',
     );
     expect(screen.getByLabelText('Název akce')).toBeDisabled();
+    expect(screen.queryByTestId('conflict-panel')).toBeNull();
+    expect(screen.queryAllByTestId('badge')).toEqual([]);
+    expect(screen.queryAllByTestId('check-warning')).toEqual([]);
     expect(screen.getByTestId('booking-print')).toHaveTextContent('ZRUŠENO');
     page.unmount();
     const list = renderCurrent('/bookings');
@@ -219,6 +222,7 @@ describe('cancelling a booking', () => {
     const page = renderCurrent(`/packing/${b.id}`);
     expect(screen.getByTestId('cancel-pending')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Potvrdit, že je vše vybalené' })).toBeDisabled();
+    expect(screen.queryByLabelText('Důvod (nepovinné)')).toBeNull();
     for (const c of screen.getAllByLabelText(/^Zpátky:/)) fireEvent.click(c);
     click('Potvrdit, že je vše vybalené');
     expect(booking(b.id)?.status).toBe('cancelled');

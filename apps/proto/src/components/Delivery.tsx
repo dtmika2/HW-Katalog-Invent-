@@ -153,6 +153,7 @@ function CancelConfirm({
   const s = useAppState();
   const [reason, setReason] = useState('');
   const [back, setBack] = useState<Set<string>>(new Set());
+  const b = s.bookings.find((x) => x.id === bookingId);
   const left = items.filter((i) => !back.has(i.key)).length;
   const toggle = (key: string) => {
     const next = new Set(back);
@@ -216,17 +217,20 @@ function CancelConfirm({
         </fieldset>
       )}
       {started && <p className="font-medium text-bad">{cs.packing.cancel.lockedChief}</p>}
-      <label className="block">
-        <span className="label">
-          {started ? cs.packing.cancel.reasonRequired : cs.packing.cancel.reason}
-        </span>
-        <input
-          className="input"
-          placeholder={cs.packing.cancel.reasonHint}
-          value={reason}
-          onChange={(e) => setReason(e.target.value)}
-        />
-      </label>
+      {/* a cancelled event has its reason already */}
+      {!b?.cancelPending && (
+        <label className="block">
+          <span className="label">
+            {started ? cs.packing.cancel.reasonRequired : cs.packing.cancel.reason}
+          </span>
+          <input
+            className="input"
+            placeholder={cs.packing.cancel.reasonHint}
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+          />
+        </label>
+      )}
       <div className="flex flex-wrap gap-2">
         <button
           type="submit"

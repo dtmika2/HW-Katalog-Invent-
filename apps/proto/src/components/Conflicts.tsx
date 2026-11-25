@@ -11,6 +11,10 @@ export const TIER_STYLE: Record<ConflictTier, string> = {
   possible: 'border-ink-soft/40 bg-alu text-ink-soft',
 };
 
+/** Blocks under each other are divided; the first one under the title is not. */
+const BLOCK =
+  'mt-4 border-t border-alu-line pt-3 [ul:empty+&]:mt-0 [ul:empty+&]:border-0 [ul:empty+&]:pt-0';
+
 export function TierChip({ tier }: { tier: ConflictTier }) {
   return (
     <span
@@ -52,7 +56,7 @@ export function TierSection({
   const s = useAppState();
   if (conflicts.length === 0) return null;
   return (
-    <div data-testid={`tier-${tier}`} className="mt-4 border-t border-alu-line pt-3">
+    <div data-testid={`tier-${tier}`} className={BLOCK}>
       <p className="mb-2 flex flex-wrap items-center gap-2 text-xs text-muted">
         <TierChip tier={tier} /> {cs.tiers.hint[tier]}
       </p>
@@ -86,7 +90,7 @@ export function TierSection({
 export function SameDaySection({ list }: { list: ConflictTiers['sameDay'] }) {
   if (list.length === 0) return null;
   return (
-    <div data-testid="same-day" className="mt-4 border-t border-alu-line pt-3">
+    <div data-testid="same-day" className={BLOCK}>
       <p className="mb-2 text-sm font-medium">{cs.tiers.sameDay}</p>
       <ul className="space-y-1.5 text-xs">
         {list.map(({ tier, booking }) => (

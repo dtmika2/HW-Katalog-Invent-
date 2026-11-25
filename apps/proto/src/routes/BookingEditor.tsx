@@ -5,6 +5,7 @@ import {
   addCheckCandidate,
   addDays,
   addLine,
+  ARCHIVED_STATUSES,
   bookingPriceTotal,
   can,
   canLeave,
@@ -119,10 +120,11 @@ function Editor({ stored }: { stored: Booking }) {
     (c) => !booking.lines.find((l) => l.id === c.lineId)?.overrideReason?.trim(),
   );
 
+  const checks = ARCHIVED_STATUSES.includes(stored.status) ? [] : expansion.checkWarnings;
   const hasSide =
     Object.values(tiers).some((x) => x.length > 0) ||
     [...av.values()].some((x) => x.breaksCase) ||
-    expansion.checkWarnings.length > 0 ||
+    checks.length > 0 ||
     (editable && expansion.recommendations.length > 0);
   const isPre = stored.type === 'prebooking';
   const canSubmit =
@@ -308,10 +310,10 @@ function Editor({ stored }: { stored: Booking }) {
               editable={editable}
               update={update}
             />
-            {expansion.checkWarnings.length > 0 && (
+            {checks.length > 0 && (
               <Section title={cs.editor.checksTitle}>
                 <ul className="space-y-3">
-                  {expansion.checkWarnings.map((w) => (
+                  {checks.map((w) => (
                     <li key={w.key} data-testid="check-warning" className="text-sm">
                       <p className="mb-1">{cs.editor.checkFor(itemName(s, w.fromItemId))}</p>
                       <div className="flex flex-wrap gap-1">
@@ -880,7 +882,7 @@ function ConflictPanel({
           <TierChip tier="real" /> {cs.tiers.hint.real}
         </p>
       )}
-      <ul className="space-y-4">
+      <ul className="space-y-4 empty:hidden">
         {conflicts.map((c) => {
           const line = booking.lines.find((l) => l.id === c.lineId);
           if (!line) return null;

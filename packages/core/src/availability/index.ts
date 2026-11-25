@@ -1,8 +1,8 @@
 /**
  * Availability per day, per warehouse and in total, for items and case types.
  *
- * free(i,w,d) = total − outOfService − hardHeld; soft holds (submitted pre-bookings) only turn a
- * badge amber. Case types: caseFree = completeCases − caseHeld − broken (docs/plan.md).
+ * free(i,w,d) = total − outOfService − hardHeld; pre-bookings only warn
+ * (see `HoldKind`). Case types: caseFree = completeCases − caseHeld − broken (docs/plan.md).
  */
 import { addDays, eachDay, maxDate, type IsoDate } from '../dates';
 import {
@@ -19,7 +19,17 @@ import {
   standardQty,
   stockQty,
 } from '../catalog';
-import type { AppState, Booking, BookingLine, Case, Id, Loan, PackedLine, Target } from '../types';
+import {
+  ARCHIVED_STATUSES,
+  type AppState,
+  type Booking,
+  type BookingLine,
+  type Case,
+  type Id,
+  type Loan,
+  type PackedLine,
+  type Target,
+} from '../types';
 import {
   effectiveQty,
   isActiveLine,
@@ -632,6 +642,8 @@ export function evaluateBooking(
     else ownByRes.set(k, [h]);
   }
   const out = new Map<Id, LineAvailability>();
+  // finished one way or another: there is nothing left to be short of
+  const archived = ARCHIVED_STATUSES.includes(booking.status);
 
   for (const line of booking.lines) {
     const none: LineAvailability = {
@@ -643,7 +655,7 @@ export function evaluateBooking(
       collidingBookingIds: [],
       collidingLoanIds: [],
     };
-    if (!isActiveLine(line) || isExternal(line.target)) {
+    if (!isActiveLine(line) || isExternal(line.target) || archived) {
       out.set(line.id, none);
       continue;
     }
