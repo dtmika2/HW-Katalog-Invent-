@@ -12,7 +12,7 @@ describe('notifications', () => {
       prepare: (s) => runDailyJobs(s, '2027-05-25').state,
     });
     const list = screen.getByTestId('notifications');
-    expect(list).toHaveTextContent('předrezervace propadne 26. 5. 2027');
+    expect(list).toHaveTextContent('předrezervace propadne 26.05.2027');
     expect(list).not.toHaveTextContent(/d{4}-d{2}-d{2}/);
   });
 
@@ -23,7 +23,7 @@ describe('notifications', () => {
       prepare: (s) => runDailyJobs(s, '2027-04-22').state,
     });
     const list = screen.getByTestId('notifications');
-    expect(list).toHaveTextContent('nakládka 23. 4. 2027');
+    expect(list).toHaveTextContent('nakládka 23.04.2027');
     expect(list).not.toHaveTextContent(/d{4}-d{2}-d{2}/);
   });
 
@@ -39,7 +39,7 @@ describe('notifications', () => {
     expect(urgent).toHaveAttribute('data-level', 'urgent');
     expect(urgent).toHaveTextContent('Naléhavé');
     expect(urgent).toHaveClass('bg-bad-light');
-    const attention = row('Konference Zdraví: předrezervace propadne 26. 5. 2027');
+    const attention = row('Konference Zdraví: předrezervace propadne 26.05.2027');
     expect(attention).toHaveAttribute('data-level', 'attention');
     expect(attention).toHaveTextContent('Pozor');
     expect(attention).toHaveClass('bg-warn-light/50');

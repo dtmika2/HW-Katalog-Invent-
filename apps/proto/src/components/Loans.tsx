@@ -22,6 +22,7 @@ import {
   type LoanInput,
 } from '@quix/core';
 import { cs, fmtDate, fmtRange, fmtShort } from '../i18n/cs';
+import { DateInput } from './DateInput';
 import {
   bookingSpan,
   caseNumber,
@@ -36,7 +37,7 @@ import { CaseLabel, Field } from './ui';
 export const loanWho = (s: AppState, l: Loan): string =>
   l.borrowerName ?? userName(s, l.borrowerId);
 
-/** "1 ks, Petr Dvořák, do 24. 4. 2027 (důvod: …)" for lists of who has the gear. */
+/** "1 ks, Petr Dvořák, do 24.04.2027 (důvod: …)" for lists of who has the gear. */
 export const loanLine = (s: AppState, l: Loan): string =>
   cs.loans.line(l.qty, loanWho(s, l), l.until ? fmtDate(l.until) : '', l.reason ?? '');
 
@@ -245,25 +246,16 @@ export function LoanForm({ itemId, onClose }: { itemId: string; onClose: () => v
           </Field>
         )}
         <Field label={cs.loans.from} htmlFor="ln-from">
-          <input
+          <DateInput
             id="ln-from"
-            type="date"
-            className="input"
             min={today}
             required
             value={from}
-            onChange={(e) => setFrom(e.target.value || today)}
+            onChange={(v) => setFrom(v || today)}
           />
         </Field>
         <Field label={cs.loans.until} htmlFor="ln-until">
-          <input
-            id="ln-until"
-            type="date"
-            className="input"
-            min={from}
-            value={until}
-            onChange={(e) => setUntil(e.target.value)}
-          />
+          <DateInput id="ln-until" min={from} value={until} onChange={setUntil} />
         </Field>
         {can(user, 'borrow_for_other') && (
           <Field label={cs.loans.forWhom} htmlFor="ln-who">
@@ -371,14 +363,7 @@ function Extend({ l, onClose }: { l: Loan; onClose: () => void }) {
       }}
     >
       <Field label={cs.loans.newUntil} htmlFor={`ext-${l.id}`}>
-        <input
-          id={`ext-${l.id}`}
-          type="date"
-          className="input w-auto"
-          min={today}
-          value={until}
-          onChange={(e) => setUntil(e.target.value)}
-        />
+        <DateInput id={`ext-${l.id}`} narrow min={today} value={until} onChange={setUntil} />
       </Field>
       <Hits s={s} hits={hits} />
       {needsReason && <ReasonField id={`exr-${l.id}`} value={reason} onChange={setReason} />}

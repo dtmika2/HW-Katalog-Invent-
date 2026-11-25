@@ -47,8 +47,8 @@ describe('borrowing an item', () => {
     fill('Vrátím do (nepovinné)', '2027-06-08');
     fill('Kolik kusů', '7');
     const hits = screen.getByTestId('loan-hits-order');
-    expect(hits).toHaveTextContent('Koncert v parku Petr Dvořák, 7.–10. 6. 2027');
-    expect(hits).toHaveTextContent('bude chybět 1× Robe LEDBeam 150 (7. 6., 8. 6.)');
+    expect(hits).toHaveTextContent('Koncert v parku Petr Dvořák, 07.–10.06.2027');
+    expect(hits).toHaveTextContent('bude chybět 1× Robe LEDBeam 150 (07.06., 08.06.)');
     const go = screen.getByRole('button', { name: 'Přesto si vzít' });
     expect(go).toBeDisabled();
     fill('Proč si ji přesto berete (povinné)', 'Zkouška, vrátím hned');
@@ -61,7 +61,7 @@ describe('borrowing an item', () => {
 
     page('u-tomas', '/');
     expect(screen.getByTestId('conflict-records')).toHaveTextContent(
-      'Půjčeno bez rezervace: Robe LEDBeam 150, 7 ks, Petr Dvořák, do 8. 6. 2027 (důvod: Zkouška, vrátím hned)',
+      'Půjčeno bez rezervace: Robe LEDBeam 150, 7 ks, Petr Dvořák, do 08.06.2027 (důvod: Zkouška, vrátím hned)',
     );
     page('u-tomas', `/bookings/${CHAIN.a}`);
     expect(screen.getByTestId('conflict-loans')).toHaveTextContent('7 ks, Petr Dvořák');
@@ -114,7 +114,7 @@ describe('Výpůjčky page', () => {
   it('shows overdue first, anyone returns and extends', () => {
     renderApp('/loans', { scenario: 'base', user: 'u-jana' });
     const rows = () => within(screen.getByTestId('loans')).getAllByTestId(/^loan-/);
-    expect(rows()[0]).toHaveTextContent('po termínu, mělo se vrátit 16. 4. 2027');
+    expect(rows()[0]).toHaveTextContent('po termínu, mělo se vrátit 16.04.2027');
     expect(rows().at(-1)).toHaveTextContent('Základní škola Brod');
     expect(rows().at(-1)).toHaveTextContent('zapsal(a) Karel Procházka');
     fireEvent.click(within(rows()[0]!).getByRole('button', { name: 'Prodloužit' }));
@@ -133,13 +133,11 @@ describe('Výpůjčky page', () => {
   it('the borrower is reminded of an overdue loan; the item calendar names the loan', () => {
     renderApp('/notifications', { scenario: 'base', user: 'u-lucie' });
     expect(screen.getByTestId('notifications')).toHaveTextContent(
-      'Výpůjčka po termínu: 1× Monitor 24", Lucie Malá, mělo se vrátit 16. 4. 2027',
+      'Výpůjčka po termínu: 1× Monitor 24", Lucie Malá, mělo se vrátit 16.04.2027',
     );
     page('u-jana', '/items/walkie');
     fireEvent.click(screen.getByTestId('day-2027-04-21'));
-    expect(screen.getByTestId('holder-loan')).toHaveTextContent(
-      '2 ks, Petr Dvořák, do 22. 4. 2027',
-    );
+    expect(screen.getByTestId('holder-loan')).toHaveTextContent('2 ks, Petr Dvořák, do 22.04.2027');
   });
 
   it('consumables offer no loan', () => {

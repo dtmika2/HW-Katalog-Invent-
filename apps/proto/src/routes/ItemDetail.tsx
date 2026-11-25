@@ -20,6 +20,7 @@ import { CategoryLabel } from '../components/Category';
 import { byReturn, LoanForm, LoanList } from '../components/Loans';
 import { CaseLabel, Empty, Field, Section } from '../components/ui';
 import { cs, fmtDate } from '../i18n/cs';
+import { DateInput } from '../components/DateInput';
 import { itemName, locationPath, targetName, userName } from '../lib/names';
 import { useAppState, useProto, useToday, useUser } from '../store';
 import { CaseEditor, ItemEditPanels } from './ItemEdit';
@@ -160,13 +161,7 @@ function FaultForm({ itemId }: { itemId: string }) {
         />
       </Field>
       <Field label={cs.catalog.faultExpected} htmlFor="f-back">
-        <input
-          id="f-back"
-          type="date"
-          className="input"
-          value={back}
-          onChange={(e) => setBack(e.target.value)}
-        />
+        <DateInput id="f-back" value={back} onChange={setBack} />
       </Field>
       <div className="flex gap-2 sm:col-span-2">
         <button type="submit" className="btn btn-primary" disabled={!reason.trim()}>

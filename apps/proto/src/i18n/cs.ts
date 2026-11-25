@@ -2,6 +2,7 @@
  * All Czech UI strings. Components read text from here only, so wording can change without
  * touching code. Functions take values that go into the sentence.
  */
+import { isIsoDate } from '@quix/core';
 import type {
   BookingStatus,
   Condition,
@@ -83,11 +84,11 @@ export const cs = {
       teaches: 'Jak vypadá den PM, šéfa techniky a skladu. Nejlepší na volné zkoušení.',
     },
     galaDinner: {
-      see: 'Gala Dinner si založíte sami jako Petr na 24. 4. 2027. Při 2× AX9 case jeden chybí, drží ho Firemní den.',
+      see: 'Gala Dinner si založíte sami jako Petr na 24.04.2027. Při 2× AX9 case jeden chybí, drží ho Firemní den.',
       teaches: 'Celou cestu od poptávky po vratku a řešení konfliktu externím pronájmem.',
     },
     conflictChain: {
-      see: 'Robe LEDBeam 150, červen, sklad Brod: tři rezervace se překrývají, 9.–10. 6. je −2 z 16.',
+      see: 'Robe LEDBeam 150, červen, sklad Brod: tři rezervace se překrývají, 09.–10.06. je −2 z 16.',
       teaches:
         'Předrezervace techniku nedrží, potvrzená objednávka ano. Potvrdit přes konflikt jde jen s důvodem.',
     },
@@ -561,6 +562,13 @@ export const cs = {
     archivedOk: 'Klient je v archivu, u nových rezervací se už nenabízí.',
     restore: 'Obnovit',
     restored: 'Klient obnoven.',
+  },
+  date: {
+    placeholder: 'dd.mm.rrrr',
+    pick: 'Vybrat datum v kalendáři',
+    invalid: 'Datum zadejte jako dd.mm.rrrr, např. 24.04.2027.',
+    tooEarly: (d: string) => `Nejdřív ${d}.`,
+    tooLate: (d: string) => `Nejpozději ${d}.`,
   },
   // Filled in by later milestones
   calendar: {
@@ -1054,23 +1062,45 @@ export const cs = {
   },
 };
 
-/** Czech date "24. 4. 2027" from an ISO day. */
+const two = (n: number) => String(n).padStart(2, '0');
+
+/** Czech date "24.04.2027" from an ISO day. */
 export function fmtDate(d: string | undefined): string {
   if (!d) return cs.common.none;
   const [y, m, day] = d.split('-');
-  return `${Number(day)}. ${Number(m)}. ${y}`;
+  return `${day}.${m}.${y}`;
 }
 
-/** Short Czech date "24. 4." */
+/** Short Czech date "24.04." */
 export function fmtShort(d: string | undefined): string {
   if (!d) return cs.common.none;
   const [, m, day] = d.split('-');
-  return `${Number(day)}. ${Number(m)}.`;
+  return `${day}.${m}.`;
 }
 
-/** Range "23.–25. 4. 2027" or "30. 4. – 2. 5. 2027". */
+/** Range "23.–25.04.2027" or "30.04.–02.05.2027". */
 export function fmtRange(from: string, to: string): string {
   if (from === to) return fmtDate(from);
-  if (from.slice(0, 7) === to.slice(0, 7)) return `${Number(from.slice(8))}.–${fmtDate(to)}`;
-  return `${fmtShort(from)} – ${fmtDate(to)}`;
+  if (from.slice(0, 7) === to.slice(0, 7)) return `${from.slice(8)}.–${fmtDate(to)}`;
+  if (from.slice(0, 4) === to.slice(0, 4)) return `${fmtShort(from)}–${fmtDate(to)}`;
+  return `${fmtDate(from)}–${fmtDate(to)}`;
+}
+
+/**
+ * ISO day from what a person types: 24.04.2027, 24.4.2027, "24. 4. 2027", 24042027 or an ISO day.
+ * '' for nothing, undefined for anything else. With `year` (leaving the field) also 24.4. and
+ * 24.4.27 are understood.
+ */
+export function parseDate(text: string, year?: string): string | undefined {
+  const t = text.trim();
+  if (!t) return '';
+  if (isIsoDate(t)) return t;
+  const m =
+    /^(\d{1,2})\s*\.\s*(\d{1,2})\s*\.\s*(\d{4})$/.exec(t) ??
+    /^(\d{2})(\d{2})(\d{4})$/.exec(t) ??
+    (year !== undefined ? /^(\d{1,2})\s*\.\s*(\d{1,2})\s*\.?\s*(\d{2})?$/.exec(t) : null);
+  if (!m) return undefined;
+  const y = m[3] ? (m[3].length === 2 ? `20${m[3]}` : m[3]) : year;
+  const iso = `${y}-${two(Number(m[2]))}-${two(Number(m[1]))}`;
+  return isIsoDate(iso) ? iso : undefined;
 }

@@ -10,6 +10,7 @@ import {
 } from '@quix/core';
 import { CaseLabel, Empty, Field, Section } from '../components/ui';
 import { cs, fmtDate } from '../i18n/cs';
+import { DateInput } from '../components/DateInput';
 import { caseNumber, itemName, userName, warehouseName } from '../lib/names';
 import { useAppState, useProto, useToday, useUser } from '../store';
 
@@ -84,13 +85,7 @@ function Detail({ sc }: { sc: ServiceCase }) {
               </select>
             </Field>
             <Field label={cs.serviceUi.expected} htmlFor="sv-exp">
-              <input
-                id="sv-exp"
-                type="date"
-                className="input"
-                value={expected}
-                onChange={(e) => setExpected(e.target.value)}
-              />
+              <DateInput id="sv-exp" value={expected} onChange={setExpected} />
             </Field>
             <Field label={cs.serviceUi.cost} htmlFor="sv-cost">
               <input

@@ -29,10 +29,10 @@ describe('vratka sheet', () => {
     expect(print).toHaveBeenCalledOnce();
     const paper = screen.getByTestId('vratka-print');
     expect(paper).toHaveTextContent('Vratka do skladu Brod');
-    expect(paper).toHaveTextContent('Odvezeno: Dodávka 1 (20. 4. 2027), Dodávka 2 (20. 4. 2027)');
+    expect(paper).toHaveTextContent('Odvezeno: Dodávka 1 (20.04.2027), Dodávka 2 (20.04.2027)');
     expect(paper).toHaveTextContent('case č. AX9-02');
     expect(within(paper).getAllByText('Astera AX9 PowerPAR').length).toBeGreaterThan(0);
-    expect(paper).toHaveTextContent('Astera Rent CZ, vrátit do 25. 4. 2027');
+    expect(paper).toHaveTextContent('Astera Rent CZ, vrátit do 25.04.2027');
     for (const l of returnSheet(state(), GALA_ID)) {
       if (l.consumable) expect(within(paper).queryByText(l.name)).toBeNull();
       else expect(paper).toHaveTextContent(l.name);
@@ -71,7 +71,7 @@ describe('booking sheet', () => {
     expect(print).toHaveBeenCalledOnce();
     expect(paper()).toHaveTextContent('Předrezervace');
     expect(paper()).toHaveTextContent('Klient: Hotel Grand Praha, Ing. Pavel Beneš');
-    expect(paper()).toHaveTextContent('Akce: 24. 4. 2027 (technika 23.–25. 4. 2027)');
+    expect(paper()).toHaveTextContent('Akce: 24.04.2027 (technika 23.–25.04.2027)');
     const total = bookingPriceTotal(state(), booking(GALA_ID)!).toLocaleString('cs-CZ');
     expect(paper().textContent).toContain(`${total} Kč`);
     expect(paper()).toHaveTextContent('Nejde o závaznou nabídku.');
@@ -94,7 +94,7 @@ describe('booking sheet', () => {
     for (const secret of ['Chybí', 'Koncert v parku', 'Schválil', 'Zdroj', 'Interní'])
       expect(paper()).not.toHaveTextContent(secret);
     fireEvent.click(options().getByLabelText('S interními údaji'));
-    expect(paper()).toHaveTextContent('Chybí 2 ks (9. 6., 10. 6.), drží: Koncert v parku');
+    expect(paper()).toHaveTextContent('Chybí 2 ks (09.06., 10.06.), drží: Koncert v parku');
     expect(paper()).toHaveTextContent(
       'Potvrzeno přes konflikt: Koncert v parku vrátí 2 kusy dřív, domluveno s Petrem',
     );

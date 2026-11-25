@@ -15,6 +15,7 @@ import {
 import { ClientPicker } from '../components/Clients';
 import { Field, PartlyShipped, StatusChip, LEVEL_STYLE, LevelChip } from '../components/ui';
 import { cs, fmtDate, fmtRange } from '../i18n/cs';
+import { DateInput } from '../components/DateInput';
 import { bookingSpan, clientName, userName } from '../lib/names';
 import { useAppState, useProto, useToday, useUser } from '../store';
 
@@ -163,25 +164,10 @@ export function NewBooking() {
       </Field>
       <div className="grid gap-3 sm:grid-cols-2">
         <Field label={cs.newBooking.eventFrom} htmlFor="nb-from">
-          <input
-            id="nb-from"
-            type="date"
-            className="input"
-            required
-            value={from}
-            onChange={(e) => setFrom(e.target.value)}
-          />
+          <DateInput id="nb-from" required value={from} onChange={setFrom} />
         </Field>
         <Field label={cs.newBooking.eventTo} htmlFor="nb-to">
-          <input
-            id="nb-to"
-            type="date"
-            className="input"
-            required
-            min={from}
-            value={to}
-            onChange={(e) => setTo(e.target.value)}
-          />
+          <DateInput id="nb-to" required min={from} value={to} onChange={setTo} />
         </Field>
       </div>
       <p className="text-xs text-muted">

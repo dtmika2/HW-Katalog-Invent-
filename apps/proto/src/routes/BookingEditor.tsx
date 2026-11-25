@@ -54,6 +54,7 @@ import { LoanNames } from '../components/Loans';
 import { PrintButton } from '../components/print';
 import { CaseLabel, Empty, Field, PartlyShipped, Section, StatusChip } from '../components/ui';
 import { cs, fmtDate } from '../i18n/cs';
+import { DateInput } from '../components/DateInput';
 import { ageDays, isCaseLine, itemName, lineName, targetName, userName } from '../lib/names';
 import { useAppState, useProto, useToday, useUser } from '../store';
 import { DragHandle, DragProvider, type DragPayload } from '../components/lines/drag';
@@ -559,70 +560,51 @@ function Header({
           {draft.periods.map((p, i) => (
             <div key={i} className="flex flex-wrap items-end gap-2 text-sm">
               <Field label={cs.newBooking.eventFrom} htmlFor={`p${i}-ef`}>
-                <input
+                <DateInput
                   id={`p${i}-ef`}
-                  type="date"
-                  className="input w-auto"
+                  narrow
                   value={p.eventFrom}
                   disabled={!editable}
-                  onChange={(e) =>
-                    e.target.value &&
-                    setPeriod(
-                      i,
-                      periodWithBuffer(
-                        e.target.value,
-                        e.target.value > p.eventTo ? e.target.value : p.eventTo,
-                        s.settings,
-                      ),
-                    )
+                  onChange={(v) =>
+                    v &&
+                    setPeriod(i, periodWithBuffer(v, v > p.eventTo ? v : p.eventTo, s.settings))
                   }
                 />
               </Field>
               <Field label={cs.newBooking.eventTo} htmlFor={`p${i}-et`}>
-                <input
+                <DateInput
                   id={`p${i}-et`}
-                  type="date"
-                  className="input w-auto"
+                  narrow
                   value={p.eventTo}
                   min={p.eventFrom}
                   disabled={!editable}
-                  onChange={(e) =>
-                    e.target.value &&
+                  onChange={(v) =>
+                    v >= p.eventFrom &&
                     setPeriod(i, {
                       ...p,
-                      eventTo: e.target.value,
-                      bookedUntil: addDays(e.target.value, s.settings.bufferAfterDays),
+                      eventTo: v,
+                      bookedUntil: addDays(v, s.settings.bufferAfterDays),
                     })
                   }
                 />
               </Field>
               <Field label={cs.editor.bookedDays} htmlFor={`p${i}-bf`}>
                 <span className="flex gap-1">
-                  <input
+                  <DateInput
                     id={`p${i}-bf`}
-                    type="date"
-                    className="input w-auto"
+                    narrow
                     value={p.bookedFrom}
                     max={p.eventFrom}
                     disabled={!editable}
-                    onChange={(e) =>
-                      e.target.value &&
-                      e.target.value <= p.eventFrom &&
-                      setPeriod(i, { ...p, bookedFrom: e.target.value })
-                    }
+                    onChange={(v) => v && v <= p.eventFrom && setPeriod(i, { ...p, bookedFrom: v })}
                   />
-                  <input
+                  <DateInput
                     aria-label={`${cs.editor.bookedDays} ${cs.common.to}`}
-                    type="date"
-                    className="input w-auto"
+                    narrow
                     value={p.bookedUntil}
                     min={p.eventTo}
                     disabled={!editable}
-                    onChange={(e) =>
-                      e.target.value &&
-                      e.target.value >= p.eventTo &&
-                      setPeriod(i, { ...p, bookedUntil: e.target.value })
-                    }
+                    onChange={(v) => v && v >= p.eventTo && setPeriod(i, { ...p, bookedUntil: v })}
                   />
                 </span>
               </Field>
@@ -976,22 +958,10 @@ function ExternalForm({
           />
         </Field>
         <Field label={cs.conflict.pickup} htmlFor={`ext-p-${line.id}`}>
-          <input
-            id={`ext-p-${line.id}`}
-            className="input"
-            type="date"
-            value={pickup}
-            onChange={(e) => setPickup(e.target.value)}
-          />
+          <DateInput id={`ext-p-${line.id}`} value={pickup} onChange={setPickup} />
         </Field>
         <Field label={cs.conflict.returnDate} htmlFor={`ext-r-${line.id}`}>
-          <input
-            id={`ext-r-${line.id}`}
-            className="input"
-            type="date"
-            value={ret}
-            onChange={(e) => setRet(e.target.value)}
-          />
+          <DateInput id={`ext-r-${line.id}`} value={ret} onChange={setRet} />
         </Field>
       </div>
       <button

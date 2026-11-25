@@ -3,6 +3,7 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import { can, highestUnreadLevel, isIsoDate, unreadCount } from '@quix/core';
 import { SCENARIOS, type ScenarioId } from '@quix/fixtures';
 import { cs } from '../i18n/cs';
+import { DateInput } from './DateInput';
 import { clearPersisted, useAppState, useProto, useToday, useUser } from '../store';
 import { ScenarioHelp } from './ScenarioHelp';
 import { LEVEL_STYLE, Toasts } from './ui';
@@ -96,12 +97,11 @@ function Controls() {
         <label className="label" htmlFor="ctl-today">
           {cs.shell.today}
         </label>
-        <input
+        <DateInput
           id="ctl-today"
-          type="date"
-          className="input w-auto"
+          narrow
           value={today}
-          onChange={(e) => isIsoDate(e.target.value) && setToday(e.target.value)}
+          onChange={(v) => isIsoDate(v) && setToday(v)}
         />
       </div>
       <button

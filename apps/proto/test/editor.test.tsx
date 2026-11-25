@@ -64,7 +64,7 @@ describe('M3 order editor', () => {
       .getAllByTestId('colliding')
       .map((e) => e.textContent ?? '');
     expect(colliding).toEqual([
-      expect.stringContaining('Firemní den — Jana Nováková, 23. 4. 2027–25. 4. 2027'),
+      expect.stringContaining('Firemní den — Jana Nováková, 23.04.2027–25.04.2027'),
     ]);
   });
 

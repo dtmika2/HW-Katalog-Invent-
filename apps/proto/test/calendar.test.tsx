@@ -20,29 +20,29 @@ describe('conflicts in the event calendar', () => {
   const marksOf = (id: string) =>
     [...screen.getByTestId(`row-${id}`).querySelectorAll('[data-conflict]')].map((e) => [
       e.getAttribute('data-conflict'),
-      e.getAttribute('aria-label')?.match(/, (\d+\. \d+)\./)?.[1],
+      e.getAttribute('aria-label')?.match(/, (\d+\.\d+)\./)?.[1],
     ]);
 
   it('marks the short order, its partner and the requesting pre-booking on the exact days', () => {
     open('conflictChain');
     expect(marksOf(CHAIN.b)).toEqual([
-      ['short', '9. 6'],
-      ['short', '10. 6'],
+      ['short', '09.06'],
+      ['short', '10.06'],
     ]);
     expect(marksOf(CHAIN.a)).toEqual([
-      ['partner', '9. 6'],
-      ['partner', '10. 6'],
+      ['partner', '09.06'],
+      ['partner', '10.06'],
     ]);
-    expect(marksOf(CHAIN.c)).toEqual([['request', '10. 6']]);
+    expect(marksOf(CHAIN.c)).toEqual([['request', '10.06']]);
   });
 
   it('a click explains what is missing and who holds it', () => {
     open('conflictChain');
-    fireEvent.click(screen.getByRole('button', { name: /Módní přehlídka, 10\. 6\. 2027/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Módní přehlídka, 10\.06\.2027/ }));
     const d = screen.getByTestId('conflict-detail');
     expect(d).toHaveTextContent('chybí 2× Robe LEDBeam 150 (sklad Brod)');
-    expect(d).toHaveTextContent('Techniku drží: Koncert v parku Petr Dvořák, 7.–10. 6. 2027');
-    expect(d).toHaveTextContent('Dny: 9. 6., 10. 6.');
+    expect(d).toHaveTextContent('Techniku drží: Koncert v parku Petr Dvořák, 07.–10.06.2027');
+    expect(d).toHaveTextContent('Dny: 09.06., 10.06.');
     expect(within(d).getByRole('link', { name: 'Módní přehlídka' })).toBeInTheDocument();
     fireEvent.click(within(d).getByRole('button', { name: 'Zavřít' }));
     expect(screen.queryByTestId('conflict-detail')).toBeNull();
@@ -89,7 +89,7 @@ describe('M4 availability calendar', () => {
       .map((h) => h.textContent ?? '');
     expect(holders).toHaveLength(3);
     expect(holders.find((h) => h.includes('Koncert v parku'))).toMatch(
-      /Petr Dvořák, 7\. 6\. 2027 – 10\. 6\. 2027.*10 ks.*Potvrzená/,
+      /Petr Dvořák, 07\.06\.2027 – 10\.06\.2027.*10 ks.*Potvrzená/,
     );
     expect(holders.find((h) => h.includes('Módní přehlídka'))).toMatch(/Lucie Malá.*8 ks/);
     expect(holders.find((h) => h.includes('Firemní párty Horizont'))).toMatch(
