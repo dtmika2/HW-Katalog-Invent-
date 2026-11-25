@@ -299,16 +299,6 @@ export function ackConflict(b: Booking, lineId: Id, value = true): Booking {
   return mapLine(b, lineId, (l) => ({ ...l, conflictAck: value }));
 }
 
-/** Written reason to confirm a short line anyway. */
-export function setOverrideReason(b: Booking, lineId: Id, reason: string): Booking {
-  return mapLine(b, lineId, (l) => {
-    const c = { ...l };
-    if (reason.trim()) c.overrideReason = reason;
-    else delete c.overrideReason;
-    return c;
-  });
-}
-
 /** Mark a line missing / substituted (with reason) or back to ok. */
 export function markLine(
   state: AppState,

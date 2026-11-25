@@ -25,6 +25,8 @@ export type Action =
   | 'remove_auto_line'
   | 'dismiss_check'
   | 'override_conflict'
+  | 'propose_override'
+  | 'cover_external'
   | 'edit_catalogue'
   | 'open_service'
   | 'manage_service'
@@ -66,6 +68,8 @@ export function can(user: User, action: Action, booking?: Booking): boolean {
       if (isChief(user)) return true;
       return user.role === 'pm' && own && booking?.type === 'prebooking';
     case 'cancel_booking':
+    case 'propose_override':
+    case 'cover_external':
     case 'submit':
       return (user.role === 'pm' && own) || isChief(user);
     case 'return_to_pm':

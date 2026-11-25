@@ -26,11 +26,14 @@ import { FREE_STAGES, PRE_STATUSES, SYSTEM_USER_ID } from '../types';
 import { err, isExternal, nextId, ok, produce, uniq, type Result } from '../util';
 import { recalcBooking } from './edit';
 import { cleanOrganisation, sameExceptOrganisation } from './organise';
+import { isOverridden, settleOverrides } from './override';
 import { can, type Action } from './permissions';
 
 export * from './edit';
 export * from './organise';
+export * from './override';
 export * from './permissions';
+export * from './shortage';
 
 export type LifecycleAction =
   | 'setStage'
@@ -216,7 +219,7 @@ export function saveBooking(
     return err('invalid_state', 'The booking is being cancelled', { field: 'cancelPending' });
   const client = checkBookingClient(state, edited.clientId, current.clientId);
   if (!client.ok) return client;
-  const { clientId, ...rest } = edited;
+  const { clientId, ...rest } = settleOverrides(user, current, edited);
   const { booking: calculated, expansion } = recalcBooking(state, {
     ...rest,
     ...(clientId ? { clientId } : {}),
@@ -237,7 +240,7 @@ export function saveBooking(
     }
     const conflicts = detectConflicts(state, recalced);
     const blocking = conflicts.filter(
-      (c) => !recalced.lines.find((l) => l.id === c.lineId)?.overrideReason?.trim(),
+      (c) => !recalced.lines.some((l) => l.id === c.lineId && isOverridden(l)),
     );
     const previouslyCovered = new Set(
       state.conflicts
@@ -405,7 +408,7 @@ export function confirmBooking(
   const conflicts = detectConflicts(state, booking, av);
   const blocking = conflicts.filter((c) => {
     const l = booking.lines.find((x) => x.id === c.lineId);
-    return !l || (!isExternal(l.target) && !l.overrideReason?.trim());
+    return !l || (!isExternal(l.target) && !isOverridden(l));
   });
   if (blocking.length > 0) {
     return err(

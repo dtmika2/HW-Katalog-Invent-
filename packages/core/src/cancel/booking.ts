@@ -166,6 +166,8 @@ export function reopenBooking(
         // the gear may be gone: whatever is short now has to be seen and decided again
         l.conflictAck = false;
         delete l.overrideReason;
+        delete l.overrideProposedBy;
+        delete l.overrideAcceptedBy;
         const src = d.bookings.find((y) => y.id === l.fromBookingId);
         if (src && ARCHIVED_STATUSES.includes(src.status)) delete l.fromBookingId;
       }

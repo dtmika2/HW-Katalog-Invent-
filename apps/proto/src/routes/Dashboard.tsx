@@ -78,6 +78,9 @@ function ConflictRecords({ s, user, today }: { s: AppState; user: User; today: s
             </div>
             <p className="text-xs text-muted">
               {c.overrideReason && `${cs.common.reason}: ${c.overrideReason} · `}
+              {c.proposedBy &&
+                c.acceptedBy &&
+                `${cs.dashboard.proposal(userName(s, c.proposedBy), userName(s, c.acceptedBy))} · `}
               {c.collidingBookingIds
                 .map((id) => s.bookings.find((x) => x.id === id)?.eventName ?? id)
                 .join(', ')}

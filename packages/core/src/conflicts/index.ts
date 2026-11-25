@@ -190,6 +190,11 @@ export function addConflictRecord(
     overrideReason,
     createdOn: today,
   };
+  const line = booking.lines.find((l) => l.id === c.lineId);
+  if (source === 'override' && line?.overrideProposedBy) {
+    rec.proposedBy = line.overrideProposedBy;
+    if (line.overrideAcceptedBy) rec.acceptedBy = line.overrideAcceptedBy;
+  }
   draft.conflicts.push(rec);
   const pms = c.colliding.filter((x) => x.type === 'order').map((x) => x.pmId);
   notify(

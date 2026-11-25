@@ -8,6 +8,7 @@ import {
   effectiveQty,
   eventDays,
   flattenNodes,
+  isProposedOverride,
   linePriceDay,
   lineTree,
   resolveSourceWarehouse,
@@ -79,7 +80,11 @@ function Internal({
         );
       })}
       {line.overrideReason?.trim() && (
-        <span className="block">{cs.editor.print.override(line.overrideReason.trim())}</span>
+        <span className="block">
+          {cs.editor.print[isProposedOverride(line) ? 'proposed' : 'override'](
+            line.overrideReason.trim(),
+          )}
+        </span>
       )}
       {line.note?.trim() && <span className="block">{line.note.trim()}</span>}
     </span>

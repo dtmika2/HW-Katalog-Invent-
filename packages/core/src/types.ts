@@ -225,6 +225,9 @@ export interface BookingLine {
   conflictAck: boolean;
   /** Written reason that lets a short line be confirmed anyway. */
   overrideReason?: string;
+  /** Written by a PM who may not decide: a proposal until accepted. */
+  overrideProposedBy?: Id;
+  overrideAcceptedBy?: Id;
   /** Reason for missing / substituted, or other remark shown to the PM. */
   note?: string;
   addedAfterShipping?: boolean;
@@ -401,6 +404,9 @@ export interface ConflictRecord {
   /** 'override' — confirmed with a written reason; 'detected' — appeared later on a confirmed order. */
   source: 'override' | 'detected';
   overrideReason: string;
+  /** Who proposed the reason and who accepted it, when they are two people. */
+  proposedBy?: Id;
+  acceptedBy?: Id;
   createdOn: IsoDate;
   resolution?: string;
   resolvedBy?: Id;
@@ -545,7 +551,8 @@ export type NotificationType =
   | 'booking_reopened'
   | 'cancel_unpack'
   | 'gear_released'
-  | 'transfer_lost';
+  | 'transfer_lost'
+  | 'shortage_solved';
 
 export type Params = Record<string, string | number>;
 
@@ -570,6 +577,7 @@ export type SystemEventType =
   | 'returned_to_pm'
   | 'confirmed'
   | 'override'
+  | 'shortage_solved'
   | 'packing_started'
   | 'packed'
   | 'unpacked'

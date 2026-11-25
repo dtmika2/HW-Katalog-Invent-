@@ -284,7 +284,7 @@ export const cs = {
     tiersHint:
       'Podle stavu té druhé rezervace. Schválené objednávce se ukazují jen skutečné konflikty, protože svou techniku už drží.',
     tiersEffect: {
-      real: 'Před odesláním ho PM odklikne, schválit jde jen s důvodem nebo externím pronájmem.',
+      real: 'Před odesláním ho PM odklikne. PM nebo šéf techniky ho vyřeší externím pronájmem nebo kusy z druhého skladu. Schválit i přesto jde jen s důvodem: PM ho navrhne, šéf techniky přijme (PM s oprávněním rozhoduje sám). Objeví-li se na schválené objednávce, vyřeší ho i její PM, dokud z ní položka neodjela.',
       likely:
         'Jen varuje. Skutečný je od chvíle, kdy se druhá akce schválí; PM, kterému kvůli tomu technika chybí, dostane upozornění.',
       possible: 'Jen informuje.',
@@ -370,6 +370,7 @@ export const cs = {
     returnedToMe: 'Vráceno k doplnění',
     noneWaiting: 'Nic nečeká.',
     newBooking: 'Nová předrezervace',
+    proposal: (by: string, accepted: string) => `navrhl(a) ${by}, přijal(a) ${accepted}`,
     conflictLine: (event: string, short: number, item: string) =>
       `${event}: chybí ${short} × ${item}`,
     resolveConflict: 'Vyřešit',
@@ -470,6 +471,8 @@ export const cs = {
       returnPrompt: 'Co má PM doplnit nebo upravit?',
       confirm: 'Schválit objednávku',
       confirmBlockedOr: 'Vyberte možnost ve všech skupinách „vyber jednu“.',
+      confirmBlockedProposal:
+        'PM navrhuje schválit i přes konflikt. Návrh přijměte, nebo položku pokryjte.',
       confirmBlockedConflict:
         'Chybějící položky pokryjte externím pronájmem nebo schvalte s důvodem.',
       readonly: 'Tuto rezervaci nemůžete upravovat.',
@@ -495,6 +498,7 @@ export const cs = {
       notBinding: 'Nejde o závaznou nabídku.',
       heldBy: (events: string) => `drží: ${events}`,
       override: (r: string) => `Schváleno přes konflikt: ${r}`,
+      proposed: (r: string) => `Návrh PM schválit přes konflikt: ${r}`,
       openChoices: (items: string) => `Zbývá vybrat možnost pro: ${items}`,
       refused: 'Nemáme nebo nahrazeno',
       askedBy: 'Žádá (PM)',
@@ -581,6 +585,12 @@ export const cs = {
     ack: 'Viděl(a) jsem konflikt',
     waysOut: 'Možnosti: snížit počet, nahradit jinou položkou, externí pronájem, jiný termín.',
     override: 'Schválit i přesto — důvod',
+    propose: 'Navrhnout schválení i přesto — důvod',
+    proposeHint: 'Je to návrh, o schválení přes konflikt rozhodne šéf techniky.',
+    accept: (who: string) => `Přijímám návrh, který napsal(a) ${who}`,
+    accepted: (who: string) => `Návrh přijal(a) ${who}.`,
+    waiting: 'Návrh čeká na šéfa techniky.',
+    solved: 'Konflikt vyřešen, šéf techniky a sklad dostali upozornění.',
     overridePlaceholder: 'Proč to i tak půjde (uvidí šéf a dotčení PM)',
     externalTitle: 'Pokrýt externím pronájmem',
     externalQty: 'Kolik',
@@ -605,6 +615,8 @@ export const cs = {
     returned_to_pm: (p: Params) => `Vráceno PM: ${p.reason ?? ''}`,
     confirmed: () => 'Schváleno jako objednávka',
     override: (p: Params) => `Schváleno přes konflikt: ${p.reason ?? ''}`,
+    shortage_solved: (p: Params) =>
+      `Konflikt vyřešen: ${p.qty ?? 0}× ${p.what ?? ''} ${p.kind === 'external' ? 'externě od' : 'ze skladu'} ${p.from ?? ''}`,
     packing_started: (p: Params) =>
       p.reason ? `Sklad začal balit předem. Důvod: ${p.reason}` : 'Sklad začal balit',
     packed: (p: Params) =>
@@ -694,6 +706,8 @@ export const cs = {
       cancel_unpack: (p: Params) => `${p.event}: akce zrušena, vybalte ji. Důvod: ${p.reason}`,
       gear_released: (p: Params) =>
         `${p.event}: uvolnila se technika, akce ${p.other} byla zrušena`,
+      shortage_solved: (p: Params) =>
+        `${p.event}: ${p.who} vyřešil(a) konflikt, ${p.qty}× ${p.what} ${p.kind === 'external' ? 'externě od' : 'ze skladu'} ${p.from}`,
       transfer_lost: (p: Params) =>
         `${p.event}: ${p.what} už nepřijde z akce ${p.other}, byla zrušena. Počítá se znovu ze skladu.`,
       cancel_decided: (p: Params) =>

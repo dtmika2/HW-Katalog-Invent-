@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import {
+  acceptOverride,
   ackConflict,
   addCheckCandidate,
   addDays,
@@ -31,6 +32,9 @@ import {
   evaluateBooking,
   firstBookedFrom,
   firstEventDay,
+  freeElsewhere,
+  isOverridden,
+  isProposedOverride,
   lastBookedUntil,
   minFreeInWarehouse,
   openCancelRequests,
@@ -40,10 +44,12 @@ import {
   periodWithBuffer,
   postMessage,
   recalcBooking,
+  resolveShortage,
   restoreAutoLine,
   returnToPm,
   saveBooking,
   setOverrideReason,
+  solvableShortages,
   splitLine,
   submitPrebooking,
   thread,
@@ -55,6 +61,7 @@ import {
   type ConflictTiers,
   type FreeStage,
   type LineAvailability,
+  type ShortageFix,
   type Target,
   type User,
 } from '@quix/core';
@@ -117,7 +124,10 @@ function Editor({ stored }: { stored: Booking }) {
     (c) => !booking.lines.find((l) => l.id === c.lineId)?.conflictAck,
   );
   const blocking = conflicts.filter(
-    (c) => !booking.lines.find((l) => l.id === c.lineId)?.overrideReason?.trim(),
+    (c) => !booking.lines.some((l) => l.id === c.lineId && isOverridden(l)),
+  );
+  const proposed = conflicts.some((c) =>
+    booking.lines.some((l) => l.id === c.lineId && isProposedOverride(l)),
   );
 
   const checks = ARCHIVED_STATUSES.includes(stored.status) ? [] : expansion.checkWarnings;
@@ -303,6 +313,7 @@ function Editor({ stored }: { stored: Booking }) {
           <div className="space-y-4">
             <ConflictPanel
               s={s}
+              stored={stored}
               booking={booking}
               av={av}
               tiers={tiers}
@@ -471,7 +482,11 @@ function Editor({ stored }: { stored: Booking }) {
                 <span className="text-xs text-bad">{cs.editor.actions.confirmBlockedOr}</span>
               )}
               {blocking.length > 0 && (
-                <span className="text-xs text-bad">{cs.editor.actions.confirmBlockedConflict}</span>
+                <span className="text-xs text-bad">
+                  {proposed
+                    ? cs.editor.actions.confirmBlockedProposal
+                    : cs.editor.actions.confirmBlockedConflict}
+                </span>
               )}
             </>
           )}
@@ -852,6 +867,7 @@ function AddPanel({
 
 function ConflictPanel({
   s,
+  stored,
   booking,
   av,
   tiers,
@@ -860,6 +876,7 @@ function ConflictPanel({
   update,
 }: {
   s: AppState;
+  stored: Booking;
   booking: Booking;
   av: Map<string, LineAvailability>;
   tiers: ConflictTiers;
@@ -868,9 +885,16 @@ function ConflictPanel({
   update: (b: Booking) => void;
 }) {
   const amberBreaks = booking.lines.filter((l) => av.get(l.id)?.breaksCase);
+  const run = useProto((p) => p.run);
+  const today = useToday();
   const conflicts = tiers.real;
   if (Object.values(tiers).every((x) => x.length === 0) && amberBreaks.length === 0) return null;
-  const canOverride = can(user, 'override_conflict', booking);
+  const decides = can(user, 'override_conflict', booking);
+  const canWrite = decides || can(user, 'propose_override', booking);
+  // on an approved order its PM solves the shortage, the rest of the list is locked
+  const solvable = editable ? [] : solvableShortages(s, user, stored).map((c) => c.lineId);
+  const solve = (lineId: string, fix: ShortageFix) =>
+    run((st) => resolveShortage(st, user, today, stored.id, lineId, fix), cs.conflict.solved);
   return (
     <section
       data-testid="conflict-panel"
@@ -889,9 +913,13 @@ function ConflictPanel({
           const isCase = isCaseLine(line);
           const shortText = cs.badge.red(c.short, isCase);
           const otherW = s.warehouses.find((w) => w.id !== c.warehouseId);
-          const freeOther = otherW
-            ? minFreeInWarehouse(s, booking, line.target as Target, otherW.id)
-            : 0;
+          const canSolve = solvable.includes(c.lineId);
+          const freeOther = !otherW
+            ? 0
+            : canSolve
+              ? freeElsewhere(s, booking, line, otherW.id)
+              : minFreeInWarehouse(s, booking, line.target as Target, otherW.id);
+          const fromOther = Math.min(freeOther, c.short);
           return (
             <li key={c.lineId} className="text-sm">
               <p className="font-semibold">
@@ -919,7 +947,7 @@ function ConflictPanel({
                   {cs.conflict.ack}
                 </label>
               )}
-              {editable &&
+              {(editable || canSolve) &&
                 line.origin !== 'auto' &&
                 'itemId' in line.target &&
                 otherW &&
@@ -928,18 +956,22 @@ function ConflictPanel({
                     type="button"
                     className="btn btn-sm mt-2"
                     onClick={() =>
-                      update(
-                        splitLine(s, booking, line.id, Math.min(freeOther, c.short), otherW.id),
-                      )
+                      canSolve
+                        ? solve(line.id, {
+                            kind: 'warehouse',
+                            qty: fromOther,
+                            warehouseId: otherW.id,
+                          })
+                        : update(splitLine(s, booking, line.id, fromOther, otherW.id))
                     }
                   >
-                    {cs.editor.split(Math.min(freeOther, c.short), otherW.name)}
+                    {cs.editor.split(fromOther, otherW.name)}
                   </button>
                 )}
-              {editable && canOverride && (
+              {editable && canWrite && (
                 <div className="mt-2">
                   <label className="label" htmlFor={`ov-${line.id}`}>
-                    {cs.conflict.override}
+                    {decides ? cs.conflict.override : cs.conflict.propose}
                   </label>
                   <textarea
                     id={`ov-${line.id}`}
@@ -947,12 +979,43 @@ function ConflictPanel({
                     rows={2}
                     placeholder={cs.conflict.overridePlaceholder}
                     value={line.overrideReason ?? ''}
-                    onChange={(e) => update(setOverrideReason(booking, line.id, e.target.value))}
+                    onChange={(e) =>
+                      update(setOverrideReason(booking, line.id, e.target.value, user))
+                    }
                   />
+                  {!decides && <p className="text-xs text-muted">{cs.conflict.proposeHint}</p>}
+                  {decides && line.overrideProposedBy && (
+                    <label className="mt-1 flex items-start gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        className="mt-1"
+                        checked={!!line.overrideAcceptedBy}
+                        onChange={(e) =>
+                          update(acceptOverride(booking, line.id, user, e.target.checked))
+                        }
+                      />
+                      {cs.conflict.accept(userName(s, line.overrideProposedBy))}
+                    </label>
+                  )}
                 </div>
               )}
-              {editable && user.role === 'chief' && (
-                <ExternalForm s={s} booking={booking} line={line} short={c.short} update={update} />
+              {!decides && line.overrideReason?.trim() && line.overrideProposedBy && (
+                <p className="mt-1 text-xs">
+                  {line.overrideAcceptedBy
+                    ? cs.conflict.accepted(userName(s, line.overrideAcceptedBy))
+                    : cs.conflict.waiting}
+                </p>
+              )}
+              {((editable && can(user, 'cover_external', booking)) || canSolve) && (
+                <ExternalForm
+                  booking={booking}
+                  line={line}
+                  short={c.short}
+                  onAdd={(qty, spec) => {
+                    if (canSolve) solve(line.id, { kind: 'external', qty, ...spec });
+                    else update(coverWithExternal(s, booking, line.id, qty, spec));
+                  }}
+                />
               )}
             </li>
           );
@@ -979,17 +1042,15 @@ function ConflictPanel({
 }
 
 function ExternalForm({
-  s,
   booking,
   line,
   short,
-  update,
+  onAdd,
 }: {
-  s: AppState;
   booking: Booking;
   line: BookingLine;
   short: number;
-  update: (b: Booking) => void;
+  onAdd: (qty: number, spec: { supplier: string; pickup: string; returnDate: string }) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [qty, setQty] = useState(short);
@@ -1020,8 +1081,11 @@ function ExternalForm({
             className="input"
             type="number"
             min={1}
+            max={short}
             value={qty}
-            onChange={(e) => setQty(Math.max(1, Number(e.target.value) || 1))}
+            onChange={(e) =>
+              setQty(Math.min(short, Math.max(1, Math.floor(Number(e.target.value)) || 1)))
+            }
           />
         </Field>
         <Field label={cs.conflict.supplier} htmlFor={`ext-s-${line.id}`}>
@@ -1042,15 +1106,9 @@ function ExternalForm({
       <button
         type="button"
         className="btn btn-sm btn-primary"
-        disabled={!supplier.trim()}
+        disabled={!supplier.trim() || ret < pickup}
         onClick={() => {
-          update(
-            coverWithExternal(s, booking, line.id, qty, {
-              supplier: supplier.trim(),
-              pickup,
-              returnDate: ret,
-            }),
-          );
+          onAdd(Math.min(qty, short), { supplier: supplier.trim(), pickup, returnDate: ret });
           setOpen(false);
         }}
       >
