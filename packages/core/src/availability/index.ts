@@ -45,6 +45,8 @@ export interface Hold {
   to: IsoDate;
   /** Item holds from loose-item lines (not case contents). */
   loose: boolean;
+  /** Packed before the booked days: physically taken, whoever confirmed first. */
+  early?: boolean;
 }
 
 const FAR_FUTURE = '9999-12-31';
@@ -284,6 +286,7 @@ export function bookingHolds(state: HoldState, booking: Booking, asDemand = fals
           warehouseId: w,
           from: early.from,
           to: early.to,
+          early: true,
         },
         line.target,
         early.qty,
@@ -336,14 +339,12 @@ export function buildHoldIndex(state: HoldState, filter: HoldFilter = {}): HoldI
   const byRes = new Map<string, Hold[]>();
   for (const b of state.bookings) {
     if (b.id === filter.excludeBookingId) continue;
-    if (
+    const later =
       filter.priorityBefore !== undefined &&
       b.type === 'order' &&
-      (b.confirmSeq ?? Infinity) >= filter.priorityBefore
-    ) {
-      continue;
-    }
+      (b.confirmSeq ?? Infinity) >= filter.priorityBefore;
     for (const h of bookingHolds(state, b)) {
+      if (later && !h.early) continue;
       const k = `${h.res}@${h.warehouseId}`;
       const list = byRes.get(k);
       if (list) list.push(h);

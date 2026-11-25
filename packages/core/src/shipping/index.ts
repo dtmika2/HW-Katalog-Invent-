@@ -216,6 +216,8 @@ export interface ShipBatchInput {
   lines: ShipmentLine[];
   /** Why promised gear is not on board ("dorazí rovnou na místo"). */
   note?: string;
+  /** Pack and ship in one go: why it is taken before the booked days. */
+  earlyReason?: string;
 }
 
 /** The oldest packed pieces of a line, with the cases they came out of. */
@@ -362,7 +364,9 @@ function trackPromises(
   note: string,
 ): void {
   const events = d.messages.filter((m) => m.bookingId === booking.id && m.event);
-  const earlier = events.filter((m) => m.event?.type === 'shipped_without');
+  // a cancelled delivery starts the story again
+  const cut = events.map((m) => m.event?.type).lastIndexOf('shipping_cancelled');
+  const earlier = events.slice(cut + 1).filter((m) => m.event?.type === 'shipped_without');
   if (arriving.length > 0 && earlier.length > 0) {
     const came = arriving.map((sl) => {
       const line = booking.lines.find((l) => l.id === sl.lineId) as BookingLine;
@@ -404,7 +408,10 @@ export function packAndShip(
   input: ShipBatchInput,
 ): Result<AppState> {
   if (!input.label.trim()) return err('validation', 'Batch label is required');
-  const packed = packLines(state, user, today, bookingId, input.lines, true);
+  const packed = packLines(state, user, today, bookingId, input.lines, {
+    silent: true,
+    ...(input.earlyReason ? { earlyReason: input.earlyReason } : {}),
+  });
   if (!packed.ok) return packed;
   const lines = new Map<Id, ShipmentLine>();
   for (const l of input.lines) {
@@ -424,6 +431,72 @@ export function packAndShip(
     ...input,
     lines: [...lines.values()],
   });
+}
+
+/** True while a delivery can be taken back: it is the order's own and no vratka was recorded. */
+export function canCancelShipment(state: AppState, shipmentId: Id): boolean {
+  const s = state.shipments.find((x) => x.id === shipmentId);
+  const b = s && state.bookings.find((x) => x.id === s.bookingId);
+  return (
+    !!s &&
+    !!b &&
+    !s.transferFromBookingId &&
+    ['packing', 'packed', 'shipped'].includes(b.status) &&
+    !state.returnSessions.some((r) => r.bookingId === b.id)
+  );
+}
+
+/**
+ * Cancel a delivery recorded by mistake: its gear is packed in the warehouse again, promised gear
+ * is open again and consumables are back in the stock. PM and Chief, who heard that it left, are
+ * told.
+ */
+export function cancelShipment(
+  state: AppState,
+  user: User,
+  today: IsoDate,
+  shipmentId: Id,
+  reason = '',
+): Result<AppState> {
+  const shipment = state.shipments.find((x) => x.id === shipmentId);
+  if (!shipment) return err('not_found', `Shipment ${shipmentId} not found`);
+  const g = guard(state, user, 'ship', shipment.bookingId);
+  if (!g.ok) return g;
+  if (!canCancelShipment(state, shipmentId))
+    return err('invalid_state', 'The delivery can no longer be cancelled');
+  const why = reason.trim();
+  const next = produce(state, (d) => {
+    const booking = d.bookings.find((x) => x.id === shipment.bookingId) as Booking;
+    d.shipments = d.shipments.filter((x) => x.id !== shipmentId);
+    for (const sl of shipment.lines) {
+      const line = booking.lines.find((l) => l.id === sl.lineId);
+      if (!line || !isItemTarget(line.target)) continue;
+      if (getItem(d, line.target.itemId)?.returnable !== false) continue;
+      const w = resolveSourceWarehouse(d, booking, line);
+      const itemId = line.target.itemId;
+      const st = d.stock.find((s) => s.itemId === itemId && s.warehouseId === w);
+      if (st) st.qty += sl.qty;
+    }
+    booking.status = statusAfter(d, booking);
+    const count = shipment.lines.reduce((n, l) => n + l.qty, 0);
+    postEvent(d, booking.id, user.id, today, 'shipping_cancelled', {
+      label: shipment.label,
+      count,
+      ...(why ? { reason: why } : {}),
+    });
+    notify(
+      d,
+      [booking.pmId, ...chiefIds(d)],
+      {
+        type: 'shipping_cancelled',
+        text: `${booking.eventName}: ${shipment.label} was cancelled`,
+        params: { event: booking.eventName, label: shipment.label, count, reason: why },
+        bookingId: booking.id,
+      },
+      today,
+    );
+  }).state;
+  return ok(recomputeConflictRecords(next, today));
 }
 
 /**

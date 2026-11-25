@@ -4,15 +4,7 @@
  * itself: an undated or overdue loan keeps blocking the next days until somebody returns it.
  */
 import { addDays, type IsoDate } from '../dates';
-import {
-  buildHoldIndex,
-  evaluateBooking,
-  filterFor,
-  firstBookedFrom,
-  isOpenLoan,
-  itemDay,
-  lastBookedUntil,
-} from '../availability';
+import { buildHoldIndex, isOpenLoan, itemDay } from '../availability';
 import {
   caseContentQty,
   contentsMatchStandard,
@@ -24,11 +16,11 @@ import {
   standardQty,
   stockQty,
 } from '../catalog';
-import { recomputeConflictRecords } from '../conflicts';
+import { newShortages, recomputeConflictRecords, type ShortageHit } from '../conflicts';
 import { can } from '../lifecycle/permissions';
 import { returnSheet } from '../returns';
 import { casesOut, packedInHouse } from '../packing';
-import type { AppState, Booking, Id, Loan, Target, User } from '../types';
+import type { AppState, Booking, Id, Loan, User } from '../types';
 import {
   err,
   isActiveLine,
@@ -60,15 +52,8 @@ export interface LoanInput {
   reason?: string;
 }
 
-export interface LoanHit {
-  bookingId: Id;
-  lineId: Id;
-  target: Target;
-  /** 'order' needs a reason, 'prebooking' only informs. */
-  level: 'order' | 'prebooking';
-  short: number;
-  days: IsoDate[];
-}
+/** Who would get short because of a loan. */
+export type LoanHit = ShortageHit;
 
 export interface LoanPreview {
   from: IsoDate;
@@ -193,46 +178,6 @@ function uses(state: AppState, b: Booking, itemId: Id): boolean {
   });
 }
 
-/** Lines that get short (or shorter) on days `from`–`to` when `before` turns into `after`. */
-function newShortages(
-  before: AppState,
-  after: AppState,
-  itemId: Id,
-  from: IsoDate,
-  to: IsoDate,
-): LoanHit[] {
-  const out: LoanHit[] = [];
-  for (const b of after.bookings) {
-    const level =
-      b.type === 'order' && ['confirmed', 'packing', 'packed'].includes(b.status)
-        ? 'order'
-        : b.type === 'prebooking' && b.status === 'submitted'
-          ? 'prebooking'
-          : undefined;
-    if (!level || lastBookedUntil(b) < from || firstBookedFrom(b) > to) continue;
-    if (!uses(after, b, itemId)) continue;
-    const was = evaluateBooking(before, b, buildHoldIndex(before, filterFor(b)));
-    const now = evaluateBooking(after, b, buildHoldIndex(after, filterFor(b)));
-    for (const line of b.lines) {
-      const a = now.get(line.id);
-      const p = was.get(line.id);
-      if (!a || a.badge !== 'red' || isExternal(line.target)) continue;
-      const days = a.shortDays.filter((x) => x >= from && x <= to);
-      const worse = a.short > (p?.short ?? 0) || days.some((x) => !p?.shortDays.includes(x));
-      if (days.length > 0 && worse)
-        out.push({
-          bookingId: b.id,
-          lineId: line.id,
-          target: line.target,
-          level,
-          short: a.short,
-          days,
-        });
-    }
-  }
-  return out;
-}
-
 /** What taking the item would do: who gets short and how many pieces stay free. */
 export function loanPreview(state: AppState, today: IsoDate, input: LoanInput): LoanPreview {
   const from = input.from ?? today;
@@ -256,7 +201,7 @@ export function loanPreview(state: AppState, today: IsoDate, input: LoanInput): 
   return {
     from,
     to,
-    hits: newShortages(state, after, input.itemId, from, to),
+    hits: newShortages(state, after, from, to, (b) => uses(after, b, input.itemId)),
     minFree: minFree === Infinity ? 0 : minFree,
   };
 }
@@ -380,7 +325,12 @@ export function extendPreview(
     x.heldUntil = until;
   }).state;
   const from = l.from > today ? l.from : today;
-  return { from, to: until, hits: newShortages(state, after, l.itemId, from, until), minFree: 0 };
+  return {
+    from,
+    to: until,
+    hits: newShortages(state, after, from, until, (b) => uses(after, b, l.itemId)),
+    minFree: 0,
+  };
 }
 
 /** Move the return date; the same warning and reason rule as for a new loan. */

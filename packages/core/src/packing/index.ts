@@ -3,8 +3,8 @@
  * taken (nobody else can pack, borrow or refill with it) until it is shipped or unpacked.
  * Promised gear (rented, or short because of an accepted conflict) may be left for the shipping.
  */
-import type { IsoDate } from '../dates';
-import { isOpenLoan, packedEntries } from '../availability';
+import { addDays, diffDays, type IsoDate } from '../dates';
+import { firstBookedFrom, isOpenLoan, packedEntries } from '../availability';
 import {
   caseContentQty,
   contentsMatchStandard,
@@ -14,7 +14,7 @@ import {
   resolveSourceWarehouse,
   standardQty,
 } from '../catalog';
-import { recomputeConflictRecords } from '../conflicts';
+import { newShortages, recomputeConflictRecords, type ShortageHit } from '../conflicts';
 import { guard } from '../lifecycle';
 import { can } from '../lifecycle/permissions';
 import { chiefIds, notify, postEvent } from '../notifications';
@@ -577,9 +577,51 @@ function takeOutOfCase(d: AppState, line: BookingLine, pl: PackedLine, today: Is
   if (!contentsMatchStandard(d, c) && !c.incompleteSince) c.incompleteSince = today;
 }
 
+// ---------------------------------------------------------------------------
+// Packing ahead of time
+
+/** True when the booked days are further away than packing is normally done. */
+export function isEarlyPacking(
+  state: Pick<AppState, 'settings'>,
+  b: Pick<Booking, 'periods'>,
+  today: IsoDate,
+): boolean {
+  return diffDays(today, firstBookedFrom(b)) > state.settings.earlyPackingDays;
+}
+
+/**
+ * Who gets short because an order (or some of its lines) is packed today: the gear is taken from
+ * now on, not only from the booked days.
+ */
+export function earlyPackingHits(
+  state: AppState,
+  today: IsoDate,
+  bookingId: Id,
+  lines?: readonly PackedLine[],
+): ShortageHit[] {
+  const b = state.bookings.find((x) => x.id === bookingId);
+  if (!b) return [];
+  const first = firstBookedFrom(b);
+  if (today >= first) return [];
+  const picked: PackedLine[] = lines
+    ? lines.filter((l) => !l.deferred).map((l) => ({ ...l }))
+    : b.lines
+        .filter((l) => !isExternal(l.target) && !l.fromBookingId)
+        .map((l) => ({ lineId: l.id, qty: lineProgress(state, b, l).toPack }))
+        .filter((l) => l.qty > 0);
+  if (picked.length === 0) return [];
+  const after = produce(state, (d) => {
+    const x = d.bookings.find((y) => y.id === bookingId) as Booking;
+    if (x.status === 'confirmed') x.status = 'packing';
+    d.packings.push({ id: 'preview', bookingId, on: today, userId: '', lines: picked });
+  }).state;
+  return newShortages(state, after, today, addDays(first, -1), (x) => x.id !== bookingId);
+}
+
 /**
  * Pack lines, or mark promised ones (`deferred`) as coming with the shipping. Every case is
- * checked against its contents. `silent` is used when the same lines ship right away.
+ * checked against its contents. Packing before the booked days that leaves a confirmed order
+ * short needs a reason. `silent` is used when the same lines ship right away.
  */
 export function packLines(
   state: AppState,
@@ -587,8 +629,10 @@ export function packLines(
   today: IsoDate,
   bookingId: Id,
   lines: PackedLine[],
-  silent = false,
+  options: { silent?: boolean; earlyReason?: string } = {},
 ): Result<AppState> {
+  const { silent = false } = options;
+  const why = options.earlyReason?.trim() ?? '';
   const g = guard(state, user, 'pack', bookingId);
   if (!g.ok) return g;
   const b = g.value;
@@ -616,8 +660,17 @@ export function packLines(
     (line) => lineProgress(state, b, line).toPack,
   );
   if (!v.ok) return v;
+  if (
+    !why &&
+    !b.earlyPacking &&
+    earlyPackingHits(state, today, bookingId, lines).some((h) => h.level === 'order')
+  )
+    return err('validation', 'A reason is required, an order needs the gear before', {
+      field: 'earlyReason',
+    });
   const next = produce(state, (d) => {
     const booking = d.bookings.find((x) => x.id === bookingId) as Booking;
+    if (why) booking.earlyPacking = { by: user.id, on: today, reason: why };
     for (const pl of lines) {
       if (pl.deferred) continue;
       const line = booking.lines.find((l) => l.id === pl.lineId) as BookingLine;
@@ -638,7 +691,14 @@ export function packLines(
       lines.filter((l) => !!l.deferred === deferred).reduce((n, l) => n + l.qty, 0);
     const promised = openPromises(d, booking);
     if (count(false) > 0)
-      postEvent(d, bookingId, user.id, today, 'packed', { count: count(false) });
+      postEvent(
+        d,
+        bookingId,
+        user.id,
+        today,
+        'packed',
+        why ? { count: count(false), reason: why } : { count: count(false) },
+      );
     if (booking.status === 'packed' && before !== 'packed')
       notify(
         d,
@@ -677,51 +737,110 @@ export function unpackLine(
   const caseIds = inHouse.flatMap((l) => l.caseIds ?? []);
   if (what.caseId && !caseIds.includes(what.caseId))
     return err('validation', 'That case is not packed here');
-  let left = what.caseId ? 1 : (what.qty ?? available);
-  if (!Number.isInteger(left) || left <= 0 || left > available)
+  const amount = what.caseId ? 1 : (what.qty ?? available);
+  if (!Number.isInteger(amount) || amount <= 0 || amount > available)
     return err('validation', 'Nothing to unpack', { lineId });
-  const total = left;
   const next = produce(state, (d) => {
     const booking = d.bookings.find((x) => x.id === bookingId) as Booking;
-    // newest first: the oldest are the ones that already left
-    for (const rec of [...d.packings].reverse()) {
-      if (rec.bookingId !== bookingId) continue;
-      for (const e of [...rec.lines].reverse()) {
-        if (left <= 0 || e.lineId !== lineId || !!e.deferred !== !!what.deferred) continue;
-        if (e.caseIds) {
-          const out = e.caseIds
-            .filter((c) => caseIds.includes(c) && (!what.caseId || c === what.caseId))
-            .slice(-left);
-          e.caseIds = e.caseIds.filter((c) => !out.includes(c));
-          if (e.caseChecks) e.caseChecks = e.caseChecks.filter((c) => !out.includes(c.caseId));
-          e.qty -= out.length;
-          left -= out.length;
-          continue;
-        }
-        const n = Math.min(left, e.qty);
-        e.qty -= n;
-        left -= n;
-        const c = e.fromCaseId ? d.cases.find((x) => x.id === e.fromCaseId) : undefined;
-        const t = c ? getCaseType(d, c.caseTypeId) : undefined;
-        if (!c || !t || !isItemTarget(line.target)) continue;
-        // back into the case it was taken from
-        const itemId = line.target.itemId;
-        const have = caseContentQty(c, itemId);
-        const put = Math.min(n, Math.max(0, standardQty(t, itemId) - have));
-        const entry = c.contents.find((x) => x.itemId === itemId);
-        if (entry) entry.qty += put;
-        else if (put > 0) c.contents.push({ itemId, qty: put });
-        if (contentsMatchStandard(d, c)) delete c.incompleteSince;
-      }
-      rec.lines = rec.lines.filter((e) => e.qty > 0);
-    }
-    d.packings = d.packings.filter((r) => r.lines.length > 0);
+    putBack(d, booking, line, amount, { ...what, caseIds });
     booking.status = statusAfter(d, booking);
     if (!what.deferred)
       postEvent(d, bookingId, user.id, today, 'unpacked', {
-        count: total,
+        count: amount,
         name: nameOf(d, line),
       });
+  }).state;
+  return ok(recomputeConflictRecords(next, today));
+}
+
+/** Take pieces of a line out of its packing records; loose ones go back into their case. */
+function putBack(
+  d: AppState,
+  booking: Booking,
+  line: BookingLine,
+  amount: number,
+  what: { caseId?: Id; deferred?: boolean; caseIds: Id[] },
+): void {
+  let left = amount;
+  // newest first: the oldest are the ones that already left
+  for (const rec of [...d.packings].reverse()) {
+    if (rec.bookingId !== booking.id) continue;
+    for (const e of [...rec.lines].reverse()) {
+      if (left <= 0 || e.lineId !== line.id || !!e.deferred !== !!what.deferred) continue;
+      if (e.caseIds) {
+        const out = e.caseIds
+          .filter((c) => what.caseIds.includes(c) && (!what.caseId || c === what.caseId))
+          .slice(-left);
+        e.caseIds = e.caseIds.filter((c) => !out.includes(c));
+        if (e.caseChecks) e.caseChecks = e.caseChecks.filter((c) => !out.includes(c.caseId));
+        e.qty -= out.length;
+        left -= out.length;
+        continue;
+      }
+      const n = Math.min(left, e.qty);
+      e.qty -= n;
+      left -= n;
+      const c = e.fromCaseId ? d.cases.find((x) => x.id === e.fromCaseId) : undefined;
+      const t = c ? getCaseType(d, c.caseTypeId) : undefined;
+      if (!c || !t || !isItemTarget(line.target)) continue;
+      // back into the case it was taken from
+      const itemId = line.target.itemId;
+      const have = caseContentQty(c, itemId);
+      const put = Math.min(n, Math.max(0, standardQty(t, itemId) - have));
+      const entry = c.contents.find((x) => x.itemId === itemId);
+      if (entry) entry.qty += put;
+      else if (put > 0) c.contents.push({ itemId, qty: put });
+      if (contentsMatchStandard(d, c)) delete c.incompleteSince;
+    }
+    rec.lines = rec.lines.filter((e) => e.qty > 0);
+  }
+  d.packings = d.packings.filter((r) => r.lines.length > 0);
+}
+
+/**
+ * Cancel packing: everything still in the house is unpacked and free again, nothing is promised
+ * for the shipping. When nothing has left, the order is back at "Potvrzená" and can be packed
+ * again later. What was found missing in a case stays reported, it is a fact.
+ */
+export function cancelPacking(
+  state: AppState,
+  user: User,
+  today: IsoDate,
+  bookingId: Id,
+  reason = '',
+): Result<AppState> {
+  const g = guard(state, user, 'pack', bookingId);
+  if (!g.ok) return g;
+  const b = g.value;
+  const gone = state.shipments.some((s) => s.bookingId === bookingId && !s.transferFromBookingId);
+  const here = b.lines.map((line) => {
+    const inHouse = packedInHouse(state, bookingId, line.id);
+    return {
+      line,
+      qty: inHouse.reduce((n, e) => n + e.qty, 0),
+      caseIds: inHouse.flatMap((e) => e.caseIds ?? []),
+      deferred: lineProgress(state, b, line).readyDeferred,
+    };
+  });
+  if (gone && here.every((h) => h.qty === 0 && h.deferred === 0))
+    return err('invalid_state', 'Nothing of it is packed in the warehouse');
+  const next = produce(state, (d) => {
+    const booking = d.bookings.find((x) => x.id === bookingId) as Booking;
+    for (const h of here) {
+      if (h.qty > 0) putBack(d, booking, h.line, h.qty, { caseIds: h.caseIds });
+      if (h.deferred > 0) putBack(d, booking, h.line, h.deferred, { deferred: true, caseIds: [] });
+    }
+    if (!gone) {
+      // a lowered order may have left more records than it needs
+      d.packings = d.packings.filter((p) => p.bookingId !== bookingId);
+      delete booking.earlyPacking;
+    }
+    booking.status = gone ? statusAfter(d, booking) : 'confirmed';
+    const why = reason.trim();
+    postEvent(d, bookingId, user.id, today, 'packing_cancelled', {
+      count: here.reduce((n, h) => n + h.qty, 0),
+      ...(why ? { reason: why } : {}),
+    });
   }).state;
   return ok(recomputeConflictRecords(next, today));
 }

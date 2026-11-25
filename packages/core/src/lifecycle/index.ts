@@ -7,7 +7,7 @@ import { evaluateBooking, firstEventDay } from '../availability';
 import { checkBookingClient } from '../clients';
 import { addConflictRecord, detectConflicts, recomputeConflictRecords } from '../conflicts';
 import { chiefIds, notify, postEvent, warehouseIds } from '../notifications';
-import { statusAfter } from '../packing';
+import { earlyPackingHits, isEarlyPacking, statusAfter } from '../packing';
 import type { AppState, Booking, BookingPeriod, BookingStatus, Id, User } from '../types';
 import { SYSTEM_USER_ID } from '../types';
 import { err, isExternal, nextId, ok, produce, type Result } from '../util';
@@ -395,14 +395,23 @@ export function startPacking(
   user: User,
   today: IsoDate,
   bookingId: Id,
+  reason = '',
 ): Result<AppState> {
   const g = guard(state, user, 'startPacking', bookingId);
   if (!g.ok) return g;
+  // far ahead: everything packed now is gone for the events in between
+  const early = isEarlyPacking(state, g.value, today);
+  const why = reason.trim();
+  if (early && !why && earlyPackingHits(state, today, bookingId).some((h) => h.level === 'order'))
+    return err('validation', 'A reason is required, an order needs the gear before', {
+      field: 'earlyReason',
+    });
   return ok(
     produce(state, (d) => {
       const b = d.bookings.find((x) => x.id === bookingId) as Booking;
       b.status = 'packing';
-      postEvent(d, b.id, user.id, today, 'packing_started', {});
+      if (why) b.earlyPacking = { by: user.id, on: today, reason: why };
+      postEvent(d, b.id, user.id, today, 'packing_started', why ? { reason: why } : {});
     }).state,
   );
 }

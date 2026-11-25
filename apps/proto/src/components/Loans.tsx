@@ -61,7 +61,7 @@ export function LoanNames({ s, ids }: { s: AppState; ids: string[] }) {
 }
 
 /** Who would be short: orders firmly, pre-bookings as information. */
-function Hits({ s, hits }: { s: AppState; hits: LoanHit[] }) {
+export function Hits({ s, hits }: { s: AppState; hits: LoanHit[] }) {
   const group = (level: LoanHit['level']) => {
     const list = hits.filter((h) => h.level === level);
     if (list.length === 0) return null;

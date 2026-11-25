@@ -1,8 +1,11 @@
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  addDays,
+  can,
   casePlaces,
+  diffDays,
   firstBookedFrom,
+  isEarlyPacking,
   isOpenService,
   isServiceOverdue,
   lastBookedUntil,
@@ -28,10 +31,11 @@ export function WarehouseDashboard() {
     .filter(
       (b) =>
         b.type === 'order' &&
-        (b.status === 'confirmed' || (b.status === 'packing' && orderProgress(s, b).toPack > 0)) &&
-        firstBookedFrom(b) <= addDays(today, 3),
+        (b.status === 'confirmed' || (b.status === 'packing' && orderProgress(s, b).toPack > 0)),
     )
     .sort((a, b) => (firstBookedFrom(a) < firstBookedFrom(b) ? -1 : 1));
+  /** Far orders the person decided to pack now. */
+  const [active, setActive] = useState<Set<string>>(new Set());
   const ready = s.bookings
     .filter(
       (b) => ['packing', 'packed', 'shipped'].includes(b.status) && orderProgress(s, b).ready > 0,
@@ -53,25 +57,57 @@ export function WarehouseDashboard() {
       <Section title={cs.warehouseUi.packingSoon}>
         <ul data-testid="packing-soon" className="divide-y divide-alu-line text-sm">
           {soon.length === 0 && <li className="text-muted">{cs.warehouseUi.none}</li>}
-          {soon.map((b) => (
-            <li key={b.id} className="flex flex-wrap items-center justify-between gap-2 py-2">
-              <span>
-                <span className="font-cond font-semibold">{b.eventName}</span>
-                <span className="block text-xs text-muted">
-                  {cs.warehouseUi.loading(fmtDate(firstBookedFrom(b)))}
+          {soon.map((b) => {
+            const far = b.status === 'confirmed' && isEarlyPacking(s, b, today);
+            const locked = far && !active.has(b.id);
+            const days = diffDays(today, firstBookedFrom(b));
+            return (
+              <li
+                key={b.id}
+                data-testid={`packing-row-${b.id}`}
+                data-locked={locked}
+                className="flex flex-wrap items-center justify-between gap-2 py-2"
+              >
+                <span className={locked ? 'opacity-50 grayscale' : ''}>
+                  <span className="font-cond font-semibold">{b.eventName}</span>
+                  <span className="block text-xs text-muted">
+                    {cs.warehouseUi.loading(fmtDate(firstBookedFrom(b)))}
+                    {days > 0 && `, ${cs.packing.early.inDays(days)}`}
+                  </span>
+                  {far && !locked && (
+                    <span className="block max-w-sm text-xs font-medium text-warn">
+                      {cs.packing.early.warn(days)}
+                    </span>
+                  )}
+                  <span className="block">
+                    <PartlyShipped s={s} b={b} />
+                  </span>
                 </span>
-                <span className="block">
-                  <PartlyShipped s={s} b={b} />
+                <span className="flex items-center gap-2">
+                  <span className={locked ? 'opacity-50 grayscale' : ''}>
+                    <StatusChip status={b.status} />
+                  </span>
+                  {locked && can(user, 'start_packing') ? (
+                    <button
+                      type="button"
+                      className="btn btn-sm"
+                      aria-label={cs.packing.early.activateLabel(b.eventName)}
+                      onClick={() => setActive(new Set([...active, b.id]))}
+                    >
+                      {cs.packing.early.activate}
+                    </button>
+                  ) : (
+                    <Link
+                      to={`/packing/${b.id}`}
+                      className={`btn btn-sm ${locked ? '' : 'btn-primary'}`}
+                    >
+                      {cs.warehouseUi.openPacking}
+                    </Link>
+                  )}
                 </span>
-              </span>
-              <span className="flex items-center gap-2">
-                <StatusChip status={b.status} />
-                <Link to={`/packing/${b.id}`} className="btn btn-sm btn-primary">
-                  {cs.warehouseUi.openPacking}
-                </Link>
-              </span>
-            </li>
-          ))}
+              </li>
+            );
+          })}
         </ul>
       </Section>
       <Section title={cs.shipping.ready}>

@@ -29,6 +29,7 @@ import {
 import {
   BackToBooking,
   Batches,
+  CancelPacking,
   DeliveryTabs,
   PromiseReasons,
   ShipConfirm,
@@ -452,6 +453,7 @@ export function Shipping() {
           )}
         </div>
       )}
+      <CancelPacking id={id} />
       <Batches s={s} id={id} />
     </div>
   );

@@ -1,10 +1,13 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import {
   can,
   caseContentQty,
   casePlaces,
+  diffDays,
+  earlyPackingHits,
   firstBookedFrom,
+  isEarlyPacking,
   loansOut,
   openPromises,
   orderProgress,
@@ -28,11 +31,12 @@ import {
 import {
   BackToBooking,
   Batches,
+  CancelPacking,
   DeliveryTabs,
   PromiseReasons,
   ShipConfirm,
 } from '../components/Delivery';
-import { loanLine } from '../components/Loans';
+import { Hits, loanLine } from '../components/Loans';
 import { PackingPrint } from '../components/PackingPrint';
 import { PrintButton } from '../components/print';
 import { CaseLabel, Empty, StatusChip } from '../components/ui';
@@ -53,6 +57,57 @@ interface Pick extends CasePicks {
   fromCaseId: string;
 }
 
+/** Starting; far ahead with a warning and the events that would get short. */
+function StartPacking({ id, onStart }: { id: string; onStart: (reason: string) => void }) {
+  const s = useAppState();
+  const today = useToday();
+  const [reason, setReason] = useState('');
+  const b = s.bookings.find((x) => x.id === id);
+  const early = !!b && isEarlyPacking(s, b, today);
+  const hits = useMemo(() => (early ? earlyPackingHits(s, today, id) : []), [early, s, today, id]);
+  if (!b) return null;
+  const needsReason = hits.some((h) => h.level === 'order');
+  return (
+    <div className="mt-2 space-y-2">
+      {early && (
+        <div data-testid="early-packing" className="space-y-2">
+          <p className="rounded border border-warn/40 bg-warn-light p-3 font-medium">
+            {cs.packing.early.warn(diffDays(today, firstBookedFrom(b)))}
+          </p>
+          {hits.length === 0 ? (
+            <p className="text-ok">{cs.packing.early.nobody}</p>
+          ) : (
+            <Hits s={s} hits={hits} />
+          )}
+          {needsReason && <EarlyReason value={reason} onChange={setReason} />}
+        </div>
+      )}
+      <button
+        type="button"
+        className="btn btn-primary"
+        disabled={needsReason && !reason.trim()}
+        onClick={() => onStart(reason)}
+      >
+        {early ? cs.packing.early.start : cs.packing.start}
+      </button>
+    </div>
+  );
+}
+
+function EarlyReason({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  return (
+    <label className="block">
+      <span className="label">{cs.packing.early.reason}</span>
+      <input
+        className="input"
+        placeholder={cs.packing.early.reasonHint}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+      />
+    </label>
+  );
+}
+
 /**
  * Packing on a phone: one card per line, grouped by warehouse and shelf. What is ticked here is
  * ready but still in the warehouse; it leaves on the shipping screen (or at once).
@@ -68,6 +123,7 @@ export function Packing() {
   const batchNo =
     s.shipments.filter((x) => x.bookingId === id && !x.transferFromBookingId).length + 1;
   const [confirming, setConfirming] = useState(false);
+  const [early, setEarly] = useState('');
   const [wantGroups, setWantGroups] = useState(false);
   if (!b) return <Empty>{cs.errors.not_found}</Empty>;
   const pl = packingList(s, id);
@@ -96,13 +152,25 @@ export function Packing() {
       ...(p.fromCaseId ? { fromCaseId: p.fromCaseId } : {}),
     };
   });
+  // packed before the booked days: who gets short because of exactly these lines
+  const hits = b.earlyPacking ? [] : earlyPackingHits(s, today, id, lines);
+  const needsReason = hits.some((h) => h.level === 'order');
+  const blocked = ticked.length === 0 || unchecked.length > 0 || (needsReason && !early.trim());
+  const why = needsReason ? { earlyReason: early } : {};
   const pack = () => {
     const n = lines.reduce((x, l) => x + l.qty, 0);
-    if (!run((st) => packLines(st, user, today, id, lines), cs.packing.packedOk(n))) setPicks({});
+    if (!run((st) => packLines(st, user, today, id, lines, why), cs.packing.packedOk(n)))
+      setPicks({});
   };
   const packShip = (label: string, note: string) => {
     const err = run(
-      (st) => packAndShip(st, user, today, id, { label, lines, ...(note.trim() ? { note } : {}) }),
+      (st) =>
+        packAndShip(st, user, today, id, {
+          label,
+          lines,
+          ...why,
+          ...(note.trim() ? { note } : {}),
+        }),
       cs.packing.shipped(label),
     );
     if (err) return;
@@ -369,6 +437,11 @@ export function Packing() {
               <span>{cs.packing.progress(progress.packed, progress.qty)}</span>
             )}
           </p>
+          {b.earlyPacking && (
+            <p className="mt-1 text-xs text-warn">
+              {cs.packing.early.given(userName(s, b.earlyPacking.by), b.earlyPacking.reason)}
+            </p>
+          )}
           {b.status !== 'confirmed' && (
             <div className="mt-2">
               <DeliveryTabs id={id} ready={progress.ready} />
@@ -388,13 +461,10 @@ export function Packing() {
           <div className="panel p-3 text-sm">
             <p>{cs.packing.notStarted}</p>
             {can(user, 'start_packing') && (
-              <button
-                type="button"
-                className="btn btn-primary mt-2"
-                onClick={() => run((st) => startPacking(st, user, today, id))}
-              >
-                {cs.packing.start}
-              </button>
+              <StartPacking
+                id={id}
+                onStart={(reason) => run((st) => startPacking(st, user, today, id, reason))}
+              />
             )}
           </div>
         )}
@@ -471,7 +541,14 @@ export function Packing() {
                 {cs.packing.check.missing(unchecked.map((c) => caseNumber(s, c)).join(', '))}
               </p>
             )}
-            {confirming && lines.length > 0 && unchecked.length === 0 ? (
+            {hits.length > 0 && (
+              <div data-testid="early-lines" className="max-h-[40vh] space-y-2 overflow-y-auto">
+                <p className="text-sm font-medium">{cs.packing.early.warnLines}</p>
+                <Hits s={s} hits={hits} />
+                {needsReason && <EarlyReason value={early} onChange={setEarly} />}
+              </div>
+            )}
+            {confirming && !blocked ? (
               <ShipConfirm
                 defaultLabel={cs.packing.labelDefault(batchNo)}
                 missing={openPromises(s, b)}
@@ -484,7 +561,7 @@ export function Packing() {
                 <button
                   type="button"
                   className="btn btn-primary min-h-12 flex-1 whitespace-nowrap text-base"
-                  disabled={ticked.length === 0 || unchecked.length > 0}
+                  disabled={blocked}
                   onClick={pack}
                 >
                   {cs.packing.pack(ticked.length)}
@@ -492,7 +569,7 @@ export function Packing() {
                 <button
                   type="button"
                   className="btn min-h-12 flex-1 whitespace-nowrap"
-                  disabled={ticked.length === 0 || unchecked.length > 0}
+                  disabled={blocked}
                   onClick={() => setConfirming(true)}
                 >
                   {cs.packing.packShip(ticked.length)}
@@ -509,6 +586,7 @@ export function Packing() {
             </Link>
           </div>
         )}
+        <CancelPacking id={id} />
         <Batches s={s} id={id} />
       </div>
     </>

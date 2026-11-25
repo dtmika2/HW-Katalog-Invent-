@@ -254,6 +254,8 @@ export interface Booking {
   suppressedAuto: Record<string, string>;
   returnedToPm?: { by: Id; on: IsoDate; reason: string };
   editedAfterShipping?: boolean;
+  /** Why it is packed early although a confirmed order needs the gear in the meantime. */
+  earlyPacking?: { by: Id; on: IsoDate; reason: string };
   closedOn?: IsoDate;
 }
 
@@ -501,7 +503,8 @@ export type NotificationType =
   | 'case_shipped_short'
   | 'loan_overdue'
   | 'order_packed'
-  | 'promised_missing';
+  | 'promised_missing'
+  | 'shipping_cancelled';
 
 export type Params = Record<string, string | number>;
 
@@ -529,6 +532,8 @@ export type SystemEventType =
   | 'packed'
   | 'unpacked'
   | 'batch_shipped'
+  | 'packing_cancelled'
+  | 'shipping_cancelled'
   | 'shipped_without'
   | 'promised_arrived'
   | 'promised_closed'
@@ -572,6 +577,8 @@ export interface Settings {
   bufferAfterDays: number;
   /** How many days ahead an undated or overdue loan counts as out. */
   loanHorizonDays: number;
+  /** Packing further ahead than this has to be activated and warns. */
+  earlyPackingDays: number;
   reminders: ReminderSettings;
 }
 
@@ -579,6 +586,7 @@ export const DEFAULT_SETTINGS: Settings = {
   bufferBeforeDays: 1,
   bufferAfterDays: 1,
   loanHorizonDays: 7,
+  earlyPackingDays: 7,
   reminders: {
     validationWaitingAfter: 2,
     validationWaitingEvery: 2,

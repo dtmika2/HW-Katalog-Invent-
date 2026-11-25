@@ -390,9 +390,15 @@ export const cs = {
     returned_to_pm: (p: Params) => `Vráceno PM: ${p.reason ?? ''}`,
     confirmed: () => 'Potvrzeno jako objednávka',
     override: (p: Params) => `Potvrzeno přes konflikt: ${p.reason ?? ''}`,
-    packing_started: () => 'Sklad začal balit',
-    packed: (p: Params) => `Zabaleno: ${p.count ?? 0} ks`,
+    packing_started: (p: Params) =>
+      p.reason ? `Sklad začal balit předem. Důvod: ${p.reason}` : 'Sklad začal balit',
+    packed: (p: Params) =>
+      `Zabaleno: ${p.count ?? 0} ks${p.reason ? `. Předem, důvod: ${p.reason}` : ''}`,
     unpacked: (p: Params) => `Vybaleno: ${p.count ?? 0}× ${p.name ?? ''}`,
+    packing_cancelled: (p: Params) =>
+      `Balení zrušeno (${p.count ?? 0} ks)${p.reason ? `. Důvod: ${p.reason}` : ''}`,
+    shipping_cancelled: (p: Params) =>
+      `Odvoz zrušen: ${p.label ?? ''} (${p.count ?? 0} ks)${p.reason ? `. Důvod: ${p.reason}` : ''}`,
     shipped_without: (p: Params) =>
       `Odvezeno bez přislíbeného: ${p.what ?? ''}${p.note ? `. Poznámka: ${p.note}` : ''}`,
     promised_arrived: (p: Params) => `Dorazilo dodatečně: ${p.what ?? ''}`,
@@ -452,6 +458,8 @@ export const cs = {
         `${p.event}: case ${p.number} zabalen neúplný, chybí ${p.what} (důvod: ${p.reason})`,
       order_packed: (p: Params) =>
         `${p.event}: zabaleno, připraveno k odvozu${p.promised ? ` (při odvozu přijede: ${p.promised})` : ''}`,
+      shipping_cancelled: (p: Params) =>
+        `${p.event}: odvoz zrušen (${p.label}, ${p.count} ks)${p.reason ? `, důvod: ${p.reason}` : ''}`,
       promised_missing: (p: Params) =>
         p.closed
           ? `${p.event}: nedorazí ${p.what}, důvod: ${p.reason}`
@@ -874,6 +882,38 @@ export const cs = {
     title: (event: string) => `Balicí list: ${event}`,
     start: 'Začít balit',
     notStarted: 'Objednávka je potvrzená, balení ještě nezačalo.',
+    early: {
+      activate: 'Aktivovat',
+      activateLabel: (event: string) => `Aktivovat balení: ${event}`,
+      inDays: (n: number) => `za ${n} ${n === 1 ? 'den' : n < 5 ? 'dny' : 'dní'}`,
+      warn: (n: number) =>
+        `Nakládka je až za ${n} ${n < 5 ? 'dny' : 'dní'}. Zabalená technika bude do té doby nedostupná pro všechny ostatní.`,
+      warnLines: 'Balíte před rezervovanými dny, technika bude od teď nedostupná.',
+      start: 'Přesto začít balit',
+      nobody: 'Nikomu zatím nebude chybět.',
+      reason: 'Proč balíte takhle brzy (povinné)',
+      reasonHint: 'Uvidí to PM a šéf techniky',
+      given: (who: string, reason: string) => `Balí se předem: ${reason} (${who})`,
+    },
+    cancel: {
+      button: 'Zrušit balení',
+      ask: (n: number) =>
+        n > 0
+          ? `Vybalí se ${n} ks a technika bude zase volná pro ostatní. Objednávka se vrátí do stavu Potvrzená.`
+          : 'Objednávka se vrátí do stavu Potvrzená.',
+      askPartly: (n: number) =>
+        `Vybalí se ${n} ks, které jsou ještě ve skladu. Co už odjelo, zůstane odvezené.`,
+      reason: 'Důvod (nepovinné)',
+      reasonHint: 'Např. začali jsme moc brzy',
+      yes: 'Ano, zrušit balení',
+      done: 'Balení zrušeno.',
+      shipButton: 'Zrušit odvoz',
+      shipAsk: (label: string, n: number) =>
+        `${label}: ${n} ks se vrátí mezi zabalené ve skladu. PM a šéf techniky dostanou upozornění.`,
+      shipYes: 'Ano, zrušit odvoz',
+      shipDone: 'Odvoz zrušen, technika je zase vedená jako zabalená.',
+      keep: 'Nechat být',
+    },
     highPriority: 'Pozor: po odvozu byly přidány řádky — zabalte je jako novou dodávku.',
     editedDuringPacking: 'Objednávka byla během balení upravena.',
     warehouse: (w: string) => `Sklad ${w}`,
@@ -1073,7 +1113,7 @@ export const cs = {
     empty: 'Žádné servisní případy.',
   },
   warehouseUi: {
-    packingSoon: 'Balení dnes a v příštích dnech',
+    packingSoon: 'Balení',
     expectedReturns: 'Očekávané vratky',
     waitingCheck: 'Technika čeká na kontrolu',
     openService: 'Otevřený servis',

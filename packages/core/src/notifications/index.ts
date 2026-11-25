@@ -110,6 +110,7 @@ const LEVEL_OF_TYPE: Record<NotificationType, NotificationLevel> = {
   case_shipped_short: 'attention',
   loan_overdue: 'attention',
   promised_missing: 'attention',
+  shipping_cancelled: 'attention',
   order_packed: 'info',
   prebooking_returned: 'attention',
   prebooking_expiring: 'attention',

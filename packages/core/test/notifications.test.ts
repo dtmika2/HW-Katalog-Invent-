@@ -37,6 +37,7 @@ describe('notification importance', () => {
       'case_shipped_short',
       'loan_overdue',
       'promised_missing',
+      'shipping_cancelled',
       'prebooking_returned',
       'prebooking_expiring',
       'prebooking_expired',

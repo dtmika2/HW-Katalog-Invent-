@@ -269,6 +269,56 @@ export function conflictDays(
   return out;
 }
 
+/** A line of another booking that gets short because gear is taken now. */
+export interface ShortageHit {
+  bookingId: Id;
+  lineId: Id;
+  target: Target;
+  /** 'order' needs a reason, 'prebooking' only informs. */
+  level: 'order' | 'prebooking';
+  short: number;
+  days: IsoDate[];
+}
+
+/** Lines that get short (or shorter) on days `from`–`to` when `before` turns into `after`. */
+export function newShortages(
+  before: AppState,
+  after: AppState,
+  from: IsoDate,
+  to: IsoDate,
+  relevant: (b: Booking) => boolean = () => true,
+): ShortageHit[] {
+  const out: ShortageHit[] = [];
+  for (const b of after.bookings) {
+    const level =
+      b.type === 'order' && DETECT_STATUSES.has(b.status)
+        ? 'order'
+        : b.type === 'prebooking' && b.status === 'submitted'
+          ? 'prebooking'
+          : undefined;
+    if (!level || lastBookedUntil(b) < from || firstBookedFrom(b) > to || !relevant(b)) continue;
+    const was = evaluateBooking(before, b, buildHoldIndex(before, filterFor(b)));
+    const now = evaluateBooking(after, b, buildHoldIndex(after, filterFor(b)));
+    for (const line of b.lines) {
+      const a = now.get(line.id);
+      const p = was.get(line.id);
+      if (!a || a.badge !== 'red' || isExternal(line.target)) continue;
+      const days = a.shortDays.filter((x) => x >= from && x <= to);
+      const worse = a.short > (p?.short ?? 0) || days.some((x) => !p?.shortDays.includes(x));
+      if (days.length > 0 && worse)
+        out.push({
+          bookingId: b.id,
+          lineId: line.id,
+          target: line.target,
+          level,
+          short: a.short,
+          days,
+        });
+    }
+  }
+  return out;
+}
+
 /** Chief moves a record to "V řešení". */
 export function setConflictInProgress(state: AppState, user: User, id: Id): Result<AppState> {
   if (user.role !== 'chief' && user.role !== 'admin')

@@ -182,6 +182,7 @@ describe('packing is not shipping', () => {
 describe('promised gear of our own and from other events', () => {
   it('pieces missing because of an accepted conflict say why and may be left', () => {
     renderApp(`/packing/${CHAIN.b}`, { scenario: 'conflictChain', user: 'u-martin' });
+    fireEvent.change(screen.getByLabelText('Simulované dnes'), { target: { value: '08.06.2027' } });
     click('Začít balit');
     const c = card('Robe LEDBeam 150');
     expect(c).toHaveTextContent(
@@ -229,5 +230,110 @@ describe('packed gear is not accessible', () => {
     for (const x of screen.getAllByRole('checkbox')) expect(x).toBeDisabled();
     page('u-petr', '/packing/bk-tiskovka');
     expect(screen.queryByRole('button', { name: /Vybalit/ })).toBeNull();
+  });
+});
+
+describe('packing ahead of time', () => {
+  it('orders more than a week away are greyed and have to be activated', () => {
+    renderApp('/', { scenario: 'base', user: 'u-martin' });
+    const row = (id: string) => screen.getByTestId(`packing-row-${id}`);
+    // booked from 23.04., three days away
+    expect(row('bk-firemni')).toHaveAttribute('data-locked', 'false');
+    expect(within(row('bk-firemni')).getByRole('link', { name: 'Balit' })).toBeInTheDocument();
+    // booked from 18.06.
+    const far = row('bk-letni-noc');
+    expect(far).toHaveAttribute('data-locked', 'true');
+    expect(far).toHaveTextContent('za 59 dní');
+    expect(within(far).queryByRole('link', { name: 'Balit' })).toBeNull();
+    fireEvent.click(
+      within(far).getByRole('button', { name: 'Aktivovat balení: Festival Letní noc' }),
+    );
+    expect(row('bk-letni-noc')).toHaveAttribute('data-locked', 'false');
+    expect(row('bk-letni-noc')).toHaveTextContent('Nakládka je až za 59 dní.');
+    expect(within(row('bk-letni-noc')).getByRole('link', { name: 'Balit' })).toBeInTheDocument();
+  });
+
+  it('starting warns, lists who would get short and needs a reason', () => {
+    renderApp('/packing/bk-letni-noc', { scenario: 'base', user: 'u-martin' });
+    const panel = screen.getByTestId('early-packing');
+    expect(panel).toHaveTextContent(
+      'Nakládka je až za 59 dní. Zabalená technika bude do té doby nedostupná',
+    );
+    expect(within(panel).getByTestId('loan-hits-order')).toHaveTextContent('Květnový festival');
+    const start = screen.getByRole('button', { name: 'Přesto začít balit' });
+    expect(start).toBeDisabled();
+    fireEvent.change(screen.getByLabelText('Proč balíte takhle brzy (povinné)'), {
+      target: { value: 'Zkušební stavba' },
+    });
+    fireEvent.click(start);
+    expect(booking('bk-letni-noc')).toMatchObject({
+      status: 'packing',
+      earlyPacking: { by: 'u-martin', reason: 'Zkušební stavba' },
+    });
+    expect(screen.getByText(/Balí se předem: Zkušební stavba \(Martin Svoboda\)/)).toBeVisible();
+    page('u-lucie', '/bookings/bk-letni-noc');
+    expect(
+      screen.getByText(/Sklad začal balit předem\. Důvod: Zkušební stavba/),
+    ).toBeInTheDocument();
+  });
+
+  it('nobody in between: only the warning; within a week: no warning at all', () => {
+    renderApp(`/packing/bk-carodejnice`, { scenario: 'base', user: 'u-martin' });
+    expect(screen.getByTestId('early-packing')).toBeInTheDocument();
+    page('u-martin', '/packing/bk-firemni');
+    expect(screen.queryByTestId('early-packing')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Začít balit' })).toBeEnabled();
+  });
+});
+
+describe('cancelling', () => {
+  it('a delivery goes back to packed, then packing is cancelled and the gear is free', () => {
+    renderApp('/shipping/bk-tiskovka', { scenario: 'base', user: 'u-martin' });
+    click(/^Odvézt \(\d+ ks\)/);
+    click(/^Potvrdit odvoz/);
+    expect(shipments('bk-tiskovka')).toHaveLength(1);
+    click('Zrušit odvoz: Dodávka 1');
+    const ask = screen.getByRole('alertdialog');
+    expect(ask).toHaveTextContent('Dodávka 1: 8 ks se vrátí mezi zabalené ve skladu.');
+    fireEvent.change(within(ask).getByLabelText('Důvod (nepovinné)'), {
+      target: { value: 'Auto nejelo' },
+    });
+    fireEvent.click(within(ask).getByRole('button', { name: 'Ano, zrušit odvoz' }));
+    expect(shipments('bk-tiskovka')).toEqual([]);
+    expect(screen.getByTestId('packed')).toHaveTextContent('Řečnický pult');
+
+    click('Zrušit balení');
+    expect(screen.getByRole('alertdialog')).toHaveTextContent(
+      'Vybalí se 8 ks a technika bude zase volná pro ostatní.',
+    );
+    click('Nechat být');
+    expect(booking('bk-tiskovka')!.status).toBe('packed');
+    click('Zrušit balení');
+    click('Ano, zrušit balení');
+    expect(booking('bk-tiskovka')!.status).toBe('confirmed');
+
+    page('u-petr', '/items/lectern?loan=1');
+    fireEvent.change(screen.getByLabelText('Kolik kusů'), { target: { value: '2' } });
+    expect(screen.queryByRole('alert')).toBeNull();
+    page('u-petr', '/bookings/bk-tiskovka');
+    expect(
+      screen.getByText(/Odvoz zrušen: Dodávka 1 \(8 ks\)\. Důvod: Auto nejelo/),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/Balení zrušeno \(8 ks\)/)).toBeInTheDocument();
+    page('u-tomas', '/notifications');
+    expect(screen.getByTestId('notifications')).toHaveTextContent(
+      'Tiskovka Město Brod: odvoz zrušen (Dodávka 1, 8 ks), důvod: Auto nejelo',
+    );
+    // and it can be packed again
+    page('u-martin', '/packing/bk-tiskovka');
+    expect(screen.getByRole('button', { name: 'Začít balit' })).toBeEnabled();
+  });
+
+  it('only the warehouse cancels; not once a vratka was recorded', () => {
+    renderApp('/packing/bk-tiskovka', { scenario: 'base', user: 'u-tomas' });
+    expect(screen.queryByRole('button', { name: 'Zrušit balení' })).toBeNull();
+    page('u-martin', '/shipping/bk-autosalon');
+    expect(screen.getByTestId('batches')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Zrušit odvoz/ })).toBeNull();
   });
 });
