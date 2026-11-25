@@ -6,6 +6,7 @@ import { cs } from '../i18n/cs';
 import { DateInput } from './DateInput';
 import { clearPersisted, useAppState, useProto, useToday, useUser } from '../store';
 import { ScenarioHelp } from './ScenarioHelp';
+import { StageHelpButton } from './StageHelp';
 import { LEVEL_STYLE, Toasts } from './ui';
 
 function Bell() {
@@ -127,6 +128,7 @@ function Controls() {
       >
         {cs.shell.reset}
       </button>
+      <StageHelpButton className="btn" />
     </div>
   );
 }

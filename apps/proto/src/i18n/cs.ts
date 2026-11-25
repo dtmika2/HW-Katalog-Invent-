@@ -115,6 +115,113 @@ export const cs = {
     expired: 'Propadlá',
   } satisfies Record<BookingStatus, string>,
   bookingType: { prebooking: 'Předrezervace', order: 'Objednávka' },
+  /** "Vysvětlivky": stages of a booking. Keep in step with `TRANSITIONS` in core. */
+  stages: {
+    button: 'Vysvětlivky',
+    title: 'Vysvětlivky: stavy rezervace',
+    flow: 'Obvyklá cesta',
+    groups: { prebooking: 'Předrezervace', order: 'Objednávka', vratka: 'Vratka a uzavření' },
+    next: 'Co dál:',
+    holds: 'Drží techniku:',
+    info: {
+      draft: {
+        means: 'PM sestavuje seznam techniky.',
+        next: 'PM nebo šéf techniky ji odešle ke schválení. Šéf techniky (nebo PM s oprávněním) ji může rovnou potvrdit.',
+        holds: 'ne',
+      },
+      submitted: {
+        means: 'Čeká na šéfa techniky.',
+        next: 'Šéf techniky (nebo PM s oprávněním) ji potvrdí. Šéf techniky ji může vrátit PM.',
+        holds: 'jen měkce, ostatní ji vidí jako požadavek',
+      },
+      expired: {
+        means: 'Do dne akce nebyla potvrzena.',
+        next: 'Konec. Propadne sama při nočních úlohách.',
+        holds: 'ne',
+      },
+      confirmed: {
+        means: 'Potvrzená objednávka, ještě se nebalí.',
+        next: 'Sklad začne balit. Je-li nakládka dál než za týden, musí ji nejdřív aktivovat.',
+        holds: 'ano, v rezervovaných dnech',
+      },
+      packing: {
+        means: 'Ještě zbývá něco zabalit.',
+        next: 'Sklad zabalí zbytek, nebo označí přislíbené jako „přijede až při odvozu“. Může také zabalit a rovnou odvézt.',
+        holds: 'ano, zabalené už ode dne zabalení',
+      },
+      packed: {
+        means: 'Vše je zabalené, nebo přislíbené k odvozu. Technika je pořád ve skladu.',
+        next: 'Sklad potvrdí odvoz, i po částech.',
+        holds: 'ano, ode dne zabalení; nikdo jiný si ji nemůže vzít',
+      },
+      shipped: {
+        means: 'Vše opustilo sklad.',
+        next: 'Sklad zapíše vratku.',
+        holds: 'ano, v rezervovaných dnech',
+      },
+      returning: {
+        means: 'Část vratky je spočítaná, část ne.',
+        next: 'Sklad dopočítá zbytek.',
+        holds: 'jen to, co ještě není spočítané',
+      },
+      returned_with_issues: {
+        means: 'Vše je spočítané, ale něco chybí.',
+        next: 'Šéf techniky problém vyřeší, nebo sklad chybějící kus najde a zapíše do vratky.',
+        holds: 'jen chybějící kusy',
+      },
+      returned: {
+        means: 'Vše je zpátky ve skladu.',
+        next: 'Sklad nebo šéf techniky rezervaci uzavře.',
+        holds: 'ne',
+      },
+      closed: { means: 'Hotovo, jen ke čtení.', next: 'Konec.', holds: 'ne' },
+    } satisfies Record<BookingStatus, { means: string; next: string; holds: string }>,
+    arrow: 'zpět na',
+    backTitle: 'Cesty zpátky',
+    back: [
+      { from: ['submitted'], to: ['draft'], how: 'Šéf techniky vrátí předrezervaci PM s dotazem.' },
+      {
+        from: ['packed'],
+        to: ['packing'],
+        how: 'Sklad něco vybalí, nebo šéf techniky do objednávky něco přidá.',
+      },
+      {
+        from: ['packing', 'packed'],
+        to: ['confirmed'],
+        how: 'Zrušit balení, pokud ještě nic neodjelo. Sklad potvrdí, že je vše zpátky na místě.',
+      },
+      {
+        from: ['shipped'],
+        to: ['packed', 'packing'],
+        how: 'Zrušit odvoz, do první vratky. Sklad potvrdí, že je vše zpátky. Od prvního dne akce jen šéf techniky; sklad ho může o zrušení požádat.',
+      },
+    ] satisfies { from: BookingStatus[]; to: BookingStatus[]; how: string }[],
+    notesTitle: 'Co není samostatný stav',
+    notesHint: 'Tyto poznámky se ukazují vedle stavu.',
+    notes: [
+      {
+        name: 'část odvezena, zbývá N ks',
+        means: 'U Balí se a Zabaleno: některé dodávky už odjely. Vratka může začít i tak.',
+      },
+      {
+        name: 'Přislíbené, ještě nepotvrzené',
+        means:
+          'U Balí se, Zabaleno a Odvezeno: přislíbená technika ještě nebyla potvrzena jako součást dodávky.',
+      },
+      {
+        name: 'Vráceno k doplnění',
+        means: 'U Rozpracované: šéf techniky ji vrátil PM s dotazem.',
+      },
+      {
+        name: 'Balí se předem',
+        means: 'U Balí se a Zabaleno: balí se před rezervovanými dny, důvod je v komunikaci.',
+      },
+      {
+        name: 'Žádost o zrušení',
+        means: 'U Balí se, Zabaleno a Odvezeno: sklad požádal o zrušení a čeká na šéfa techniky.',
+      },
+    ],
+  },
   common: {
     save: 'Uložit',
     saved: 'Uloženo',
