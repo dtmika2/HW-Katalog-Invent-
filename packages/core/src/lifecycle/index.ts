@@ -11,9 +11,11 @@ import type { AppState, Booking, BookingPeriod, BookingStatus, Id, User } from '
 import { SYSTEM_USER_ID } from '../types';
 import { err, isExternal, nextId, ok, produce, type Result } from '../util';
 import { recalcBooking } from './edit';
+import { cleanOrganisation, sameExceptOrganisation } from './organise';
 import { can, type Action } from './permissions';
 
 export * from './edit';
+export * from './organise';
 export * from './permissions';
 
 export type LifecycleAction =
@@ -175,13 +177,15 @@ export function saveBooking(
   const client = checkBookingClient(state, edited.clientId, current.clientId);
   if (!client.ok) return client;
   const { clientId, ...rest } = edited;
-  const { booking: recalced, expansion } = recalcBooking(state, {
+  const { booking: calculated, expansion } = recalcBooking(state, {
     ...rest,
     ...(clientId ? { clientId } : {}),
     type: current.type,
     status: current.status,
     pmId: current.pmId,
   });
+
+  const recalced = cleanOrganisation(calculated);
 
   const isOrder = current.type === 'order';
   let overridden: ReturnType<typeof detectConflicts> = [];
@@ -218,7 +222,8 @@ export function saveBooking(
       addConflictRecord(d, recalced, c, 'override', reason, today);
       postEvent(d, current.id, user.id, today, 'override', { lineId: c.lineId, reason });
     }
-    if (current.status === 'packing') {
+    // regrouping the list changes nothing for the packer
+    if (current.status === 'packing' && !sameExceptOrganisation(current, recalced)) {
       notify(
         d,
         warehouseIds(d),

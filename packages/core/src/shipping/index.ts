@@ -15,12 +15,13 @@ import {
   resolveSourceWarehouse,
 } from '../catalog';
 import { recomputeConflictRecords } from '../conflicts';
-import { guard, recalcBooking } from '../lifecycle';
+import { groupOfLine, guard, recalcBooking } from '../lifecycle';
 import { can } from '../lifecycle/permissions';
 import { chiefIds, notify, postEvent, warehouseIds } from '../notifications';
 import type {
   AppState,
   Booking,
+  BookingGroup,
   BookingLine,
   CaseCheck,
   Id,
@@ -68,6 +69,8 @@ export interface PackLine {
   consumable: boolean;
   addedAfterShipping: boolean;
   fromBookingId?: Id;
+  /** The PM's own group the line is shown in. */
+  group?: BookingGroup;
 }
 
 export interface PackingGroup {
@@ -136,6 +139,8 @@ export function packingList(state: AppState, bookingId: Id): PackingList | undef
         isItemTarget(line.target) && getItem(state, line.target.itemId)?.returnable === false,
       addedAfterShipping: !!line.addedAfterShipping,
     };
+    const group = groupOfLine(b, line.id);
+    if (group) base.group = group;
     if (isExternal(line.target)) {
       external.push(base);
       continue;

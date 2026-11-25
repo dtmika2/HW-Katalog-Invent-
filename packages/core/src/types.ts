@@ -184,6 +184,12 @@ export type LineTarget = { itemId: Id } | { caseTypeId: Id } | { external: Exter
 export type LineOrigin = 'manual' | 'auto' | 'kit';
 export type LineStatus = 'ok' | 'missing' | 'substituted';
 
+/** The PM's own section of the list ("dekorace", "zkouška zvuku"). */
+export interface BookingGroup {
+  id: Id;
+  name: string;
+}
+
 export interface BookingLine {
   id: Id;
   target: LineTarget;
@@ -210,6 +216,12 @@ export interface BookingLine {
   addedAfterShipping?: boolean;
   /** Day pieces actually arrived from `fromBookingId`. */
   transferredOn?: IsoDate;
+  /** Shown under this line (for auto lines: which of `parentLineIds`). */
+  nestedUnder?: Id;
+  /** Group of a top-level line; nested lines follow their parent. */
+  groupId?: Id;
+  /** Added from a check of this item: the count follows it until changed by hand. */
+  followsCheck?: { fromItemId: Id; byHand?: boolean };
 }
 
 export interface Booking {
@@ -228,6 +240,7 @@ export interface Booking {
   confirmSeq?: number;
   periods: BookingPeriod[];
   lines: BookingLine[];
+  groups?: BookingGroup[];
   /** Warehouse used for lines that do not name a source. */
   defaultWarehouseId: Id;
   /** OR choices made by a person: group key → option key. */

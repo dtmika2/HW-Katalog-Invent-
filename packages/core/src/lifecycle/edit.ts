@@ -5,7 +5,7 @@
 import { addDays, type IsoDate } from '../dates';
 import { availabilityOracle } from '../availability';
 import { getCaseType, getItem } from '../catalog';
-import { expand, type ExpandResult } from '../expansion';
+import { expand, itemTotals, ruleQty, type ExpandResult } from '../expansion';
 import type {
   AppState,
   Booking,
@@ -17,7 +17,8 @@ import type {
   Settings,
   Target,
 } from '../types';
-import { isCaseTarget, isItemTarget } from '../util';
+import { isCaseTarget, isExternal, isItemTarget, targetKey } from '../util';
+import { bringsItem, descendants, parentMap, placeOf, type LinePlace } from './organise';
 
 /** Period with the default buffer around the event (e.g. event Fri–Sat → booked Thu–Sun). */
 export function periodWithBuffer(
@@ -49,13 +50,57 @@ export function newLine(target: BookingLine['target'], qty: number, id: Id): Boo
 /** Next free manual line id for a booking (`<bookingId>-l<n>`). */
 export function nextLineId(booking: Pick<Booking, 'id' | 'lines'>): Id {
   let n = booking.lines.length + 1;
-  const ids = new Set(booking.lines.map((l) => l.id));
+  // ids still named as a parent stay reserved, a new line must not inherit its children
+  const ids = new Set(booking.lines.flatMap((l) => [l.id, l.nestedUnder ?? '']));
   while (ids.has(`${booking.id}-l${n}`)) n += 1;
   return `${booking.id}-l${n}`;
 }
 
-/** Re-run the connections engine on a booking (with availability-based OR preselection). */
+/**
+ * Lines added from a check follow the count of the item that asked for them, until a person
+ * types another one. Without any piece of that item (e.g. while its count is being retyped) the
+ * last count stays.
+ */
+function followChecks(state: AppState, lines: BookingLine[]): BookingLine[] | undefined {
+  if (!lines.some((l) => l.followsCheck && !l.followsCheck.byHand)) return undefined;
+  const totals = itemTotals(lines, state);
+  let changed = false;
+  const next = lines.map((l) => {
+    const f = l.followsCheck;
+    if (!f || f.byHand || l.origin === 'auto' || isExternal(l.target)) return l;
+    const total = totals.get(f.fromItemId) ?? 0;
+    const key = targetKey(l.target);
+    const c = state.connections.find(
+      (x) => x.kind === 'check' && x.fromItemId === f.fromItemId && targetKey(x.target) === key,
+    );
+    if (total <= 0 || !c) return l;
+    const qty = Math.max(1, ruleQty(c, total));
+    if (qty === l.qty) return l;
+    changed = true;
+    return { ...l, qty };
+  });
+  return changed ? next : undefined;
+}
+
+/**
+ * Re-run the connections engine on a booking (with availability-based OR preselection) and let
+ * check lines follow their item.
+ */
 export function recalcBooking(
+  state: AppState,
+  booking: Booking,
+): { booking: Booking; expansion: ExpandResult } {
+  let r = expandBooking(state, booking);
+  // a following line may itself bring required items, so expand again
+  for (let i = 0; i < 3; i += 1) {
+    const lines = followChecks(state, r.booking.lines);
+    if (!lines) break;
+    r = expandBooking(state, { ...r.booking, lines });
+  }
+  return r;
+}
+
+function expandBooking(
   state: AppState,
   booking: Booking,
 ): { booking: Booking; expansion: ExpandResult } {
@@ -74,21 +119,72 @@ function mapLine(b: Booking, lineId: Id, fn: (l: BookingLine) => BookingLine): B
   return { ...b, lines: b.lines.map((l) => (l.id === lineId ? fn(l) : l)) };
 }
 
-/** Add a manual line (merges into an existing manual line of the same target and source). */
-export function addLine(state: AppState, b: Booking, target: Target, qty: number): Booking {
+export interface AddOptions extends LinePlace {
+  followsCheck?: BookingLine['followsCheck'];
+}
+
+/** Add a manual line (merges into an existing manual line of the same target, source and place). */
+export function addLine(
+  state: AppState,
+  b: Booking,
+  target: Target,
+  qty: number,
+  options: AddOptions = {},
+): Booking {
+  const { followsCheck, nestedUnder, groupId } = options;
   const existing = b.lines.find(
     (l) =>
       l.origin !== 'auto' &&
       l.status === 'ok' &&
       !l.fromBookingId &&
+      l.nestedUnder === nestedUnder &&
+      (nestedUnder !== undefined || l.groupId === groupId) &&
       ((isItemTarget(l.target) && isItemTarget(target) && l.target.itemId === target.itemId) ||
         (isCaseTarget(l.target) &&
           isCaseTarget(target) &&
           l.target.caseTypeId === target.caseTypeId)),
   );
+  const line: BookingLine = {
+    ...newLine(target, qty, nextLineId(b)),
+    ...(nestedUnder ? { nestedUnder } : groupId ? { groupId } : {}),
+    ...(followsCheck ? { followsCheck } : {}),
+  };
   const next = existing
-    ? mapLine(b, existing.id, (l) => ({ ...l, qty: l.qty + qty }))
-    : { ...b, lines: [...b.lines, newLine(target, qty, nextLineId(b))] };
+    ? mapLine(b, existing.id, (l) => byHand({ ...l, qty: l.qty + qty }))
+    : { ...b, lines: [...b.lines, line] };
+  return recalcBooking(state, next).booking;
+}
+
+/** The count was changed by a person, so it no longer follows the item that asked for it. */
+function byHand(l: BookingLine): BookingLine {
+  return l.followsCheck ? { ...l, followsCheck: { ...l.followsCheck, byHand: true } } : l;
+}
+
+/** Line that asks for something on behalf of an item: the item itself or a case holding it. */
+export function lineOfItem(state: AppState, b: Booking, itemId: Id): BookingLine | undefined {
+  return b.lines.find((l) => l.status === 'ok' && bringsItem(state, l, itemId));
+}
+
+/** Add one of "Máš aspoň jeden z těchto?" under the item that asked for it. */
+export function addCheckCandidate(
+  state: AppState,
+  b: Booking,
+  fromItemId: Id,
+  target: Target,
+  qty: number,
+): Booking {
+  const parent = lineOfItem(state, b, fromItemId);
+  return addLine(state, b, target, qty, {
+    ...(parent ? { nestedUnder: parent.id } : {}),
+    followsCheck: { fromItemId },
+  });
+}
+
+/** Let a line from a check follow its item's count again. */
+export function followAgain(state: AppState, b: Booking, lineId: Id): Booking {
+  const next = mapLine(b, lineId, (l) =>
+    l.followsCheck ? { ...l, followsCheck: { fromItemId: l.followsCheck.fromItemId } } : l,
+  );
   return recalcBooking(state, next).booking;
 }
 
@@ -96,7 +192,7 @@ export function addLine(state: AppState, b: Booking, target: Target, qty: number
 export function setLineQty(state: AppState, b: Booking, lineId: Id, qty: number): Booking {
   const q = Math.max(0, Math.floor(qty));
   const next = mapLine(b, lineId, (l) =>
-    l.origin === 'auto' ? { ...l, overriddenQty: q } : { ...l, qty: q },
+    l.origin === 'auto' ? { ...l, overriddenQty: q } : byHand({ ...l, qty: q }),
   );
   return recalcBooking(state, next).booking;
 }
@@ -111,16 +207,61 @@ export function clearOverride(state: AppState, b: Booking, lineId: Id): Booking 
   return recalcBooking(state, next).booking;
 }
 
-/** Remove a manual line, or (Chief, with a reason) suppress an auto line. */
-export function removeLine(state: AppState, b: Booking, lineId: Id, reason?: string): Booking {
+/** Lines a person put under `lineId`, at any depth (required ones come and go by themselves). */
+export function nestedByHand(b: Booking, lineId: Id): BookingLine[] {
+  return descendants(b, lineId).filter((l) => l.origin !== 'auto');
+}
+
+/**
+ * Remove a manual line, or (Chief, with a reason) suppress an auto line. Lines a person nested
+ * under it are kept one level up, or removed with it.
+ */
+export function removeLine(
+  state: AppState,
+  b: Booking,
+  lineId: Id,
+  reason?: string,
+  children: 'keep' | 'remove' = 'keep',
+): Booking {
   const line = b.lines.find((l) => l.id === lineId);
   if (!line) return b;
-  if (line.origin === 'auto') {
-    if (!reason?.trim()) return b;
-    const next = { ...b, suppressedAuto: { ...b.suppressedAuto, [lineId]: reason.trim() } };
-    return recalcBooking(state, next).booking;
+  const auto = line.origin === 'auto';
+  if (auto && !reason?.trim()) return b;
+  const below = new Set(nestedByHand(b, lineId).map((l) => l.id));
+  const up = placeOf(b, lineId);
+  let next: Booking = auto
+    ? { ...b, suppressedAuto: { ...b.suppressedAuto, [lineId]: reason?.trim() ?? '' } }
+    : { ...b, lines: b.lines.filter((l) => l.id !== lineId) };
+  next = recalcBooking(state, next).booking;
+  // Removing one line can take required lines (and what hangs on them) away, so go on until
+  // every line that was below has a parent again or is gone.
+  for (;;) {
+    const ids = new Set(next.lines.map((l) => l.id));
+    const lost = next.lines.filter(
+      (l) =>
+        below.has(l.id) && l.nestedUnder && !ids.has(l.nestedUnder) && !parentMap(next).has(l.id),
+    );
+    if (lost.length === 0) return next;
+    const lostIds = new Set(lost.map((l) => l.id));
+    if (children === 'remove') {
+      next = recalcBooking(state, {
+        ...next,
+        lines: next.lines.filter((l) => !lostIds.has(l.id)),
+      }).booking;
+      continue;
+    }
+    return {
+      ...next,
+      lines: next.lines.map((l) => {
+        if (!lostIds.has(l.id)) return l;
+        const c = { ...l };
+        delete c.nestedUnder;
+        delete c.groupId;
+        delete c.followsCheck;
+        return { ...c, ...up };
+      }),
+    };
   }
-  return recalcBooking(state, { ...b, lines: b.lines.filter((l) => l.id !== lineId) }).booking;
 }
 
 /** Restore a suppressed auto line. */
@@ -222,13 +363,20 @@ export function splitLine(
   const moved = Math.min(qty, line.qty);
   const copy: BookingLine = {
     ...newLine(line.target, moved, nextLineId(b)),
+    ...placeOf(b, lineId),
     sourceWarehouseId: warehouseId,
     expectedReturnWarehouseId: warehouseId,
   };
-  const lines = b.lines
-    .map((l) => (l.id === lineId ? { ...l, qty: l.qty - moved } : l))
-    .filter((l) => l.qty > 0 || l.origin === 'auto');
-  return recalcBooking(state, { ...b, lines: [...lines, copy] }).booking;
+  const lines = b.lines.map((l) => (l.id === lineId ? byHand({ ...l, qty: l.qty - moved }) : l));
+  return recalcBooking(state, { ...b, lines: dropEmpty([...lines, copy], lineId, copy.id) })
+    .booking;
+}
+
+/** Drop lines without pieces; children of `goneId` move to its replacement. */
+function dropEmpty(lines: BookingLine[], goneId: Id, replacementId: Id): BookingLine[] {
+  const kept = lines.filter((l) => l.qty > 0 || l.origin === 'auto');
+  if (kept.some((l) => l.id === goneId)) return kept;
+  return kept.map((l) => (l.nestedUnder === goneId ? { ...l, nestedUnder: replacementId } : l));
 }
 
 /**
@@ -258,17 +406,17 @@ export function coverWithExternal(
     ext = { ...spec, name: spec.name ?? item?.name ?? '', itemId: line.target.itemId };
     extQty = qty;
   }
-  const extLine = newLine({ external: ext }, extQty, nextLineId(b));
+  const extLine: BookingLine = {
+    ...newLine({ external: ext }, extQty, nextLineId(b)),
+    ...placeOf(b, lineId),
+  };
   let next: Booking;
   if (line.origin === 'auto') {
     const current = line.overriddenQty ?? line.qty;
     next = mapLine(b, lineId, (l) => ({ ...l, overriddenQty: Math.max(0, current - qty) }));
   } else {
-    next = mapLine(b, lineId, (l) => ({ ...l, qty: Math.max(0, l.qty - qty) }));
+    next = mapLine(b, lineId, (l) => byHand({ ...l, qty: Math.max(0, l.qty - qty) }));
   }
-  next = {
-    ...next,
-    lines: [...next.lines.filter((l) => l.qty > 0 || l.origin === 'auto'), extLine],
-  };
+  next = { ...next, lines: dropEmpty([...next.lines, extLine], lineId, extLine.id) };
   return recalcBooking(state, next).booking;
 }

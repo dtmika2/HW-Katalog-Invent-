@@ -96,7 +96,8 @@ interface Edge {
   orChoice?: string;
 }
 
-function ruleQty(c: Connection, parentQty: number): number {
+/** Pieces a connection asks for, for `parentQty` pieces of its item. */
+export function ruleQty(c: Connection, parentQty: number): number {
   switch (c.rule) {
     case 'per_piece':
       return parentQty * c.qty;
