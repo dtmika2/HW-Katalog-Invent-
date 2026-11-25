@@ -11,6 +11,8 @@ import {
   type ReturnSheetLine,
   type UnexpectedItem,
 } from '@quix/core';
+import { PrintButton } from '../components/print';
+import { VratkaPrint } from '../components/VratkaPrint';
 import { CaseLabel, Empty, StatusChip } from '../components/ui';
 import { cs } from '../i18n/cs';
 import { caseNumber, itemName } from '../lib/names';
@@ -478,138 +480,144 @@ export function Vratka() {
     });
 
   return (
-    <div className="mx-auto max-w-2xl space-y-4">
-      <div>
-        <Link to={`/bookings/${id}`} className="text-sm underline">
-          {cs.common.back}
-        </Link>
-        <h1 className="mt-1">{cs.vratka.title(b.eventName)}</h1>
-        <p className="mt-1 flex items-center gap-2 text-sm text-muted">
-          <StatusChip status={b.status} /> {cs.vratka.intro}
-        </p>
-      </div>
-      {result && (
-        <section data-testid="vratka-result" className="panel border-tape p-3 text-sm">
-          <h2>{cs.vratka.result}</h2>
-          <p>{cs.vratka.resultStatus(cs.status[b.status])}</p>
-          {result.issues.length > 0 && (
-            <>
-              <h3 className="mt-2 font-semibold">{cs.vratka.resultIssues}</h3>
-              <ul className="list-disc pl-5">
-                {result.issues.map((t) => (
-                  <li key={t}>{t}</li>
-                ))}
-              </ul>
-            </>
-          )}
-          {result.services.length > 0 && (
-            <>
-              <h3 className="mt-2 font-semibold">{cs.vratka.resultService}</h3>
-              <ul className="list-disc pl-5">
-                {result.services.map((t) => (
-                  <li key={t}>{t}</li>
-                ))}
-              </ul>
-            </>
-          )}
-        </section>
-      )}
-      {pending.length === 0 ? (
-        <Empty>{cs.vratka.nothingPending}</Empty>
-      ) : (
-        <ul className="space-y-3">
-          {pending.flatMap((l) => (l.kind === 'case' ? caseCards(l) : [lineCard(l)]))}
-        </ul>
-      )}
-      {canRecord && (
-        <details className="panel p-3 text-sm">
-          <summary className="cursor-pointer font-semibold">{cs.vratka.unexpected}</summary>
-          <div className="mt-2 grid gap-2 sm:grid-cols-2">
-            <label>
-              <span className="label">{cs.vratka.unexpectedItem}</span>
-              <select className="input" value={uItem} onChange={(e) => setUItem(e.target.value)}>
-                <option value="" />
-                {s.items.map((i) => (
-                  <option key={i.id} value={i.id}>
-                    {i.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              <span className="label">{cs.vratka.unexpectedName}</span>
-              <input className="input" value={uName} onChange={(e) => setUName(e.target.value)} />
-            </label>
-            <label>
-              <span className="label">{cs.common.qty}</span>
-              <input
-                type="number"
-                className="input"
-                min={1}
-                value={uQty}
-                onChange={(e) => setUQty(Math.max(1, Number(e.target.value) || 1))}
-              />
-            </label>
-            <label>
-              <span className="label">{cs.vratka.note}</span>
-              <input className="input" value={uNote} onChange={(e) => setUNote(e.target.value)} />
-            </label>
+    <>
+      <VratkaPrint s={s} b={b} sheet={sheet} />
+      <div className="mx-auto max-w-2xl space-y-4 print:hidden">
+        <div>
+          <Link to={`/bookings/${id}`} className="text-sm underline">
+            {cs.common.back}
+          </Link>
+          <div className="mt-1 flex flex-wrap items-start justify-between gap-2">
+            <h1>{cs.vratka.title(b.eventName)}</h1>
+            {sheet.length > 0 && <PrintButton />}
           </div>
-          <button
-            type="button"
-            className="btn btn-sm mt-2"
-            disabled={!uNote.trim() || (!uItem && !uName.trim())}
-            onClick={() => {
-              const u: UnexpectedItem = { qty: uQty, note: uNote.trim() };
-              if (uItem) u.itemId = uItem;
-              if (uName.trim()) u.name = uName.trim();
-              setUnexpected([...unexpected, u]);
-              setUItem('');
-              setUName('');
-              setUNote('');
-              setUQty(1);
-            }}
-          >
-            {cs.vratka.unexpectedAdd}
-          </button>
-          {unexpected.length > 0 && (
-            <ul className="mt-2 list-disc pl-5">
-              {unexpected.map((u, i) => (
-                <li key={i}>
-                  {u.qty}× {u.itemId ? itemName(s, u.itemId) : u.name} — {u.note}
+          <p className="mt-1 flex items-center gap-2 text-sm text-muted">
+            <StatusChip status={b.status} /> {cs.vratka.intro}
+          </p>
+        </div>
+        {result && (
+          <section data-testid="vratka-result" className="panel border-tape p-3 text-sm">
+            <h2>{cs.vratka.result}</h2>
+            <p>{cs.vratka.resultStatus(cs.status[b.status])}</p>
+            {result.issues.length > 0 && (
+              <>
+                <h3 className="mt-2 font-semibold">{cs.vratka.resultIssues}</h3>
+                <ul className="list-disc pl-5">
+                  {result.issues.map((t) => (
+                    <li key={t}>{t}</li>
+                  ))}
+                </ul>
+              </>
+            )}
+            {result.services.length > 0 && (
+              <>
+                <h3 className="mt-2 font-semibold">{cs.vratka.resultService}</h3>
+                <ul className="list-disc pl-5">
+                  {result.services.map((t) => (
+                    <li key={t}>{t}</li>
+                  ))}
+                </ul>
+              </>
+            )}
+          </section>
+        )}
+        {pending.length === 0 ? (
+          <Empty>{cs.vratka.nothingPending}</Empty>
+        ) : (
+          <ul className="space-y-3">
+            {pending.flatMap((l) => (l.kind === 'case' ? caseCards(l) : [lineCard(l)]))}
+          </ul>
+        )}
+        {canRecord && (
+          <details className="panel p-3 text-sm">
+            <summary className="cursor-pointer font-semibold">{cs.vratka.unexpected}</summary>
+            <div className="mt-2 grid gap-2 sm:grid-cols-2">
+              <label>
+                <span className="label">{cs.vratka.unexpectedItem}</span>
+                <select className="input" value={uItem} onChange={(e) => setUItem(e.target.value)}>
+                  <option value="" />
+                  {s.items.map((i) => (
+                    <option key={i.id} value={i.id}>
+                      {i.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                <span className="label">{cs.vratka.unexpectedName}</span>
+                <input className="input" value={uName} onChange={(e) => setUName(e.target.value)} />
+              </label>
+              <label>
+                <span className="label">{cs.common.qty}</span>
+                <input
+                  type="number"
+                  className="input"
+                  min={1}
+                  value={uQty}
+                  onChange={(e) => setUQty(Math.max(1, Number(e.target.value) || 1))}
+                />
+              </label>
+              <label>
+                <span className="label">{cs.vratka.note}</span>
+                <input className="input" value={uNote} onChange={(e) => setUNote(e.target.value)} />
+              </label>
+            </div>
+            <button
+              type="button"
+              className="btn btn-sm mt-2"
+              disabled={!uNote.trim() || (!uItem && !uName.trim())}
+              onClick={() => {
+                const u: UnexpectedItem = { qty: uQty, note: uNote.trim() };
+                if (uItem) u.itemId = uItem;
+                if (uName.trim()) u.name = uName.trim();
+                setUnexpected([...unexpected, u]);
+                setUItem('');
+                setUName('');
+                setUNote('');
+                setUQty(1);
+              }}
+            >
+              {cs.vratka.unexpectedAdd}
+            </button>
+            {unexpected.length > 0 && (
+              <ul className="mt-2 list-disc pl-5">
+                {unexpected.map((u, i) => (
+                  <li key={i}>
+                    {u.qty}× {u.itemId ? itemName(s, u.itemId) : u.name} — {u.note}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </details>
+        )}
+        {settled.length > 0 && (
+          <section>
+            <h2>{cs.vratka.settled}</h2>
+            <ul className="mt-1 text-sm">
+              {settled.map((l) => (
+                <li key={l.lineId}>
+                  {l.name}:{' '}
+                  <span className={l.outcome === 'missing' ? 'text-bad' : 'text-ok'}>
+                    {cs.vratka.outcome[l.outcome]}
+                  </span>
                 </li>
               ))}
             </ul>
-          )}
-        </details>
-      )}
-      {settled.length > 0 && (
-        <section>
-          <h2>{cs.vratka.settled}</h2>
-          <ul className="mt-1 text-sm">
-            {settled.map((l) => (
-              <li key={l.lineId}>
-                {l.name}:{' '}
-                <span className={l.outcome === 'missing' ? 'text-bad' : 'text-ok'}>
-                  {cs.vratka.outcome[l.outcome]}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
-      {canRecord && (
-        <div className="sticky bottom-0 -mx-4 border-t border-alu-line bg-alu/95 px-4 py-3 backdrop-blur">
-          <button
-            type="button"
-            className="btn btn-primary min-h-12 w-full text-base"
-            disabled={inputs.length === 0 && unexpected.length === 0}
-            onClick={submit}
-          >
-            {cs.vratka.submit(inputs.length)}
-          </button>
-        </div>
-      )}
-    </div>
+          </section>
+        )}
+        {canRecord && (
+          <div className="sticky bottom-0 -mx-4 border-t border-alu-line bg-alu/95 px-4 py-3 backdrop-blur">
+            <button
+              type="button"
+              className="btn btn-primary min-h-12 w-full text-base"
+              disabled={inputs.length === 0 && unexpected.length === 0}
+              onClick={submit}
+            >
+              {cs.vratka.submit(inputs.length)}
+            </button>
+          </div>
+        )}
+      </div>
+    </>
   );
 }

@@ -265,6 +265,31 @@ export const cs = {
       close: 'Uzavřít rezervaci',
     },
     returnedToPm: (reason: string) => `Vráceno k doplnění: ${reason}`,
+    print: {
+      prices: 'S cenami',
+      internal: 'S interními údaji',
+      internalHint:
+        'Zdroje, konflikty, důvody a podpisy. Nezaškrtávejte, když list dáváte klientovi.',
+      saveFirst: 'Nejdřív uložte změny.',
+      unsaved: 'Obsahuje neuložené změny.',
+      docTitle: 'QUIX HW, seznam techniky',
+      fileName: (kind: string, event: string) => `${kind} – ${event}`,
+      period: (event: string, booked: string) => `Akce: ${event} (technika ${booked})`,
+      perDay: 'Kč / ks / den',
+      sum: (days: number) =>
+        days === 1 ? 'Celkem za 1 den' : `Celkem za ${days} ${days < 5 ? 'dny' : 'dní'}`,
+      externalPrice: 'externě, cena zvlášť',
+      notBinding: 'Nejde o závaznou nabídku.',
+      heldBy: (events: string) => `drží: ${events}`,
+      override: (r: string) => `Potvrzeno přes konflikt: ${r}`,
+      openChoices: (items: string) => `Zbývá vybrat možnost pro: ${items}`,
+      refused: 'Nemáme nebo nahrazeno',
+      askedBy: 'Žádá (PM)',
+      approvedBy: 'Schválil (šéf techniky)',
+      internalNote: 'Interní dokument.',
+      confirmedOn: (d: string) => `Potvrzeno ${d}.`,
+      empty: 'Seznam je prázdný.',
+    },
     expires: (date: string, age: string) => `Propadne ${date} · vytvořeno ${age}`,
   },
   badge: {
@@ -765,6 +790,10 @@ export const cs = {
     caseTypeNew: 'Nový typ casu',
     addContent: 'Přidat položku do obsahu',
   },
+  print: {
+    button: 'Tisk / uložit PDF',
+    buttonHint: 'V okně tisku zvolte jako tiskárnu „Uložit jako PDF“.',
+  },
   packing: {
     title: (event: string) => `Balicí list: ${event}`,
     start: 'Začít balit',
@@ -809,8 +838,6 @@ export const cs = {
       missing: (numbers: string) => `Nejdřív dokončete kontrolu obsahu: ${numbers}`,
     },
     print: {
-      button: 'Tisk / uložit PDF',
-      buttonHint: 'V okně tisku zvolte jako tiskárnu „Uložit jako PDF“.',
       docTitle: 'QUIX HW, balicí list',
       fileName: (event: string) => `Balicí list – ${event}`,
       event: (range: string) => `Akce: ${range}`,
@@ -825,6 +852,25 @@ export const cs = {
   },
   vratka: {
     title: (event: string) => `Vratka: ${event}`,
+    print: {
+      docTitle: 'QUIX HW, list pro vratku',
+      fileName: (event: string) => `Vratka – ${event}`,
+      title: 'Vratka',
+      into: (w: string) => `Vratka do skladu ${w}`,
+      batches: (list: string) => `Odvezeno: ${list}`,
+      left: 'Čeká',
+      item: 'Položka',
+      returned: 'Vráceno',
+      damaged: 'Poškozeno',
+      already: (returned: number, transferred: number, shipped: number) =>
+        `odvezeno ${shipped}, už vráceno ${returned}${transferred ? `, předáno na jinou akci ${transferred}` : ''}`,
+      intoCase: (n: string) => `vrátit do casu ${n}`,
+      external: 'Externí — vrátit dodavateli',
+      supplier: (who: string, date: string) => `${who}, vrátit do ${date}`,
+      handedBy: 'Vrátil',
+      enterNote:
+        'List slouží k počítání. Čísla zapište do aplikace (Vratka), jinak technika zůstane vedená jako odvezená.',
+    },
     intro: 'Každý řádek spočítejte a potvrďte. Nic se nepovažuje za vrácené automaticky.',
     shipped: (n: number) => `odvezeno ${n}`,
     outstanding: (n: number) => `čeká ${n}`,

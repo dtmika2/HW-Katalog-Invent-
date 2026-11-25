@@ -48,7 +48,9 @@ import {
 } from '@quix/core';
 import { CategoryLabel } from '../components/Category';
 import { ClientPicker } from '../components/Clients';
+import { BookingPrint } from '../components/BookingPrint';
 import { LoanNames } from '../components/Loans';
+import { PrintButton } from '../components/print';
 import {
   AvailabilityBadge,
   CaseLabel,
@@ -89,6 +91,8 @@ function Editor({ stored }: { stored: Booking }) {
   const run = useProto((p) => p.run);
   const [draft, setDraft] = useState<Booking>(stored);
   const [dirty, setDirty] = useState(false);
+  const [printPrices, setPrintPrices] = useState(true);
+  const [printInternal, setPrintInternal] = useState(false);
 
   // Follow the stored booking when it changes elsewhere (after save, other users' actions).
   useEffect(() => {
@@ -132,239 +136,283 @@ function Editor({ stored }: { stored: Booking }) {
   };
 
   return (
-    <div className="space-y-4">
-      <Header stored={stored} draft={booking} editable={editable} update={update} today={today} />
-      {!editable && <p className="text-sm text-muted">{cs.editor.actions.readonly}</p>}
-      {openIssues(s).some((i) => i.bookingId === stored.id) && (
-        <Section title={cs.issues.onBooking}>
-          <IssuesList bookingId={stored.id} />
-        </Section>
-      )}
+    <>
+      <BookingPrint
+        s={s}
+        b={booking}
+        av={av}
+        conflicts={conflicts}
+        openChoices={expansion.openOrChoices.map((o) => itemName(s, o.fromItemId))}
+        prices={printPrices}
+        internal={printInternal}
+        dirty={dirty}
+      />
+      <div className="space-y-4 print:hidden">
+        <Header stored={stored} draft={booking} editable={editable} update={update} today={today} />
+        {!editable && <p className="text-sm text-muted">{cs.editor.actions.readonly}</p>}
+        {openIssues(s).some((i) => i.bookingId === stored.id) && (
+          <Section title={cs.issues.onBooking}>
+            <IssuesList bookingId={stored.id} />
+          </Section>
+        )}
 
-      <div className={`grid gap-4 ${hasSide ? 'xl:grid-cols-[1fr_22rem]' : ''}`}>
-        <div className="space-y-4">
-          {editable && <AddPanel s={s} onAdd={(t, q) => update(addLine(s, draft, t, q))} />}
-          <Section title={cs.editor.linesTitle}>
-            {expansion.cycleWarnings.length > 0 && (
-              <p className="mb-2 text-xs text-warn">{cs.editor.cycle}</p>
-            )}
-            <LineTree
+        <div className={`grid gap-4 ${hasSide ? 'xl:grid-cols-[1fr_22rem]' : ''}`}>
+          <div className="space-y-4">
+            {editable && <AddPanel s={s} onAdd={(t, q) => update(addLine(s, draft, t, q))} />}
+            <Section title={cs.editor.linesTitle}>
+              {expansion.cycleWarnings.length > 0 && (
+                <p className="mb-2 text-xs text-warn">{cs.editor.cycle}</p>
+              )}
+              <LineTree
+                s={s}
+                booking={booking}
+                av={av}
+                orChoices={expansion.orChoices}
+                editable={editable}
+                user={user}
+                update={update}
+              />
+              {Object.keys(booking.suppressedAuto).length > 0 && (
+                <div className="mt-3 text-xs text-muted">
+                  {cs.editor.suppressed(Object.keys(booking.suppressedAuto).length)}{' '}
+                  {Object.entries(booking.suppressedAuto).map(([lid, reason]) => (
+                    <span key={lid} className="mr-2">
+                      {targetName(
+                        s,
+                        lid.startsWith('auto:item:')
+                          ? { itemId: lid.slice(10) }
+                          : { caseTypeId: lid.slice(10) },
+                      )}{' '}
+                      ({reason})
+                      {editable && (
+                        <button
+                          type="button"
+                          className="ml-1 underline"
+                          onClick={() => update(restoreAutoLine(s, draft, lid))}
+                        >
+                          {cs.editor.restore}
+                        </button>
+                      )}
+                    </span>
+                  ))}
+                </div>
+              )}
+              <div className="mt-4 flex items-baseline justify-between border-t border-alu-line pt-3">
+                <span className="text-sm text-muted">
+                  {cs.editor.priceTotal}{' '}
+                  <span className="text-xs">({cs.editor.priceHint(eventDays(booking))})</span>
+                </span>
+                <span data-testid="price-total" className="font-cond text-xl font-bold">
+                  {cs.common.czk(bookingPriceTotal(s, booking))}
+                </span>
+              </div>
+              <div
+                data-testid="print-options"
+                className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm"
+              >
+                <PrintButton disabled={dirty} />
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={printPrices}
+                    onChange={(e) => setPrintPrices(e.target.checked)}
+                  />
+                  {cs.editor.print.prices}
+                </label>
+                <label className="flex items-center gap-2" title={cs.editor.print.internalHint}>
+                  <input
+                    type="checkbox"
+                    checked={printInternal}
+                    onChange={(e) => setPrintInternal(e.target.checked)}
+                  />
+                  {cs.editor.print.internal}
+                </label>
+                <span className="text-xs text-muted">
+                  {dirty ? cs.editor.print.saveFirst : cs.editor.print.internalHint}
+                </span>
+              </div>
+            </Section>
+            <ThreadPanel s={s} bookingId={stored.id} user={user} today={today} />
+          </div>
+
+          <div className="space-y-4">
+            <ConflictPanel
               s={s}
               booking={booking}
               av={av}
-              orChoices={expansion.orChoices}
-              editable={editable}
+              conflicts={conflicts}
               user={user}
+              editable={editable}
               update={update}
             />
-            {Object.keys(booking.suppressedAuto).length > 0 && (
-              <div className="mt-3 text-xs text-muted">
-                {cs.editor.suppressed(Object.keys(booking.suppressedAuto).length)}{' '}
-                {Object.entries(booking.suppressedAuto).map(([lid, reason]) => (
-                  <span key={lid} className="mr-2">
-                    {targetName(
-                      s,
-                      lid.startsWith('auto:item:')
-                        ? { itemId: lid.slice(10) }
-                        : { caseTypeId: lid.slice(10) },
-                    )}{' '}
-                    ({reason})
-                    {editable && (
-                      <button
-                        type="button"
-                        className="ml-1 underline"
-                        onClick={() => update(restoreAutoLine(s, draft, lid))}
-                      >
-                        {cs.editor.restore}
-                      </button>
-                    )}
-                  </span>
-                ))}
-              </div>
+            {expansion.checkWarnings.length > 0 && (
+              <Section title={cs.editor.checksTitle}>
+                <ul className="space-y-3">
+                  {expansion.checkWarnings.map((w) => (
+                    <li key={w.key} data-testid="check-warning" className="text-sm">
+                      <p className="mb-1">{cs.editor.checkFor(itemName(s, w.fromItemId))}</p>
+                      <div className="flex flex-wrap gap-1">
+                        {w.candidates.map((c) => (
+                          <button
+                            key={targetName(s, c.target)}
+                            type="button"
+                            className="btn btn-sm"
+                            disabled={!editable}
+                            onClick={() => update(addLine(s, draft, c.target, Math.max(1, c.qty)))}
+                          >
+                            + {c.qty}× {targetName(s, c.target)}
+                          </button>
+                        ))}
+                        {editable && can(user, 'dismiss_check') && (
+                          <button
+                            type="button"
+                            className="btn btn-sm"
+                            onClick={() => update(dismissCheck(draft, w.key))}
+                          >
+                            {cs.editor.checkDismiss}
+                          </button>
+                        )}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </Section>
             )}
-            <div className="mt-4 flex items-baseline justify-between border-t border-alu-line pt-3">
-              <span className="text-sm text-muted">
-                {cs.editor.priceTotal}{' '}
-                <span className="text-xs">({cs.editor.priceHint(eventDays(booking))})</span>
-              </span>
-              <span data-testid="price-total" className="font-cond text-xl font-bold">
-                {cs.common.czk(bookingPriceTotal(s, booking))}
-              </span>
-            </div>
-          </Section>
-          <ThreadPanel s={s} bookingId={stored.id} user={user} today={today} />
-        </div>
-
-        <div className="space-y-4">
-          <ConflictPanel
-            s={s}
-            booking={booking}
-            av={av}
-            conflicts={conflicts}
-            user={user}
-            editable={editable}
-            update={update}
-          />
-          {expansion.checkWarnings.length > 0 && (
-            <Section title={cs.editor.checksTitle}>
-              <ul className="space-y-3">
-                {expansion.checkWarnings.map((w) => (
-                  <li key={w.key} data-testid="check-warning" className="text-sm">
-                    <p className="mb-1">{cs.editor.checkFor(itemName(s, w.fromItemId))}</p>
-                    <div className="flex flex-wrap gap-1">
-                      {w.candidates.map((c) => (
-                        <button
-                          key={targetName(s, c.target)}
-                          type="button"
-                          className="btn btn-sm"
-                          disabled={!editable}
-                          onClick={() => update(addLine(s, draft, c.target, Math.max(1, c.qty)))}
-                        >
-                          + {c.qty}× {targetName(s, c.target)}
-                        </button>
-                      ))}
-                      {editable && can(user, 'dismiss_check') && (
-                        <button
-                          type="button"
-                          className="btn btn-sm"
-                          onClick={() => update(dismissCheck(draft, w.key))}
-                        >
-                          {cs.editor.checkDismiss}
-                        </button>
-                      )}
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            </Section>
-          )}
-          {expansion.recommendations.length > 0 && editable && (
-            <Section title={cs.editor.recsTitle}>
-              <ul className="space-y-2">
-                {expansion.recommendations.map((r) => (
-                  <li key={r.key} className="flex items-center justify-between gap-2 text-sm">
-                    <span>
-                      {targetName(s, r.target)}
-                      <span className="block text-xs text-muted">
-                        {cs.editor.recFor(r.forItemIds.map((i) => itemName(s, i)).join(', '))}
+            {expansion.recommendations.length > 0 && editable && (
+              <Section title={cs.editor.recsTitle}>
+                <ul className="space-y-2">
+                  {expansion.recommendations.map((r) => (
+                    <li key={r.key} className="flex items-center justify-between gap-2 text-sm">
+                      <span>
+                        {targetName(s, r.target)}
+                        <span className="block text-xs text-muted">
+                          {cs.editor.recFor(r.forItemIds.map((i) => itemName(s, i)).join(', '))}
+                        </span>
                       </span>
-                    </span>
-                    <span className="flex shrink-0 gap-1">
-                      <button
-                        type="button"
-                        className="btn btn-sm"
-                        onClick={() => update(addLine(s, draft, r.target, Math.max(1, r.qty)))}
-                      >
-                        + {r.qty}
-                      </button>
-                      <button
-                        type="button"
-                        className="btn btn-sm"
-                        onClick={() => update(dismissRecommendation(draft, r.key))}
-                      >
-                        {cs.editor.recDismiss}
-                      </button>
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </Section>
+                      <span className="flex shrink-0 gap-1">
+                        <button
+                          type="button"
+                          className="btn btn-sm"
+                          onClick={() => update(addLine(s, draft, r.target, Math.max(1, r.qty)))}
+                        >
+                          + {r.qty}
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-sm"
+                          onClick={() => update(dismissRecommendation(draft, r.key))}
+                        >
+                          {cs.editor.recDismiss}
+                        </button>
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </Section>
+            )}
+          </div>
+        </div>
+
+        <div className="sticky bottom-0 -mx-4 flex flex-wrap items-center gap-2 border-t border-alu-line bg-alu/95 px-4 py-3 backdrop-blur">
+          {editable && (
+            <button
+              type="button"
+              className="btn"
+              disabled={!dirty}
+              onClick={() => save(undefined, cs.common.saved)}
+            >
+              {cs.editor.actions.save}
+            </button>
+          )}
+          {canSubmit && (
+            <>
+              <button
+                type="button"
+                className="btn btn-primary"
+                disabled={unacked.length > 0 || booking.lines.length === 0}
+                onClick={() =>
+                  save(
+                    (st) => submitPrebooking(st, user, today, stored.id),
+                    cs.editor.actions.submit,
+                  )
+                }
+              >
+                {cs.editor.actions.submit}
+              </button>
+              {unacked.length > 0 && (
+                <span className="text-xs text-bad">{cs.editor.actions.submitBlocked}</span>
+              )}
+            </>
+          )}
+          {canReturn && (
+            <button
+              type="button"
+              className="btn"
+              onClick={() => {
+                const reason = globalThis.prompt?.(cs.editor.actions.returnPrompt) ?? '';
+                if (reason.trim())
+                  save(
+                    (st) => returnToPm(st, user, today, stored.id, reason),
+                    cs.editor.actions.returnToPm,
+                  );
+              }}
+            >
+              {cs.editor.actions.returnToPm}
+            </button>
+          )}
+          {canConfirm && (
+            <>
+              <button
+                type="button"
+                className="btn btn-primary"
+                disabled={
+                  expansion.openOrChoices.length > 0 ||
+                  blocking.length > 0 ||
+                  booking.lines.length === 0
+                }
+                onClick={() =>
+                  save(
+                    (st) => confirmBooking(st, user, today, stored.id),
+                    cs.editor.actions.confirm,
+                  )
+                }
+              >
+                {cs.editor.actions.confirm}
+              </button>
+              {expansion.openOrChoices.length > 0 && (
+                <span className="text-xs text-bad">{cs.editor.actions.confirmBlockedOr}</span>
+              )}
+              {blocking.length > 0 && (
+                <span className="text-xs text-bad">{cs.editor.actions.confirmBlockedConflict}</span>
+              )}
+            </>
+          )}
+          {['packing', 'confirmed', 'shipped'].includes(stored.status) && (
+            <Link to={`/packing/${stored.id}`} className="btn">
+              {cs.editor.actions.openPacking}
+            </Link>
+          )}
+          {(['shipped', 'returning', 'returned_with_issues'].includes(stored.status) ||
+            (stored.status === 'packing' &&
+              s.shipments.some((x) => x.bookingId === stored.id))) && (
+            <Link to={`/vratka/${stored.id}`} className="btn">
+              {cs.editor.actions.openVratka}
+            </Link>
+          )}
+          {stored.status === 'returned' && can(user, 'close', stored) && (
+            <button
+              type="button"
+              className="btn"
+              onClick={() =>
+                run((st) => closeBooking(st, user, today, stored.id), cs.editor.actions.close)
+              }
+            >
+              {cs.editor.actions.close}
+            </button>
           )}
         </div>
       </div>
-
-      <div className="sticky bottom-0 -mx-4 flex flex-wrap items-center gap-2 border-t border-alu-line bg-alu/95 px-4 py-3 backdrop-blur">
-        {editable && (
-          <button
-            type="button"
-            className="btn"
-            disabled={!dirty}
-            onClick={() => save(undefined, cs.common.saved)}
-          >
-            {cs.editor.actions.save}
-          </button>
-        )}
-        {canSubmit && (
-          <>
-            <button
-              type="button"
-              className="btn btn-primary"
-              disabled={unacked.length > 0 || booking.lines.length === 0}
-              onClick={() =>
-                save((st) => submitPrebooking(st, user, today, stored.id), cs.editor.actions.submit)
-              }
-            >
-              {cs.editor.actions.submit}
-            </button>
-            {unacked.length > 0 && (
-              <span className="text-xs text-bad">{cs.editor.actions.submitBlocked}</span>
-            )}
-          </>
-        )}
-        {canReturn && (
-          <button
-            type="button"
-            className="btn"
-            onClick={() => {
-              const reason = globalThis.prompt?.(cs.editor.actions.returnPrompt) ?? '';
-              if (reason.trim())
-                save(
-                  (st) => returnToPm(st, user, today, stored.id, reason),
-                  cs.editor.actions.returnToPm,
-                );
-            }}
-          >
-            {cs.editor.actions.returnToPm}
-          </button>
-        )}
-        {canConfirm && (
-          <>
-            <button
-              type="button"
-              className="btn btn-primary"
-              disabled={
-                expansion.openOrChoices.length > 0 ||
-                blocking.length > 0 ||
-                booking.lines.length === 0
-              }
-              onClick={() =>
-                save((st) => confirmBooking(st, user, today, stored.id), cs.editor.actions.confirm)
-              }
-            >
-              {cs.editor.actions.confirm}
-            </button>
-            {expansion.openOrChoices.length > 0 && (
-              <span className="text-xs text-bad">{cs.editor.actions.confirmBlockedOr}</span>
-            )}
-            {blocking.length > 0 && (
-              <span className="text-xs text-bad">{cs.editor.actions.confirmBlockedConflict}</span>
-            )}
-          </>
-        )}
-        {['packing', 'confirmed', 'shipped'].includes(stored.status) && (
-          <Link to={`/packing/${stored.id}`} className="btn">
-            {cs.editor.actions.openPacking}
-          </Link>
-        )}
-        {(['shipped', 'returning', 'returned_with_issues'].includes(stored.status) ||
-          (stored.status === 'packing' && s.shipments.some((x) => x.bookingId === stored.id))) && (
-          <Link to={`/vratka/${stored.id}`} className="btn">
-            {cs.editor.actions.openVratka}
-          </Link>
-        )}
-        {stored.status === 'returned' && can(user, 'close', stored) && (
-          <button
-            type="button"
-            className="btn"
-            onClick={() =>
-              run((st) => closeBooking(st, user, today, stored.id), cs.editor.actions.close)
-            }
-          >
-            {cs.editor.actions.close}
-          </button>
-        )}
-      </div>
-    </div>
+    </>
   );
 }
 

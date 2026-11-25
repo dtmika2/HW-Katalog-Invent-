@@ -20,6 +20,7 @@ import {
 } from '../components/CaseChecklist';
 import { loanLine } from '../components/Loans';
 import { PackingPrint } from '../components/PackingPrint';
+import { PrintButton } from '../components/print';
 import { CaseLabel, Empty, StatusChip } from '../components/ui';
 import { cs, fmtDate } from '../i18n/cs';
 import { caseNumber, itemName, locationPath, userName, warehouseName } from '../lib/names';
@@ -282,14 +283,7 @@ export function Packing() {
           </Link>
           <div className="mt-1 flex flex-wrap items-start justify-between gap-2">
             <h1>{cs.packing.title(b.eventName)}</h1>
-            <button
-              type="button"
-              className="btn"
-              title={cs.packing.print.buttonHint}
-              onClick={() => globalThis.print()}
-            >
-              {cs.packing.print.button}
-            </button>
+            <PrintButton />
           </div>
           <p className="mt-1 flex items-center gap-2 text-sm text-muted">
             <StatusChip status={b.status} /> {fmtDate(firstBookedFrom(b))}
