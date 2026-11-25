@@ -151,18 +151,24 @@ export const cs = {
       prebooking: 'Předrezervace',
       order: 'Objednávka',
       vratka: 'Vratka a uzavření',
+      ended: 'Akce se nekonala',
     },
+    groupHint: {
+      reservation:
+        'Jen poznámka, že ten den něco může být. Vidí je PM, šéf techniky a administrátor, sklad ne. Šéf techniky o nich nedostává upozornění.',
+      ended: 'Jen ke čtení. Spolu s uzavřenými jsou v Rezervacích pod filtrem Archiv.',
+    } as Partial<Record<string, string>>,
     next: 'Co dál:',
     holds: 'Drží techniku:',
     info: {
       tentative: {
         means: 'Na ten den možná něco bude. Technika může a nemusí být vyplněná.',
-        next: 'PM ji přepne na Potvrzenou rezervaci nebo Rozpracovanou. Šéf techniky nedostává žádné upozornění.',
+        next: 'PM nebo šéf techniky ji přepne na Potvrzenou rezervaci nebo Rozpracovanou. Ke schválení ji rovnou potvrdit nejde.',
         holds: 'ne, ostatním jen ukazuje možný konflikt',
       },
       planned: {
         means: 'Akce bude, technika může a nemusí být vyplněná.',
-        next: 'PM nebo šéf techniky ji potvrdí ke schválení.',
+        next: 'PM nebo šéf techniky ji potvrdí ke schválení (technika už musí být vyplněná), nebo ji přepne na Rozpracovanou.',
         holds: 'ne, ostatním jen ukazuje pravděpodobný konflikt',
       },
       draft: {
@@ -217,7 +223,7 @@ export const cs = {
       },
       closed: { means: 'Hotovo, jen ke čtení.', next: 'Konec.', holds: 'ne' },
       cancelled: {
-        means: 'Akce byla zrušena, jen ke čtení. Najdete ji v Archivu, v kalendáři jen po zapnutí.',
+        means: 'Akce byla zrušena. V kalendáři se ukáže jen po zapnutí Zobrazit zrušené.',
         next: 'Konec, nebo ji jde do začátku akce obnovit.',
         holds: 'ne',
       },
@@ -225,6 +231,11 @@ export const cs = {
     arrow: 'zpět na',
     backTitle: 'Cesty zpátky',
     back: [
+      {
+        from: ['planned', 'draft'],
+        to: ['tentative', 'planned'],
+        how: 'PM nebo šéf techniky přepne Stav na stránce rezervace. Mezi prvními třemi stavy jde přecházet libovolně, technika na seznamu zůstává.',
+      },
       { from: ['submitted'], to: ['draft'], how: 'Šéf techniky vrátí předrezervaci PM s dotazem.' },
       {
         from: ['packed'],
@@ -253,15 +264,16 @@ export const cs = {
       },
     ] satisfies { from: BookingStatus[]; to: BookingStatus[]; how: string }[],
     cancelTitle: 'Zrušení akce',
-    cancelHint: 'Vždy s důvodem. Technika se uvolní a kdo na ni čekal, dostane upozornění.',
+    cancelHint:
+      'Vždy s důvodem. Technika se uvolní a PM, kterým chyběla, dostanou upozornění. Technika, která měla přijít z této akce na jinou, se znovu počítá ze skladu.',
     cancelWays: [
       {
         from: ['tentative', 'planned', 'draft', 'submitted', 'confirmed'],
-        how: 'PM nebo šéf techniky rovnou.',
+        how: 'PM té akce nebo šéf techniky rovnou.',
       },
       {
         from: ['packing', 'packed'],
-        how: 'PM požádá šéfa techniky. Sklad pak potvrdí, že je vše vybalené, a teprve potom je zrušená.',
+        how: 'PM požádá šéfa techniky, ten schválí nebo zamítne. Šéf techniky může zrušit rovnou. Je-li už něco zabalené, zrušená je až ve chvíli, kdy sklad potvrdí, že je vše vybalené.',
       },
       {
         from: ['shipped', 'returning', 'returned_with_issues', 'returned'],
@@ -269,13 +281,16 @@ export const cs = {
       },
     ] satisfies { from: BookingStatus[]; how: string }[],
     tiersTitle: 'Jak vážný je konflikt',
-    tiersHint: 'Podle stavu té druhé rezervace. Sklad rezervace termínu nevidí.',
+    tiersHint:
+      'Podle stavu té druhé rezervace. Schválené objednávce se ukazují jen skutečné konflikty, protože svou techniku už drží.',
     tiersEffect: {
       real: 'Před odesláním ho PM odklikne, schválit jde jen s důvodem nebo externím pronájmem.',
       likely:
-        'Jen varuje. Skutečný je od chvíle, kdy druhou akci někdo schválí; PM dostane upozornění.',
+        'Jen varuje. Skutečný je od chvíle, kdy se druhá akce schválí; PM, kterému kvůli tomu technika chybí, dostane upozornění.',
       possible: 'Jen informuje.',
     } satisfies Record<ConflictTier, string>,
+    sameDayMeans:
+      'Jedna z akcí ještě nemá vyplněnou techniku, takže nejde říct, jestli se potkají. Ukazuje se jen na stránce rezervace, v kalendáři značku nemá.',
     notesTitle: 'Co není samostatný stav',
     notesHint: 'Tyto poznámky se ukazují vedle stavu.',
     notes: [
@@ -303,7 +318,8 @@ export const cs = {
       },
       {
         name: 'Akce je zrušená, čeká na vybalení',
-        means: 'U Balí se a Zabaleno: sklad ještě nepotvrdil, že je vše zpátky na místě.',
+        means:
+          'U Balí se a Zabaleno: sklad ještě nepotvrdil, že je vše zpátky na místě. Do té doby techniku drží a nejde ji balit, odvézt ani upravit.',
       },
     ],
   },

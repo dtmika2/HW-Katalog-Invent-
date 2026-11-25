@@ -1,7 +1,7 @@
 /** "Vysvětlivky": the legend of booking stages, reachable from every page. */
 import { fireEvent, screen, within } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
-import { TRANSITIONS, type BookingStatus } from '@quix/core';
+import { CONFLICT_TIERS, FREE_STAGES, TRANSITIONS, type BookingStatus } from '@quix/core';
 import { cs } from '../src/i18n/cs';
 import { renderApp } from './helpers';
 
@@ -36,8 +36,31 @@ describe('Vysvětlivky', () => {
     );
     expect(box.getByTestId('stage-back')).toHaveTextContent('sklad ho může o zrušení požádat');
     expect(box.getByTestId('stage-notes')).toHaveTextContent('část odvezena, zbývá N ks');
-    // the first way back is one the rules know
-    expect(TRANSITIONS.returnToPm).toEqual({ from: cs.stages.back[0]!.from, to: 'draft' });
+    expect(box.getByTestId('stage-notes')).toHaveTextContent('Akce je zrušená, čeká na vybalení');
+  });
+
+  it('agrees with the rules: ways back, taking back, cancelling', () => {
+    const ways = cs.stages.back.map((x) => [x.from, x.to]);
+    expect(ways).toContainEqual([TRANSITIONS.returnToPm.from, [TRANSITIONS.returnToPm.to]]);
+    expect(ways).toContainEqual([TRANSITIONS.reopen.from, [...FREE_STAGES]]);
+    expect(ways).toContainEqual([TRANSITIONS.reopen.from, ['submitted']]);
+    const [direct, packed, never] = cs.stages.cancelWays.map((x) => x.from);
+    expect([...direct!, ...packed!]).toEqual(TRANSITIONS.cancel.from);
+    for (const st of never!) expect(TRANSITIONS.cancel.from).not.toContain(st);
+  });
+
+  it('the usual way starts with the reservation of a date; visibility and tiers are explained', () => {
+    const box = within(open());
+    const flow = within(box.getByTestId('help-flow'))
+      .getAllByRole('listitem')
+      .map((x) => x.textContent?.replace('→', ''));
+    expect(flow.slice(0, 5)).toEqual(
+      [...FREE_STAGES, 'submitted' as const, 'confirmed' as const].map((x) => cs.status[x]),
+    );
+    expect(box.getByText(/administrátor, sklad ne/)).toBeInTheDocument();
+    const tiers = box.getByTestId('stage-tiers');
+    for (const t of CONFLICT_TIERS) expect(tiers).toHaveTextContent(cs.tiers.name[t]);
+    expect(tiers).toHaveTextContent('Ve stejné dny, technika zatím neznámá');
   });
 
   it('closes with the button, Escape and a click beside it, and gives the focus back', () => {

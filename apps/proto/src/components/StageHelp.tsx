@@ -10,16 +10,16 @@ import { StatusChip } from './ui';
 
 const GROUPS: { key: keyof typeof cs.stages.groups; stages: BookingStatus[] }[] = [
   { key: 'reservation', stages: ['tentative', 'planned'] },
-  { key: 'prebooking', stages: ['draft', 'submitted', 'expired'] },
+  { key: 'prebooking', stages: ['draft', 'submitted'] },
   { key: 'order', stages: ['confirmed', 'packing', 'packed', 'shipped'] },
-  {
-    key: 'vratka',
-    stages: ['returning', 'returned_with_issues', 'returned', 'closed', 'cancelled'],
-  },
+  { key: 'vratka', stages: ['returning', 'returned_with_issues', 'returned', 'closed'] },
+  { key: 'ended', stages: ['expired', 'cancelled'] },
 ];
 
 /** The usual way of a booking, without detours. */
 const FLOW: BookingStatus[] = [
+  'tentative',
+  'planned',
   'draft',
   'submitted',
   'confirmed',
@@ -88,7 +88,7 @@ function Window({ onClose }: { onClose: () => void }) {
         <div className="space-y-6 p-4">
           <section>
             <h3 className="mb-2 text-sm font-semibold">{cs.stages.flow}</h3>
-            <ol className="flex flex-wrap items-center gap-x-1.5 gap-y-2">
+            <ol data-testid="help-flow" className="flex flex-wrap items-center gap-x-1.5 gap-y-2">
               {FLOW.map((st, i) => (
                 <li key={st} className="flex items-center gap-1.5">
                   {i > 0 && (
@@ -105,6 +105,9 @@ function Window({ onClose }: { onClose: () => void }) {
           {GROUPS.map((g) => (
             <section key={g.key}>
               <h3 className="mb-2 font-cond text-lg font-bold">{cs.stages.groups[g.key]}</h3>
+              {cs.stages.groupHint[g.key] && (
+                <p className="mb-2 text-sm text-muted">{cs.stages.groupHint[g.key]}</p>
+              )}
               <ol className="divide-y divide-alu-line rounded border border-alu-line">
                 {g.stages.map((st) => {
                   n += 1;
@@ -194,6 +197,10 @@ function Window({ onClose }: { onClose: () => void }) {
                   </dd>
                 </div>
               ))}
+              <div className="grid gap-x-4 gap-y-1 p-3 md:grid-cols-[11rem_1fr]">
+                <dt className="font-medium">{cs.tiers.sameDay}</dt>
+                <dd>{cs.stages.sameDayMeans}</dd>
+              </div>
             </dl>
           </section>
 
