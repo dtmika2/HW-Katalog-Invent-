@@ -34,6 +34,7 @@ describe('notification importance', () => {
       expect(level(t)).toBe('urgent');
     for (const t of [
       'returned_with_issues',
+      'case_shipped_short',
       'prebooking_returned',
       'prebooking_expiring',
       'prebooking_expired',

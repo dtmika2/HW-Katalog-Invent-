@@ -246,11 +246,24 @@ export interface Booking {
 // ---------------------------------------------------------------------------
 // Shipping and returns
 
+/** What the packer counted in one case before it left (who and when: the shipment). */
+export interface CaseCheck {
+  caseId: Id;
+  /** Counted pieces per standard content line. */
+  counts: QtyLine[];
+  /** Pieces put in from loose stock while packing. */
+  refilled?: QtyLine[];
+  /** Required when the case leaves short. */
+  reason?: string;
+}
+
 export interface ShipmentLine {
   lineId: Id;
   qty: number;
   /** Specific case numbers picked for a case-type line. */
   caseIds?: Id[];
+  /** One check per case in `caseIds`. */
+  caseChecks?: CaseCheck[];
   /** Loose pieces taken out of this case. */
   fromCaseId?: Id;
 }
@@ -429,7 +442,8 @@ export type NotificationType =
   | 'prebooking_expiring'
   | 'prebooking_expired'
   | 'external_not_returned'
-  | 'conflict_unresolved';
+  | 'conflict_unresolved'
+  | 'case_shipped_short';
 
 export type Params = Record<string, string | number>;
 

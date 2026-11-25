@@ -10,10 +10,17 @@ import {
   type PackLine,
   type ShipmentLine,
 } from '@quix/core';
+import {
+  CaseChecklist,
+  emptyDraft,
+  isChecked,
+  toCheck,
+  type CaseDraft,
+} from '../components/CaseChecklist';
 import { PackingPrint } from '../components/PackingPrint';
 import { CaseLabel, Empty, StatusChip } from '../components/ui';
 import { cs, fmtDate } from '../i18n/cs';
-import { itemName, locationPath, userName, warehouseName } from '../lib/names';
+import { caseNumber, itemName, locationPath, userName, warehouseName } from '../lib/names';
 import { useAppState, useProto, useToday, useUser } from '../store';
 
 interface Pick {
@@ -21,6 +28,8 @@ interface Pick {
   qty: number;
   caseIds: string[];
   fromCaseId: string;
+  /** Case checklists by case id; a case that is deselected starts over. */
+  checks: Record<string, CaseDraft>;
 }
 
 /** Packing list on a phone: one card per line, grouped by warehouse and shelf; ship in batches. */
@@ -41,14 +50,26 @@ export function Packing() {
   const canShip = can(user, 'ship') && ['packing', 'shipped'].includes(b.status);
 
   const pick = (l: PackLine): Pick =>
-    picks[l.lineId] ?? { ticked: false, qty: l.remaining, caseIds: [], fromCaseId: '' };
-  const setPick = (l: PackLine, p: Partial<Pick>) =>
-    setPicks({ ...picks, [l.lineId]: { ...pick(l), ...p } });
+    picks[l.lineId] ?? { ticked: false, qty: l.remaining, caseIds: [], fromCaseId: '', checks: {} };
+  const setPick = (l: PackLine, p: Partial<Pick>) => {
+    const next = { ...pick(l), ...p };
+    next.checks = Object.fromEntries(
+      Object.entries(next.checks).filter(([id]) => next.caseIds.includes(id)),
+    );
+    setPicks({ ...picks, [l.lineId]: next });
+  };
   const allLines = [
     ...pl.byWarehouse.flatMap((w) => w.groups.flatMap((g) => g.lines)),
     ...pl.external,
   ];
   const ticked = allLines.filter((l) => l.remaining > 0 && pick(l).ticked);
+  const unchecked = ticked.flatMap((l) =>
+    l.kind === 'case'
+      ? pick(l).caseIds.filter(
+          (c) => !isChecked(s, c, l.contents ?? [], pick(l).checks[c] ?? emptyDraft()),
+        )
+      : [],
+  );
   const newLinesPending = allLines.some((l) => l.addedAfterShipping && l.remaining > 0);
 
   const ship = () => {
@@ -58,7 +79,12 @@ export function Packing() {
         lineId: l.lineId,
         qty: l.kind === 'case' ? p.caseIds.length : p.qty,
       };
-      if (l.kind === 'case') sl.caseIds = p.caseIds;
+      if (l.kind === 'case') {
+        sl.caseIds = p.caseIds;
+        sl.caseChecks = p.caseIds.map((c) =>
+          toCheck(c, l.contents ?? [], p.checks[c] ?? emptyDraft()),
+        );
+      }
       if (p.fromCaseId) sl.fromCaseId = p.fromCaseId;
       return sl;
     });
@@ -180,6 +206,18 @@ export function Packing() {
                 </div>
               </fieldset>
             )}
+            {!done &&
+              canShip &&
+              p.caseIds.map((caseId) => (
+                <CaseChecklist
+                  key={caseId}
+                  s={s}
+                  caseId={caseId}
+                  contents={l.contents ?? []}
+                  value={p.checks[caseId] ?? emptyDraft()}
+                  onChange={(d) => setPick(l, { checks: { ...p.checks, [caseId]: d } })}
+                />
+              ))}
           </div>
         )}
         {l.kind !== 'case' && !done && canShip && (
@@ -317,10 +355,15 @@ export function Packing() {
                 onChange={(e) => setLabel(e.target.value)}
               />
             </label>
+            {unchecked.length > 0 && (
+              <p className="text-sm text-bad" role="status">
+                {cs.packing.check.missing(unchecked.map((c) => caseNumber(s, c)).join(', '))}
+              </p>
+            )}
             <button
               type="button"
               className="btn btn-primary min-h-12 w-full text-base"
-              disabled={ticked.length === 0}
+              disabled={ticked.length === 0 || unchecked.length > 0}
               onClick={ship}
             >
               {cs.packing.ship(ticked.length)}

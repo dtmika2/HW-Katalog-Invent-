@@ -20,8 +20,27 @@ const KINDS: IssueResolutionKind[] = ['found', 'written_off', 'charged_to_client
 function whatHappened(s: AppState, i: Issue): string | undefined {
   if (i.type === 'unexpected') return cs.issues.unexpectedWhat;
   if (i.type !== 'missing') return undefined;
-  if (i.caseId)
-    return i.itemId ? cs.issues.missingInCase(caseNumber(s, i.caseId)) : cs.issues.caseNotReturned;
+  if (i.caseId) {
+    if (!i.itemId) return cs.issues.caseNotReturned;
+    const c = s.cases.find((x) => x.id === i.caseId);
+    const std = s.caseTypes
+      .find((t) => t.id === c?.caseTypeId)
+      ?.contents.find((x) => x.itemId === i.itemId)?.qty;
+    const atPacking = s.shipments.some(
+      (x) =>
+        x.bookingId === i.bookingId &&
+        x.lines.some((l) =>
+          l.caseChecks?.some(
+            (k) =>
+              k.caseId === i.caseId &&
+              (k.counts.find((n) => n.itemId === i.itemId)?.qty ?? 0) < (std ?? 0),
+          ),
+        ),
+    );
+    return atPacking
+      ? cs.issues.missingAtPacking(caseNumber(s, i.caseId))
+      : cs.issues.missingInCase(caseNumber(s, i.caseId));
+  }
   const line = i.bookingId
     ? returnSheet(s, i.bookingId).find((l) => l.lineId === i.lineId)
     : undefined;

@@ -17,12 +17,14 @@ import { recomputeConflictRecords } from '../conflicts';
 import { guard } from '../lifecycle';
 import { chiefIds, notify, postEvent } from '../notifications';
 import { openServiceInDraft } from '../service';
+import { checkedContents } from '../shipping';
 import type {
   AppState,
   Booking,
   BookingLine,
   Id,
   Issue,
+  QtyLine,
   ReturnLine,
   ReturnSession,
   UnexpectedItem,
@@ -61,7 +63,9 @@ export interface ReturnSheetLine {
   suggestedIntoCaseId?: Id;
   shippedCaseIds: Id[];
   pendingCaseIds: Id[];
-  contents?: { itemId: Id; qty: number }[];
+  contents?: QtyLine[];
+  /** Per shipped case: what it really left with (a short case stays short on return). */
+  shippedContents: Record<Id, QtyLine[]>;
 }
 
 function entriesFor(
@@ -84,6 +88,30 @@ function shippedCaseIds(state: Pick<AppState, 'shipments'>, bookingId: Id, lineI
     for (const l of s.lines) if (l.lineId === lineId) ids.push(...(l.caseIds ?? []));
   }
   return ids;
+}
+
+/** Contents a case left with: the packer's count, else the standard (older shipments). */
+function contentsShipped(
+  state: Pick<AppState, 'shipments' | 'cases' | 'caseTypes'>,
+  lineId: Id,
+  caseId: Id,
+  bookingId?: Id,
+): QtyLine[] {
+  const c = state.cases.find((x) => x.id === caseId);
+  const std = (c ? getCaseType(state, c.caseTypeId)?.contents : undefined) ?? [];
+  for (const s of [...state.shipments].reverse()) {
+    if (bookingId && s.bookingId !== bookingId) continue;
+    const l = s.lines.find((x) => x.lineId === lineId && x.caseIds?.includes(caseId));
+    if (!l) continue;
+    const check = l.caseChecks?.find((x) => x.caseId === caseId);
+    if (!check) return std;
+    const left = checkedContents(check);
+    return std.map((x) => ({
+      itemId: x.itemId,
+      qty: left.find((y) => y.itemId === x.itemId)?.qty ?? 0,
+    }));
+  }
+  return std;
 }
 
 function fromCaseOf(state: Pick<AppState, 'shipments'>, bookingId: Id, lineId: Id): Id | undefined {
@@ -145,6 +173,9 @@ export function returnSheet(state: AppState, bookingId: Id): ReturnSheetLine[] {
       consumable,
       shippedCaseIds: caseIds,
       pendingCaseIds,
+      shippedContents: Object.fromEntries(
+        caseIds.map((c) => [c, contentsShipped(state, line.id, c, b.id)]),
+      ),
     };
     if (kind !== 'external') {
       const src = resolveSourceWarehouse(state, b, line);
@@ -263,7 +294,7 @@ function validate(
             if ((c.damagedQty ?? 0) > 0 && !e.note?.trim())
               return err('validation', 'A note is required for damaged items', { lineId });
           }
-          const short = std.some(
+          const short = (s.shippedContents[e.caseId] ?? std).some(
             (x) => (e.caseContents?.find((c) => c.itemId === x.itemId)?.qty ?? 0) < x.qty,
           );
           if (short && !e.note?.trim())
@@ -472,16 +503,38 @@ export function recordReturnSession(
         }));
         for (const std of t?.contents ?? []) {
           const got = newContents.find((x) => x.itemId === std.itemId)?.qty ?? 0;
-          if (got < std.qty) {
+          // compared with what left: pieces already missing at packing are on their own issue
+          const left =
+            sheet.shippedContents[c.id]?.find((x) => x.itemId === std.itemId)?.qty ?? std.qty;
+          const known = d.issues.find(
+            (i) =>
+              i.type === 'missing' &&
+              !i.archivedOn &&
+              i.bookingId === bookingId &&
+              i.lineId === line.id &&
+              i.caseId === c.id &&
+              i.itemId === std.itemId,
+          );
+          if (got < left) {
             upsertMissingIssue(d, user.id, today, {
               bookingId,
               lineId: line.id,
               caseId: c.id,
               itemId: std.itemId,
-              qty: std.qty - got,
+              qty: (known?.qty ?? 0) + left - got,
               warehouseId: originalW,
               note: e.note ?? '',
             });
+          } else if (got > left && known) {
+            // the piece turned up after all
+            known.qty -= got - left;
+            if (known.qty <= 0) {
+              known.qty = got - left;
+              known.archivedOn = today;
+              known.resolutionKind = 'found';
+              known.resolution = 'returned-later';
+              known.resolvedBy = user.id;
+            }
           }
         }
         if (wl !== originalW) {
@@ -638,15 +691,13 @@ export function recordReturnSession(
   return ok(recomputeConflictRecords(next, today));
 }
 
-/** "Kompletní dle standardu" for one case: a return entry with the full standard contents. */
+/** "Kompletní" for one case: a return entry with everything the case left with. */
 export function completeAsStandard(
   state: AppState,
   lineId: Id,
   caseId: Id,
   locationId: Id,
 ): ReturnLineInput {
-  const c = state.cases.find((x) => x.id === caseId);
-  const t = c ? getCaseType(state, c.caseTypeId) : undefined;
   return {
     lineId,
     caseId,
@@ -654,7 +705,7 @@ export function completeAsStandard(
     returnedQty: 1,
     locationId,
     condition: 'ok',
-    caseContents: (t?.contents ?? []).map((x) => ({ itemId: x.itemId, qty: x.qty })),
+    caseContents: contentsShipped(state, lineId, caseId).map((x) => ({ ...x })),
   };
 }
 

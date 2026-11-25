@@ -13,6 +13,7 @@ import {
   remainingToShip,
   returnSheet,
   shipBatch,
+  standardCaseChecks,
   stockQty,
   transferTargets,
   unwrap,
@@ -46,7 +47,14 @@ function shippedAll(
   s: AppState,
   lines: { lineId: string; qty: number; caseIds?: string[]; fromCaseId?: string }[],
 ) {
-  return unwrap(shipBatch(s, U.martin, T, 'o1', { label: 'Dodávka 1', lines }));
+  return unwrap(
+    shipBatch(s, U.martin, T, 'o1', {
+      label: 'Dodávka 1',
+      lines: lines.map((l) =>
+        l.caseIds ? { ...l, caseChecks: standardCaseChecks(s, l.caseIds) } : l,
+      ),
+    }),
+  );
 }
 
 describe('packing and shipping', () => {
@@ -137,13 +145,27 @@ describe('packing and shipping', () => {
     s = unwrap(
       shipBatch(s, U.martin, T, 'o0', {
         label: 'a',
-        lines: [{ lineId: 'l1', qty: 1, caseIds: ['case-1'] }],
+        lines: [
+          {
+            lineId: 'l1',
+            qty: 1,
+            caseIds: ['case-1'],
+            caseChecks: standardCaseChecks(s, ['case-1']),
+          },
+        ],
       }),
     );
     expect(
       shipBatch(s, U.martin, T, 'o1', {
         label: 'b',
-        lines: [{ lineId: 'l1', qty: 1, caseIds: ['case-1'] }],
+        lines: [
+          {
+            lineId: 'l1',
+            qty: 1,
+            caseIds: ['case-1'],
+            caseChecks: standardCaseChecks(s, ['case-1']),
+          },
+        ],
       }),
     ).toMatchObject({ ok: false, error: { code: 'validation' } });
     expect(

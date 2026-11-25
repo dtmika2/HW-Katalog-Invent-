@@ -1,11 +1,12 @@
 /**
  * M5b packing, M5c vratka, M5d service & warehouse dashboard — acceptance tests.
  */
-import { fireEvent, screen, within } from '@testing-library/react';
+import { cleanup, fireEvent, screen, within } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { addLinesAfterShipping, isCaseComplete, newLine, unwrap, type AppState } from '@quix/core';
 import { GALA_ID, GALA_STEPS, TRANSFER } from '@quix/fixtures';
-import { booking, renderApp, state } from './helpers';
+import { useProto } from '../src/store';
+import { booking, renderApp, renderCurrent, state } from './helpers';
 
 const confirmed = (s: AppState) => GALA_STEPS.confirm(GALA_STEPS.submit(GALA_STEPS.create(s)));
 const lineIdOf = (s: AppState, pred: (t: object) => boolean) =>
@@ -30,16 +31,93 @@ describe('M5b packing (mobile)', () => {
     fireEvent.change(screen.getByLabelText('Označení dodávky'), {
       target: { value: 'Dodávka 1 — case' },
     });
+    // the contents are checked line by line, there is no "tick all"
+    const go = () => screen.getByRole('button', { name: 'Odvézt zatržené (1)' });
+    expect(go()).toBeDisabled();
+    expect(screen.getByText('Nejdřív dokončete kontrolu obsahu: AX9-02')).toBeInTheDocument();
+    const boxes = within(screen.getByTestId('check-case-ax9-02')).getAllByRole('checkbox');
+    expect(boxes).toHaveLength(3);
+    for (const x of boxes) {
+      expect(go()).toBeDisabled();
+      fireEvent.click(x);
+    }
+    expect(go()).toBeEnabled();
     fireEvent.click(screen.getByRole('button', { name: 'Odvézt zatržené (1)' }));
     const sh = state().shipments.filter((x) => x.bookingId === GALA_ID);
     expect(sh).toEqual([
       expect.objectContaining({
         label: 'Dodávka 1 — case',
-        lines: [{ lineId: ax9, qty: 1, caseIds: ['case-ax9-02'] }],
+        lines: [expect.objectContaining({ lineId: ax9, qty: 1, caseIds: ['case-ax9-02'] })],
       }),
     ]);
     // only the AX9 case left: the order is still being packed
     expect(booking(GALA_ID)?.status).toBe('packing');
+  });
+
+  it('a case that does not match: count, refill or ship short with a reason; switching the case starts over', () => {
+    renderApp(`/packing/${GALA_ID}`, {
+      scenario: 'galaDinner',
+      user: 'u-martin',
+      prepare: confirmed,
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Začít balit' }));
+    const ax9 = lineIdOf(
+      state(),
+      (t) => 'caseTypeId' in t && (t as { caseTypeId: string }).caseTypeId === 'ct-ax9',
+    );
+    const card = screen.getByTestId(`pack-${ax9}`);
+    const choose = (n: RegExp) => fireEvent.click(within(card).getByRole('checkbox', { name: n }));
+    const box = () => within(screen.getByTestId('check-case-ax9-02'));
+    const tickAll = () =>
+      box()
+        .getAllByRole('checkbox')
+        .forEach((x) => !(x as HTMLInputElement).disabled && fireEvent.click(x));
+    const go = () => screen.getByRole('button', { name: 'Odvézt zatržené (1)' });
+    choose(/^AX9-02$/);
+    tickAll();
+    expect(go()).toBeEnabled();
+    choose(/^AX9-02$/);
+    choose(/^AX9-02$/);
+    expect(go()).toBeDisabled();
+
+    fireEvent.click(box().getByRole('button', { name: 'Nesedí: AX9-02, Astera AX9 PowerPAR' }));
+    tickAll();
+    expect(box().getByText(/Case odjede neúplný, chybí 1× Astera AX9 PowerPAR/)).toBeVisible();
+    expect(go()).toBeDisabled();
+    fireEvent.change(box().getByLabelText('Proč odjíždí neúplný (povinné)'), {
+      target: { value: 'Jeden je v opravě' },
+    });
+    fireEvent.click(go());
+    const c = state().cases.find((x) => x.id === 'case-ax9-02')!;
+    expect(isCaseComplete(state(), c)).toBe(false);
+    const iss = state().issues.find((i) => i.caseId === 'case-ax9-02')!;
+    expect(iss).toMatchObject({ itemId: 'ax9', qty: 1, note: 'Jeden je v opravě' });
+    cleanup();
+
+    // the Chief sees what happened and where
+    useProto.getState().setUser('u-tomas');
+    renderCurrent('/');
+    expect(screen.getByTestId('issues')).toHaveTextContent('Chybělo už při balení casu AX9-02.');
+    cleanup();
+    renderCurrent('/notifications');
+    expect(screen.getByTestId('notifications')).toHaveTextContent(
+      'case AX9-02 odvezen neúplný, chybí 1× Astera AX9 PowerPAR (důvod: Jeden je v opravě)',
+    );
+    cleanup();
+
+    // vratka expects what left
+    useProto.getState().setUser('u-martin');
+    renderCurrent(`/vratka/${GALA_ID}`);
+    const ret = screen.getByTestId('ret-case-case-ax9-02');
+    expect(ret).toHaveTextContent('Odvezen neúplný, chybělo 1× Astera AX9 PowerPAR');
+    fireEvent.click(within(ret).getByRole('button', { name: 'Kompletní, jak byl odvezen' }));
+    fireEvent.click(within(ret).getByRole('checkbox', { name: /Potvrzuji tento řádek/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Zapsat vratku/ }));
+    expect(
+      state()
+        .issues.filter((i) => i.caseId === 'case-ax9-02')
+        .map((i) => i.qty),
+    ).toEqual([1]);
   });
 
   it('records loose pieces taken out of a case (the case becomes incomplete)', () => {

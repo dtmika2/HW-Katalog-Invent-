@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import {
   addDays,
+  casesOut,
   firstBookedFrom,
   isOpenService,
   isServiceOverdue,
@@ -40,6 +41,7 @@ export function WarehouseDashboard() {
   const open = s.serviceCases.filter(isOpenService);
   const check = open.filter((sc) => sc.status === 'back_to_check' || sc.status === 'reported');
   const refill = refillTasksWithAge(s, today);
+  const out = casesOut(s);
   return (
     <div className="grid gap-4 lg:grid-cols-2">
       <Section title={cs.warehouseUi.packingSoon}>
@@ -102,18 +104,22 @@ export function WarehouseDashboard() {
                   {cs.warehouseUi.age(t.ageDays)}
                 </span>
               </span>
-              <button
-                type="button"
-                className="btn btn-sm"
-                onClick={() =>
-                  run(
-                    (st) => refillCase(st, user, today, t.caseId),
-                    cs.warehouseUi.refilled(caseNumber(s, t.caseId)),
-                  )
-                }
-              >
-                {cs.warehouseUi.refill}
-              </button>
+              {out.has(t.caseId) ? (
+                <span className="text-xs text-muted">{cs.packing.caseBusy}</span>
+              ) : (
+                <button
+                  type="button"
+                  className="btn btn-sm"
+                  onClick={() =>
+                    run(
+                      (st) => refillCase(st, user, today, t.caseId),
+                      cs.warehouseUi.refilled(caseNumber(s, t.caseId)),
+                    )
+                  }
+                >
+                  {cs.warehouseUi.refill}
+                </button>
+              )}
             </li>
           ))}
         </ul>

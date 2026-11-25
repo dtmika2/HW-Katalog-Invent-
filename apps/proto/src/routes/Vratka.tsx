@@ -381,7 +381,10 @@ export function Vratka() {
     l.pendingCaseIds.map((caseId) => {
       const e = get(l, caseId);
       const std = l.contents ?? [];
-      const short = std.some((c) => (e.contents[c.itemId] ?? 0) < c.qty);
+      const left = l.shippedContents[caseId] ?? std;
+      const leftQty = (itemId: string) => left.find((x) => x.itemId === itemId)?.qty ?? 0;
+      const lacked = std.filter((c) => leftQty(c.itemId) < c.qty);
+      const short = std.some((c) => (e.contents[c.itemId] ?? 0) < leftQty(c.itemId));
       const number = caseNumber(s, caseId);
       return (
         <li
@@ -399,18 +402,28 @@ export function Vratka() {
               className="btn btn-sm"
               disabled={e.missingCase}
               onClick={() =>
-                set(l, { contents: Object.fromEntries(std.map((c) => [c.itemId, c.qty])) }, caseId)
+                set(l, { contents: Object.fromEntries(left.map((c) => [c.itemId, c.qty])) }, caseId)
               }
             >
-              {cs.vratka.completeStandard}
+              {lacked.length > 0 ? cs.vratka.completeShipped : cs.vratka.completeStandard}
             </button>
           </div>
+          {lacked.length > 0 && (
+            <p className="mt-1 text-xs text-warn">
+              {cs.vratka.shippedShort(
+                lacked
+                  .map((c) => `${c.qty - leftQty(c.itemId)}× ${itemName(s, c.itemId)}`)
+                  .join(', '),
+              )}
+            </p>
+          )}
           {!e.missingCase && (
             <ul className="mt-2 space-y-2">
               {std.map((c) => (
                 <li key={c.itemId} className="flex items-center justify-between gap-2 text-sm">
                   <span>
-                    {itemName(s, c.itemId)} <span className="text-xs text-muted">/ {c.qty}</span>
+                    {itemName(s, c.itemId)}{' '}
+                    <span className="text-xs text-muted">/ {leftQty(c.itemId)}</span>
                   </span>
                   <Stepper
                     value={e.contents[c.itemId] ?? 0}

@@ -11,13 +11,23 @@ import {
   homeLocationId,
   isCaseComplete,
   contentsMatchStandard,
+  looseStock,
   resolveSourceWarehouse,
 } from '../catalog';
 import { recomputeConflictRecords } from '../conflicts';
 import { guard, recalcBooking } from '../lifecycle';
 import { can } from '../lifecycle/permissions';
 import { chiefIds, notify, postEvent, warehouseIds } from '../notifications';
-import type { AppState, Booking, BookingLine, Id, QtyLine, ShipmentLine, User } from '../types';
+import type {
+  AppState,
+  Booking,
+  BookingLine,
+  CaseCheck,
+  Id,
+  QtyLine,
+  ShipmentLine,
+  User,
+} from '../types';
 import {
   effectiveQty,
   err,
@@ -36,7 +46,7 @@ export interface CandidateCase {
   number: string;
   locationId: Id;
   complete: boolean;
-  /** Already out on another active order. */
+  /** Already out on an active order (this one included). */
   busy: boolean;
 }
 
@@ -73,16 +83,16 @@ export interface PackingList {
   transfers: PackLine[];
 }
 
-const ACTIVE_OUT = new Set(['shipped', 'returning', 'returned_with_issues']);
+// 'packing' too: part of the order may already have left
+const ACTIVE_OUT = new Set(['packing', 'shipped', 'returning', 'returned_with_issues']);
 
 /** Case ids currently out on an active order (shipped and not yet returned). */
-export function casesOut(state: AppState, exceptBookingId?: Id): Set<Id> {
+export function casesOut(state: AppState): Set<Id> {
   const out = new Set<Id>();
   const returned = new Set<string>();
   for (const s of state.returnSessions)
     for (const l of s.lines) if (l.caseId) returned.add(`${s.bookingId}|${l.caseId}`);
   for (const sh of state.shipments) {
-    if (sh.bookingId === exceptBookingId) continue;
     const b = state.bookings.find((x) => x.id === sh.bookingId);
     if (!b || !ACTIVE_OUT.has(b.status)) continue;
     for (const l of sh.lines)
@@ -102,7 +112,7 @@ function lineName(state: AppState, line: BookingLine): string {
 export function packingList(state: AppState, bookingId: Id): PackingList | undefined {
   const b = state.bookings.find((x) => x.id === bookingId);
   if (!b) return undefined;
-  const busy = casesOut(state, bookingId);
+  const busy = casesOut(state);
   const groups = new Map<Id, Map<string, PackLine[]>>();
   const external: PackLine[] = [];
   const transfers: PackLine[] = [];
@@ -178,13 +188,175 @@ export function packingList(state: AppState, bookingId: Id): PackingList | undef
   };
 }
 
+/** Pieces of an item lying loose in a warehouse, without those known to be missing. */
+export function looseInHouse(state: AppState, itemId: Id, warehouseId: Id): number {
+  const missing = state.issues
+    .filter(
+      (i) =>
+        i.type === 'missing' &&
+        !i.archivedOn &&
+        i.itemId === itemId &&
+        i.warehouseId === warehouseId,
+    )
+    .reduce((n, i) => n + i.qty, 0);
+  return Math.max(0, looseStock(state, itemId, warehouseId) - missing);
+}
+
+const qtyOf = (list: readonly QtyLine[] | undefined, itemId: Id): number =>
+  (list ?? []).filter((l) => l.itemId === itemId).reduce((n, l) => n + l.qty, 0);
+
+/** Contents a checked case leaves with: counted plus refilled pieces. */
+export function checkedContents(check: CaseCheck): QtyLine[] {
+  const ids = [...new Set([...check.counts, ...(check.refilled ?? [])].map((l) => l.itemId))];
+  return ids.map((itemId) => ({
+    itemId,
+    qty: qtyOf(check.counts, itemId) + qtyOf(check.refilled, itemId),
+  }));
+}
+
+/** What a checked case lacks compared with its standard contents. */
+export function checkShort(state: Pick<AppState, 'cases' | 'caseTypes'>, check: CaseCheck) {
+  const c = state.cases.find((x) => x.id === check.caseId);
+  const t = c ? getCaseType(state, c.caseTypeId) : undefined;
+  const have = checkedContents(check);
+  return (t?.contents ?? [])
+    .map((std) => ({ itemId: std.itemId, qty: std.qty - qtyOf(have, std.itemId) }))
+    .filter((l) => l.qty > 0);
+}
+
+/** Checks saying every case holds exactly its standard contents. */
+export function standardCaseChecks(
+  state: Pick<AppState, 'cases' | 'caseTypes'>,
+  caseIds: readonly Id[],
+): CaseCheck[] {
+  return caseIds.map((caseId) => {
+    const c = state.cases.find((x) => x.id === caseId);
+    const t = c ? getCaseType(state, c.caseTypeId) : undefined;
+    return { caseId, counts: (t?.contents ?? []).map((l) => ({ ...l })) };
+  });
+}
+
+/** Every case is counted line by line; a case that leaves short needs a written reason. */
+function validateCaseChecks(state: AppState, lines: ShipmentLine[]): Result<true> {
+  const refilled = new Map<string, number>();
+  for (const sl of lines) {
+    for (const caseId of sl.caseIds ?? []) {
+      const c = state.cases.find((x) => x.id === caseId);
+      const t = c ? getCaseType(state, c.caseTypeId) : undefined;
+      const checks = (sl.caseChecks ?? []).filter((x) => x.caseId === caseId);
+      const check = checks[0];
+      if (!c || !t || !check || checks.length !== 1)
+        return err('validation', `Contents of case ${c?.number ?? caseId} were not checked`, {
+          caseId,
+          field: 'caseChecks',
+        });
+      for (const std of t.contents) {
+        const counted = check.counts.filter((l) => l.itemId === std.itemId);
+        const added = qtyOf(check.refilled, std.itemId);
+        const n = counted[0]?.qty ?? -1;
+        if (
+          counted.length !== 1 ||
+          !Number.isInteger(n) ||
+          !Number.isInteger(added) ||
+          n < 0 ||
+          added < 0 ||
+          n + added > std.qty
+        )
+          return err('validation', `Invalid count in case ${c.number}`, { caseId });
+        if (added > 0) {
+          const key = `${std.itemId}@${c.warehouseId}`;
+          const sum = (refilled.get(key) ?? 0) + added;
+          refilled.set(key, sum);
+          if (sum > looseInHouse(state, std.itemId, c.warehouseId))
+            return err('validation', 'Not enough loose pieces to refill', { caseId });
+        }
+      }
+      const known = new Set(t.contents.map((l) => l.itemId));
+      if ([...check.counts, ...(check.refilled ?? [])].some((l) => !known.has(l.itemId)))
+        return err('validation', `Case ${c.number} does not hold that item`, { caseId });
+      if (checkShort(state, check).length > 0 && !check.reason?.trim())
+        return err('validation', `A reason is required, case ${c.number} is short`, {
+          caseId,
+          field: 'reason',
+        });
+    }
+  }
+  return ok(true);
+}
+
+/**
+ * Take over what the packer counted: the case gets its real contents, pieces that should have
+ * been there become a missing issue, PM and Chief hear about cases that left short.
+ */
+function applyCaseChecks(
+  d: AppState,
+  userId: Id,
+  today: IsoDate,
+  booking: Booking,
+  sl: ShipmentLine,
+): boolean {
+  let changed = false;
+  for (const check of sl.caseChecks ?? []) {
+    const c = d.cases.find((x) => x.id === check.caseId);
+    if (!c || !sl.caseIds?.includes(c.id)) continue;
+    const contents = checkedContents(check).filter((l) => l.qty > 0);
+    for (const l of check.counts) {
+      const lost = caseContentQty(c, l.itemId) - l.qty;
+      if (lost <= 0) continue;
+      changed = true;
+      d.issues.push({
+        id: nextId(d, 'iss'),
+        type: 'missing',
+        bookingId: booking.id,
+        lineId: sl.lineId,
+        caseId: c.id,
+        itemId: l.itemId,
+        qty: lost,
+        warehouseId: c.warehouseId,
+        note: check.reason?.trim() ?? '',
+        reportedBy: userId,
+        reportedOn: today,
+      });
+    }
+    const before = contentsMatchStandard(d, c);
+    c.contents = contents;
+    if (contentsMatchStandard(d, c)) delete c.incompleteSince;
+    else c.incompleteSince = c.incompleteSince ?? today;
+    if (before !== contentsMatchStandard(d, c)) changed = true;
+    const short = checkShort(d, check);
+    if (short.length > 0) {
+      const what = short
+        .map((l) => `${l.qty}× ${getItem(d, l.itemId)?.name ?? l.itemId}`)
+        .join(', ');
+      notify(
+        d,
+        [booking.pmId, ...chiefIds(d)],
+        {
+          type: 'case_shipped_short',
+          text: `${booking.eventName}: case ${c.number} left without ${what}`,
+          params: {
+            event: booking.eventName,
+            number: c.number,
+            what,
+            reason: check.reason?.trim() ?? '',
+          },
+          bookingId: booking.id,
+        },
+        today,
+      );
+    }
+  }
+  return changed;
+}
+
 export interface ShipBatchInput {
   label: string;
   lines: ShipmentLine[];
 }
 
 /**
- * Ship a batch ("Dodávka 1"). Records what left the house, takes loose pieces out of cases when
+ * Ship a batch ("Dodávka 1"). Every case is checked against its contents first. Records what
+ * left the house, takes loose pieces out of cases when
  * `fromCaseId` is given, reduces consumable stock, notifies PM and Chief.
  */
 export function shipBatch(
@@ -199,7 +371,7 @@ export function shipBatch(
   const b = g.value;
   if (!input.label.trim()) return err('validation', 'Batch label is required');
   if (input.lines.length === 0) return err('validation', 'Nothing to ship');
-  const busy = casesOut(state, bookingId);
+  const busy = casesOut(state);
   const usedCases = new Set<Id>();
   for (const sl of input.lines) {
     const line = b.lines.find((l) => l.id === sl.lineId);
@@ -232,8 +404,11 @@ export function shipBatch(
       }
     }
   }
+  const checks = validateCaseChecks(state, input.lines);
+  if (!checks.ok) return checks;
 
-  const next = produce(state, (d) => {
+  const { state: next, result: casesChanged } = produce(state, (d) => {
+    let casesChanged = false;
     const shipmentId = nextId(d, 'shp');
     d.shipments.push({
       id: shipmentId,
@@ -246,6 +421,7 @@ export function shipBatch(
     const booking = d.bookings.find((x) => x.id === bookingId) as Booking;
     for (const sl of input.lines) {
       const line = booking.lines.find((l) => l.id === sl.lineId) as BookingLine;
+      if (applyCaseChecks(d, user.id, today, booking, sl)) casesChanged = true;
       if (sl.fromCaseId && isItemTarget(line.target)) {
         const c = d.cases.find((x) => x.id === sl.fromCaseId);
         const itemId = line.target.itemId;
@@ -290,8 +466,9 @@ export function shipBatch(
       },
       today,
     );
-  }).state;
-  return ok(next);
+    return casesChanged;
+  });
+  return ok(casesChanged ? recomputeConflictRecords(next, today) : next);
 }
 
 /**

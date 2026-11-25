@@ -6,7 +6,9 @@
  */
 import { addDays, eachDay, maxDate, type IsoDate } from '../dates';
 import {
+  caseContentQty,
   caseTypesContaining,
+  contentsMatchStandard,
   getCaseType,
   getItem,
   isCaseComplete,
@@ -16,7 +18,7 @@ import {
   standardQty,
   stockQty,
 } from '../catalog';
-import type { AppState, Booking, BookingLine, Id, Target } from '../types';
+import type { AppState, Booking, BookingLine, Case, Id, Target } from '../types';
 import {
   effectiveQty,
   isActiveLine,
@@ -149,6 +151,43 @@ function pushTargetHolds(
   }
 }
 
+/** Cases of a line that left and were not reported in vratka yet. */
+function casesOutOnLine(state: HoldState, bookingId: Id, lineId: Id): Case[] {
+  const reported = new Set<Id>();
+  for (const s of state.returnSessions) {
+    if (s.bookingId !== bookingId) continue;
+    for (const l of s.lines) if (l.lineId === lineId && l.caseId) reported.add(l.caseId);
+  }
+  const ids = new Set<Id>();
+  for (const sh of state.shipments) {
+    if (sh.bookingId !== bookingId) continue;
+    for (const l of sh.lines)
+      if (l.lineId === lineId) for (const c of l.caseIds ?? []) if (!reported.has(c)) ids.add(c);
+  }
+  return state.cases.filter((c) => ids.has(c.id));
+}
+
+/**
+ * A case that left short is not one of the complete cases any more and the pieces it lacks did
+ * not leave, so the line holds that much less.
+ */
+function reduceByShortCases(out: Hold[], state: HoldState, bookingId: Id, line: BookingLine) {
+  if (!isCaseTarget(line.target)) return;
+  const t = getCaseType(state, line.target.caseTypeId);
+  if (!t) return;
+  for (const c of casesOutOnLine(state, bookingId, line.id)) {
+    if (contentsMatchStandard(state, c)) continue;
+    for (const h of out) {
+      if (h.lineId !== line.id) continue;
+      if (h.res === `case:${t.id}`) h.qty -= 1;
+      else
+        for (const std of t.contents)
+          if (h.res === `item:${std.itemId}`)
+            h.qty -= Math.max(0, std.qty - caseContentQty(c, std.itemId));
+    }
+  }
+}
+
 /**
  * Holds a booking creates in its current state.
  * With `asDemand`, the booking is treated as if it were confirmed now (used for the booking
@@ -196,6 +235,7 @@ export function bookingHolds(state: HoldState, booking: Booking, asDemand = fals
         qty,
       );
     }
+    reduceByShortCases(out, state, booking.id, line);
   }
 
   // Missing pieces stay "out" on the order until the issue is resolved.
@@ -214,14 +254,13 @@ export function bookingHolds(state: HoldState, booking: Booking, asDemand = fals
         });
       } else if (iss.caseId) {
         const c = state.cases.find((x) => x.id === iss.caseId);
-        if (c)
-          pushTargetHolds(
-            out,
-            state,
-            { ...base, warehouseId: c.warehouseId },
-            { caseTypeId: c.caseTypeId },
-            iss.qty,
-          );
+        if (c) {
+          // what the case really held when it got lost
+          const b = { ...base, warehouseId: c.warehouseId, loose: false };
+          if (contentsMatchStandard(state, c))
+            out.push({ ...b, res: `case:${c.caseTypeId}`, qty: iss.qty });
+          for (const l of c.contents) out.push({ ...b, res: `item:${l.itemId}`, qty: l.qty });
+        }
       }
     }
   }

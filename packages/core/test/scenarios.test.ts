@@ -24,6 +24,7 @@ import {
   saveBooking,
   setServiceStatus,
   shipBatch,
+  standardCaseChecks,
   startPacking,
   submitPrebooking,
   unwrap,
@@ -214,8 +215,18 @@ describe('scenario: Gala Dinner, 24 Apr 2027', () => {
       shipBatch(s, U.martin, '2027-04-23', 'gala', {
         label: 'Dodávka 1',
         lines: [
-          { lineId: ax9Line.id, qty: 1, caseIds: ['case-2'] },
-          { lineId: sbLine.id, qty: 1, caseIds: ['case-sb1'] },
+          {
+            lineId: ax9Line.id,
+            qty: 1,
+            caseIds: ['case-2'],
+            caseChecks: standardCaseChecks(s, ['case-2']),
+          },
+          {
+            lineId: sbLine.id,
+            qty: 1,
+            caseIds: ['case-sb1'],
+            caseChecks: standardCaseChecks(s, ['case-sb1']),
+          },
         ],
       }),
     );

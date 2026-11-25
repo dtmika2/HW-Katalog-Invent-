@@ -359,6 +359,8 @@ export const cs = {
       prebooking_expired: (p: Params) => `${p.event}: předrezervace propadla`,
       external_not_returned: (p: Params) =>
         `${p.event}: ${p.name} nevráceno dodavateli ${p.supplier}`,
+      case_shipped_short: (p: Params) =>
+        `${p.event}: case ${p.number} odvezen neúplný, chybí ${p.what} (důvod: ${p.reason})`,
       conflict_unresolved: (p: Params) => `${p.event}: nevyřešený konflikt`,
     } satisfies Record<NotificationType, (p: Params) => string>,
   },
@@ -723,6 +725,20 @@ export const cs = {
       `${label} — ${date}, ${n} ks, ${who}`,
     nothing: 'Vše je odvezeno.',
     consumable: 'spotřební',
+    check: {
+      title: 'Kontrola obsahu',
+      done: 'zkontrolováno',
+      wrong: 'Nesedí',
+      undo: 'Vrátit zpět',
+      counted: (n: number) => `Napočítáno (má být ${n})`,
+      refill: (loose: number) => `Doplnit z volných (volně ${loose})`,
+      noLoose: 'Volné kusy k doplnění nejsou.',
+      short: (what: string) => `Case odjede neúplný, chybí ${what}`,
+      shortHint:
+        'Můžete zvolit jiný case výše, nebo ho odvézt s důvodem. PM a šéf techniky dostanou upozornění.',
+      reason: 'Proč odjíždí neúplný (povinné)',
+      missing: (numbers: string) => `Nejdřív dokončete kontrolu obsahu: ${numbers}`,
+    },
     print: {
       button: 'Tisk / uložit PDF',
       buttonHint: 'V okně tisku zvolte jako tiskárnu „Uložit jako PDF“.',
@@ -760,6 +776,8 @@ export const cs = {
     confirmLine: 'Potvrzuji tento řádek',
     caseCard: (n: string) => `Case ${n}`,
     completeStandard: 'Kompletní dle standardu',
+    completeShipped: 'Kompletní, jak byl odvezen',
+    shippedShort: (what: string) => `Odvezen neúplný, chybělo ${what}`,
     caseMissing: 'Case se nevrátil',
     unexpected: 'Nečekaná položka',
     unexpectedItem: 'Položka z katalogu',
@@ -841,6 +859,7 @@ export const cs = {
       `Vrátilo se ${returned} z ${shipped} ks${transferred ? `, ${transferred} ks předáno na jinou akci` : ''}.`,
     caseNotReturned: 'Celý case se z akce nevrátil.',
     missingInCase: (n: string) => `Case ${n} se vrátil, ale tyto kusy v něm chybí.`,
+    missingAtPacking: (n: string) => `Chybělo už při balení casu ${n}.`,
     unexpectedWhat: 'Vrátilo se navíc, na tuto akci se neodváželo.',
     quote: (note: string) => `„${note}“`,
     fromEvent: 'Z akce:',

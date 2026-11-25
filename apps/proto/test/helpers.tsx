@@ -24,6 +24,18 @@ export function renderApp(
   );
 }
 
+/** Render another page with the current store state. */
+export function renderCurrent(path: string) {
+  return render(
+    <MemoryRouter
+      initialEntries={[path]}
+      future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+    >
+      <AppRoutes />
+    </MemoryRouter>,
+  );
+}
+
 export const state = (): AppState => {
   const s = useProto.getState().state;
   if (!s) throw new Error('no state');

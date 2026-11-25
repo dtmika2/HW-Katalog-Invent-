@@ -107,6 +107,7 @@ const LEVEL_OF_TYPE: Record<NotificationType, NotificationLevel> = {
   service_affects_order: 'urgent',
   external_not_returned: 'urgent',
   returned_with_issues: 'attention',
+  case_shipped_short: 'attention',
   prebooking_returned: 'attention',
   prebooking_expiring: 'attention',
   prebooking_expired: 'attention',

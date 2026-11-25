@@ -24,6 +24,7 @@ import {
   setLineSource,
   setOverrideReason,
   shipBatch,
+  standardCaseChecks,
   startPacking,
   submitPrebooking,
   unwrap,
@@ -241,6 +242,7 @@ export class Builder {
           (c) => c.complete && !c.busy && !busy.has(c.caseId),
         );
         entry.caseIds = free.slice(0, pline.remaining).map((c) => c.caseId);
+        entry.caseChecks = standardCaseChecks(this.state, entry.caseIds);
         entry.caseIds.forEach((c) => busy.add(c));
         if (entry.caseIds.length < pline.remaining)
           throw new Error(`Fixture ${spec.id}: not enough complete cases`);

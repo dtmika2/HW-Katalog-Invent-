@@ -18,6 +18,7 @@ import {
   saveBooking,
   setServiceStatus,
   shipBatch,
+  standardCaseChecks,
   startPacking,
   submitPrebooking,
   unwrap,
@@ -100,8 +101,17 @@ export const GALA_STEPS = {
       shipBatch(next, martin, '2027-04-20', GALA_ID, {
         label: 'Dodávka 1',
         lines: [
-          { lineId: ax9.id, qty: 1, caseIds: ['case-ax9-02'] },
-          { lineId: sb.id, qty: 1, caseIds: ['case-sb-02'] },
+          ...(
+            [
+              [ax9.id, 'case-ax9-02'],
+              [sb.id, 'case-sb-02'],
+            ] as const
+          ).map(([lineId, caseId]) => ({
+            lineId,
+            qty: 1,
+            caseIds: [caseId],
+            caseChecks: standardCaseChecks(next, [caseId]),
+          })),
         ],
       }),
     );
