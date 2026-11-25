@@ -140,6 +140,10 @@ export interface Client {
   email?: string;
   phone?: string;
   note?: string;
+  /** No longer offered for new bookings. */
+  archived?: boolean;
+  createdBy?: Id;
+  createdOn?: IsoDate;
 }
 
 // ---------------------------------------------------------------------------

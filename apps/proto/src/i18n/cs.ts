@@ -36,6 +36,7 @@ export const cs = {
     catalog: 'Katalog',
     warehouse: 'Sklad',
     service: 'Servis',
+    clients: 'Klienti',
     notifications: 'Upozornění',
     issues: 'Nevyřešené',
   },
@@ -370,6 +371,46 @@ export const cs = {
     open_or_choices: 'Vyberte možnost ve všech skupinách „vyber jednu“.',
     blocking_conflicts: 'Některé řádky chybí — pokryjte je externě nebo uveďte důvod.',
   } as Record<string, string>,
+  clients: {
+    title: 'Klienti',
+    hint: 'PM a šéf techniky přidávají klienty přímo u rezervace. Tady je upravíte, nebo archivujete ty, se kterými už nepracujete.',
+    newButton: '+ Nový klient',
+    newTitle: 'Nový klient',
+    editTitle: (name: string) => `Upravit klienta: ${name}`,
+    name: 'Název klienta (povinné)',
+    contactPerson: 'Kontaktní osoba',
+    email: 'E-mail',
+    phone: 'Telefon',
+    add: 'Přidat klienta',
+    use: 'Použít',
+    similar: 'Není to některý z těchto klientů?',
+    nameTaken: 'Klient s tímto názvem už existuje.',
+    emailInvalid: 'E-mail nemá správný tvar.',
+    archivedHint: 'v archivu, obnovit ho může šéf techniky nebo administrátor',
+    archivedName: (name: string) => `${name} (v archivu)`,
+    archivedChip: 'v archivu',
+    noContacts: 'Kontakt není vyplněný.',
+    noteLine: (note: string) => `Poznámka: ${note}`,
+    createdOk: 'Klient přidán.',
+    createdOnBooking: 'Klient přidán. Jeho výběr u rezervace ještě uložte tlačítkem Uložit.',
+    finishFirst: 'Nejdřív dokončete nového klienta, nebo ho zrušte.',
+    search: 'Hledat klienta nebo kontakt',
+    showArchived: (n: number) => `Zobrazit archiv (${n})`,
+    empty: 'Žádný klient neodpovídá.',
+    bookingCount: (n: number) =>
+      n === 0
+        ? 'bez rezervací'
+        : n === 1
+          ? '1 rezervace'
+          : n < 5
+            ? `${n} rezervace`
+            : `${n} rezervací`,
+    created: (who: string, date: string) => `založeno: ${who}, ${date}`,
+    archive: 'Archivovat',
+    archivedOk: 'Klient je v archivu, u nových rezervací se už nenabízí.',
+    restore: 'Obnovit',
+    restored: 'Klient obnoven.',
+  },
   // Filled in by later milestones
   calendar: {
     title: 'Kalendář akcí',

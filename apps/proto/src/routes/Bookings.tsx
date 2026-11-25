@@ -12,6 +12,7 @@ import {
   NOTIFICATION_LEVELS,
   notificationLevel,
 } from '@quix/core';
+import { ClientPicker } from '../components/Clients';
 import { Field, PartlyShipped, StatusChip, LEVEL_STYLE, LevelChip } from '../components/ui';
 import { cs, fmtDate, fmtRange } from '../i18n/cs';
 import { bookingSpan, clientName, userName } from '../lib/names';
@@ -116,6 +117,7 @@ export function NewBooking() {
   const navigate = useNavigate();
   const [name, setName] = useState('');
   const [clientId, setClientId] = useState('');
+  const [addingClient, setAddingClient] = useState(false);
   const [from, setFrom] = useState(addDays(today, 14));
   const [to, setTo] = useState(addDays(today, 14));
   const [purpose, setPurpose] = useState('');
@@ -185,22 +187,14 @@ export function NewBooking() {
       <p className="text-xs text-muted">
         {cs.newBooking.bufferHint(s.settings.bufferBeforeDays, s.settings.bufferAfterDays)}
       </p>
-      <div className="grid gap-3 sm:grid-cols-2">
-        <Field label={cs.common.client} htmlFor="nb-client">
-          <select
-            id="nb-client"
-            className="input"
-            value={clientId}
-            onChange={(e) => setClientId(e.target.value)}
-          >
-            <option value="">{cs.common.none}</option>
-            {s.clients.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </select>
-        </Field>
+      <div className="grid grid-flow-row-dense gap-3 sm:grid-cols-2">
+        <ClientPicker
+          id="nb-client"
+          value={clientId}
+          onChange={setClientId}
+          createdText={cs.clients.createdOk}
+          onFormOpen={setAddingClient}
+        />
         <Field label={cs.newBooking.warehouse} htmlFor="nb-wh">
           <select id="nb-wh" className="input" value={wh} onChange={(e) => setWh(e.target.value)}>
             {s.warehouses.map((w) => (
@@ -237,9 +231,12 @@ export function NewBooking() {
           onChange={(e) => setPurpose(e.target.value)}
         />
       </Field>
-      <button type="submit" className="btn btn-primary" disabled={!name.trim()}>
-        {cs.newBooking.create}
-      </button>
+      <div className="flex flex-wrap items-center gap-3">
+        <button type="submit" className="btn btn-primary" disabled={!name.trim() || addingClient}>
+          {cs.newBooking.create}
+        </button>
+        {addingClient && <span className="text-xs text-muted">{cs.clients.finishFirst}</span>}
+      </div>
     </form>
   );
 }

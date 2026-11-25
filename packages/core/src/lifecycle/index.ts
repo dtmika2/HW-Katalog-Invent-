@@ -4,6 +4,7 @@
  */
 import type { IsoDate } from '../dates';
 import { evaluateBooking, firstEventDay } from '../availability';
+import { checkBookingClient } from '../clients';
 import { addConflictRecord, detectConflicts, recomputeConflictRecords } from '../conflicts';
 import { chiefIds, notify, postEvent, warehouseIds } from '../notifications';
 import type { AppState, Booking, BookingPeriod, BookingStatus, Id, User } from '../types';
@@ -123,6 +124,8 @@ export function createBooking(
       return err('validation', 'Booked period must cover the event');
     }
   }
+  const client = checkBookingClient(state, input.clientId);
+  if (!client.ok) return client;
   const { state: next, result: id } = produce(state, (d) => {
     const id = input.id ?? nextId(d, 'bk');
     const b: Booking = {
@@ -169,8 +172,12 @@ export function saveBooking(
   if (!EDITABLE.includes(current.status)) {
     return err('invalid_state', `Cannot edit a booking in state ${current.status}`);
   }
+  const client = checkBookingClient(state, edited.clientId, current.clientId);
+  if (!client.ok) return client;
+  const { clientId, ...rest } = edited;
   const { booking: recalced, expansion } = recalcBooking(state, {
-    ...edited,
+    ...rest,
+    ...(clientId ? { clientId } : {}),
     type: current.type,
     status: current.status,
     pmId: current.pmId,

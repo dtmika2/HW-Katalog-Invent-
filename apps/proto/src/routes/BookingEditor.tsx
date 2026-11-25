@@ -47,6 +47,7 @@ import {
   type User,
 } from '@quix/core';
 import { CategoryLabel } from '../components/Category';
+import { ClientPicker } from '../components/Clients';
 import {
   AvailabilityBadge,
   CaseLabel,
@@ -409,7 +410,7 @@ function Header({
           {cs.editor.returnedToPm(stored.returnedToPm.reason)}
         </p>
       )}
-      <div className="grid gap-3 md:grid-cols-[2fr_1fr_1fr]">
+      <div className="grid grid-flow-row-dense gap-3 md:grid-cols-[2fr_1fr_1fr]">
         <Field label={cs.newBooking.eventName} htmlFor="ed-name">
           <input
             id="ed-name"
@@ -419,22 +420,13 @@ function Header({
             onChange={(e) => update({ ...draft, eventName: e.target.value })}
           />
         </Field>
-        <Field label={cs.common.client} htmlFor="ed-client">
-          <select
-            id="ed-client"
-            className="input"
-            value={draft.clientId ?? ''}
-            disabled={!editable}
-            onChange={(e) => update({ ...draft, clientId: e.target.value })}
-          >
-            <option value="">{cs.common.none}</option>
-            {s.clients.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </select>
-        </Field>
+        <ClientPicker
+          id="ed-client"
+          value={draft.clientId ?? ''}
+          disabled={!editable}
+          onChange={(clientId) => update({ ...draft, clientId })}
+          createdText={cs.clients.createdOnBooking}
+        />
         <Field label={cs.editor.defaultWarehouse} htmlFor="ed-wh">
           <select
             id="ed-wh"

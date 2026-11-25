@@ -19,6 +19,7 @@
  * - `service` — service cases and their status flow.
  * - `issues` — pending issues list and resolution.
  * - `jobs` — `runDailyJobs(state, today)`: expiries and reminders.
+ * - `clients` — light client records: add, edit, archive, look-alike names.
  * - `notifications` — in-app notifications and the booking thread.
  */
 import { DEFAULT_SETTINGS, type AppState } from './types';
@@ -33,6 +34,7 @@ export * from './expansion';
 export * from './availability';
 export * from './conflicts';
 export * from './lifecycle';
+export * from './clients';
 export * from './shipping';
 export * from './returns';
 export * from './cases';

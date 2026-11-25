@@ -6,6 +6,7 @@ import { cs } from './i18n/cs';
 import { BookingEditor } from './routes/BookingEditor';
 import { Bookings, NewBooking, Notifications } from './routes/Bookings';
 import { Catalog } from './routes/CatalogEditor';
+import { Clients } from './routes/Clients';
 import { Dashboard } from './routes/Dashboard';
 import { EventCalendar } from './routes/EventCalendar';
 import { CaseTypeDetail, ItemDetail } from './routes/ItemDetail';
@@ -34,6 +35,7 @@ export function AppRoutes() {
         <Route path="/case-types/:id" element={<CaseTypeDetail />} />
         <Route path="/packing/:id" element={<Packing />} />
         <Route path="/vratka/:id" element={<Vratka />} />
+        <Route path="/clients" element={<Clients />} />
         <Route path="/service" element={<Service />} />
         <Route path="/warehouse" element={<WarehouseDashboard />} />
         <Route path="*" element={<Later />} />

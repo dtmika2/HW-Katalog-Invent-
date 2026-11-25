@@ -24,6 +24,8 @@ export type Action =
   | 'manage_service'
   | 'manage_conflicts'
   | 'refill_case'
+  | 'create_client'
+  | 'manage_clients'
   | 'admin';
 
 const isChief = (u: User) => u.role === 'chief';
@@ -65,6 +67,9 @@ export function can(user: User, action: Action, booking?: Booking): boolean {
       return true;
     case 'manage_service':
       return isChief(user) || user.perms.canManageService;
+    case 'create_client':
+      return user.role === 'pm' || isChief(user) || user.role === 'admin';
+    case 'manage_clients':
     case 'admin':
       return isChief(user) || user.role === 'admin';
   }
