@@ -6,6 +6,7 @@ import {
   type AppState,
   type Booking,
   type BookingLine,
+  type PackLine,
   type Target,
 } from '@quix/core';
 
@@ -40,6 +41,20 @@ export function lineCategoryId(s: AppState, l: BookingLine): string | undefined 
   const itemId =
     'itemId' in t ? t.itemId : s.caseTypes.find((x) => x.id === t.caseTypeId)?.contents[0]?.itemId;
   return s.items.find((i) => i.id === itemId)?.categoryId;
+}
+
+/** Packing lines by the PM's groups in their order, ungrouped last. */
+export function packByGroup(
+  b: Booking,
+  lines: PackLine[],
+): { id: string; name: string | undefined; lines: PackLine[] }[] {
+  return [...(b.groups ?? []), undefined]
+    .map((g) => ({
+      id: g?.id ?? '',
+      name: g?.name,
+      lines: lines.filter((l) => (l.group?.id ?? '') === (g?.id ?? '')),
+    }))
+    .filter((g) => g.lines.length > 0);
 }
 
 export const isCaseLine = (l: BookingLine): boolean => 'caseTypeId' in l.target;

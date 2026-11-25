@@ -7,7 +7,9 @@ import {
   bookingPriceTotal,
   effectiveQty,
   eventDays,
+  flattenNodes,
   linePriceDay,
+  lineTree,
   resolveSourceWarehouse,
   type AppState,
   type Booking,
@@ -19,23 +21,6 @@ import { cs, fmtDate, fmtRange, fmtShort } from '../i18n/cs';
 import { caseTypeName, itemName, lineName, warehouseName } from '../lib/names';
 import { loanLine } from './Loans';
 import { Bar, Paper, PaperHead, Signatures, usePrintTitle } from './print';
-
-/** Lines in the order of the page: accessories under the gear that needs them. */
-function treeOrder(b: Booking): { line: BookingLine; depth: number }[] {
-  const ids = new Set(b.lines.map((l) => l.id));
-  const parentOf = (l: BookingLine) =>
-    l.origin === 'auto' ? l.parentLineIds.find((p) => ids.has(p)) : undefined;
-  const out: { line: BookingLine; depth: number }[] = [];
-  const walk = (parent: string | undefined, depth: number) => {
-    for (const l of b.lines)
-      if (parentOf(l) === parent) {
-        out.push({ line: l, depth });
-        walk(l.id, depth + 1);
-      }
-  };
-  walk(undefined, 0);
-  return out;
-}
 
 function Internal({
   s,
@@ -111,8 +96,12 @@ export function BookingPrint({
   const kind = cs.bookingType[b.type];
   usePrintTitle(cs.editor.print.fileName(kind, b.eventName));
   const days = eventDays(b);
-  const all = treeOrder(b);
-  const rows = all.filter(({ line }) => line.status === 'ok' && effectiveQty(line) > 0);
+  const tree = lineTree(b);
+  const all = tree.flatMap((g) => flattenNodes(g.roots));
+  const grouped = tree.some((g) => g.group);
+  const listed = ({ line }: { line: BookingLine }) =>
+    line.status === 'ok' && effectiveQty(line) > 0;
+  const rows = all.filter(listed);
   const refused = all.filter(({ line }) => line.status !== 'ok');
   const cell = 'border-b border-neutral-300 py-1 align-top';
   return (
@@ -151,55 +140,83 @@ export function BookingPrint({
             )}
           </tr>
         </thead>
-        <tbody>
-          {rows.map(({ line, depth }) => {
-            const qty = effectiveQty(line);
-            const day = linePriceDay(s, line);
-            const t = line.target;
-            const contents =
-              'caseTypeId' in t
-                ? (s.caseTypes.find((x) => x.id === t.caseTypeId)?.contents ?? [])
-                : [];
-            return (
-              <tr key={line.id} className="break-inside-avoid">
-                <td className={`${cell} px-1 text-right font-bold`}>{qty}×</td>
-                <td className={`${cell} px-2`} style={{ paddingLeft: `${0.5 + depth}rem` }}>
-                  <span className={depth === 0 ? 'font-semibold' : ''}>{lineName(s, line)}</span>
-                  {'external' in t && ` (${cs.editor.externalTag})`}
-                  {contents.length > 0 && (
-                    <span className="block text-[8.5pt] text-neutral-600">
-                      {contents.map((c) => `${c.qty}× ${itemName(s, c.itemId)}`).join(', ')}
-                    </span>
-                  )}
-                  {internal && (
-                    <Internal
-                      s={s}
-                      b={b}
-                      line={line}
-                      a={av.get(line.id)}
-                      conflict={conflicts.find((c) => c.lineId === line.id)}
-                    />
-                  )}
-                </td>
-                {prices &&
-                  ('external' in t ? (
-                    <td className={`${cell} px-1 text-right text-[9pt]`} colSpan={2}>
-                      {cs.editor.print.externalPrice}
+        {tree.map((g) => {
+          const part = flattenNodes(g.roots).filter(listed);
+          if (part.length === 0) return null;
+          return (
+            <tbody key={g.group?.id ?? 'none'}>
+              {grouped && (
+                <tr className="break-after-avoid">
+                  <td
+                    colSpan={prices ? 3 : 2}
+                    className="px-1 pb-0.5 pt-3 font-cond text-[12pt] font-bold"
+                  >
+                    {g.group?.name ?? cs.lines.noGroup}
+                  </td>
+                  {prices && (
+                    <td className="whitespace-nowrap px-1 pb-0.5 pt-3 text-right font-semibold">
+                      {cs.common.czk(
+                        bookingPriceTotal(s, {
+                          periods: b.periods,
+                          lines: part.map((n) => n.line),
+                        }),
+                      )}
                     </td>
-                  ) : (
-                    <>
-                      <td className={`${cell} whitespace-nowrap px-1 text-right`}>
-                        {cs.common.czk(day / qty)}
-                      </td>
-                      <td className={`${cell} whitespace-nowrap px-1 text-right`}>
-                        {cs.common.czk(day * days)}
-                      </td>
-                    </>
-                  ))}
-              </tr>
-            );
-          })}
-        </tbody>
+                  )}
+                </tr>
+              )}
+              {part.map(({ line, depth }) => {
+                const qty = effectiveQty(line);
+                const day = linePriceDay(s, line);
+                const t = line.target;
+                const contents =
+                  'caseTypeId' in t
+                    ? (s.caseTypes.find((x) => x.id === t.caseTypeId)?.contents ?? [])
+                    : [];
+                return (
+                  <tr key={line.id} className="break-inside-avoid">
+                    <td className={`${cell} px-1 text-right font-bold`}>{qty}×</td>
+                    <td className={`${cell} px-2`} style={{ paddingLeft: `${0.5 + depth}rem` }}>
+                      <span className={depth === 0 ? 'font-semibold' : ''}>
+                        {lineName(s, line)}
+                      </span>
+                      {'external' in t && ` (${cs.editor.externalTag})`}
+                      {contents.length > 0 && (
+                        <span className="block text-[8.5pt] text-neutral-600">
+                          {contents.map((c) => `${c.qty}× ${itemName(s, c.itemId)}`).join(', ')}
+                        </span>
+                      )}
+                      {internal && (
+                        <Internal
+                          s={s}
+                          b={b}
+                          line={line}
+                          a={av.get(line.id)}
+                          conflict={conflicts.find((c) => c.lineId === line.id)}
+                        />
+                      )}
+                    </td>
+                    {prices &&
+                      ('external' in t ? (
+                        <td className={`${cell} px-1 text-right text-[9pt]`} colSpan={2}>
+                          {cs.editor.print.externalPrice}
+                        </td>
+                      ) : (
+                        <>
+                          <td className={`${cell} whitespace-nowrap px-1 text-right`}>
+                            {cs.common.czk(day / qty)}
+                          </td>
+                          <td className={`${cell} whitespace-nowrap px-1 text-right`}>
+                            {cs.common.czk(day * days)}
+                          </td>
+                        </>
+                      ))}
+                  </tr>
+                );
+              })}
+            </tbody>
+          );
+        })}
       </table>
       {rows.length === 0 && <p className="py-2">{cs.editor.print.empty}</p>}
       {prices && rows.length > 0 && (

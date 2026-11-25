@@ -3,8 +3,10 @@
  */
 import {
   addDays,
+  addGroup,
   emptyState,
   createLoan,
+  moveToGroup,
   openServiceCase,
   runDailyJobs,
   setServiceStatus,
@@ -734,6 +736,30 @@ function addLoans(b: Builder): void {
   });
 }
 
+/** The festival's list organised by its PM into groups. */
+function addGroups(b: Builder): void {
+  const of: [string, string[]][] = [
+    ['LED stěna', ['led-39-out']],
+    ['Ozvučení', ['db-y10p', 'db-b6-sub', 'db-d20', 'digico-sd12']],
+    ['Světla a rigging', ['megapointe', 'truss-3m', 'hoist-500']],
+  ];
+  b.state = {
+    ...b.state,
+    bookings: b.state.bookings.map((x) => {
+      if (x.id !== 'bk-letni-noc') return x;
+      let booking = x;
+      for (const [name, items] of of) {
+        const r = addGroup(booking, name);
+        booking = r.booking;
+        for (const l of booking.lines)
+          if ('itemId' in l.target && items.includes(l.target.itemId))
+            booking = moveToGroup(booking, l.id, r.groupId);
+      }
+      return booking;
+    }),
+  };
+}
+
 /** The full demo state (deterministic). */
 export function generateState(today: IsoDate = DEMO_TODAY): AppState {
   const rand = mulberry32(SEED);
@@ -753,6 +779,7 @@ export function generateState(today: IsoDate = DEMO_TODAY): AppState {
   }
   if (!serviceDone) addServiceCases(b);
   addLoans(b);
+  addGroups(b);
 
   // Tonight's job for the demo bell; older notifications count as read.
   const jobbed = runDailyJobs(b.state, today).state;

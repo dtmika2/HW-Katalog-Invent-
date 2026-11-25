@@ -23,7 +23,14 @@ import { PackingPrint } from '../components/PackingPrint';
 import { PrintButton } from '../components/print';
 import { CaseLabel, Empty, StatusChip } from '../components/ui';
 import { cs, fmtDate } from '../i18n/cs';
-import { caseNumber, itemName, locationPath, userName, warehouseName } from '../lib/names';
+import {
+  caseNumber,
+  itemName,
+  locationPath,
+  packByGroup,
+  userName,
+  warehouseName,
+} from '../lib/names';
 import { useAppState, useProto, useToday, useUser } from '../store';
 
 interface Pick {
@@ -47,6 +54,7 @@ export function Packing() {
   const batchNo =
     s.shipments.filter((x) => x.bookingId === id && !x.transferFromBookingId).length + 1;
   const [label, setLabel] = useState('');
+  const [wantGroups, setWantGroups] = useState(false);
   if (!b) return <Empty>{cs.errors.not_found}</Empty>;
   const pl = packingList(s, id);
   if (!pl) return <Empty>{cs.errors.not_found}</Empty>;
@@ -164,6 +172,13 @@ export function Packing() {
                 {cs.loans.packingHint(lent.map((x) => loanLine(s, x)).join('; '))}
               </span>
             )}
+            {(byGroup || l.group) && (
+              <span className="block text-xs text-muted">
+                {byGroup
+                  ? l.locationId && cs.packing.shelf(locationPath(s, l.locationId))
+                  : l.group && cs.packing.group(l.group.name)}
+              </span>
+            )}
             {l.forHint.length > 0 && (
               <span className="block text-xs text-muted">
                 {cs.editor.forHint(l.forHint.map((h) => `${h.name} ×${h.qty}`).join(', '))}
@@ -270,12 +285,14 @@ export function Packing() {
   };
 
   const shipments = s.shipments.filter((x) => x.bookingId === id);
+  const hasGroups = allLines.some((l) => l.group);
+  const byGroup = hasGroups && wantGroups;
   const pickedCases = Object.fromEntries(
     allLines.map((l) => [l.lineId, pick(l).ticked ? pick(l).caseIds : []]),
   );
   return (
     <>
-      <PackingPrint s={s} b={b} list={pl} pickedCases={pickedCases} />
+      <PackingPrint s={s} b={b} list={pl} pickedCases={pickedCases} byGroup={byGroup} />
       <div className="mx-auto max-w-2xl space-y-4 print:hidden">
         <div>
           <Link to={`/bookings/${id}`} className="text-sm underline">
@@ -312,17 +329,48 @@ export function Packing() {
             )}
           </div>
         )}
+        {hasGroups && (
+          <div
+            role="group"
+            aria-label={cs.packing.groupBy}
+            className="flex items-center gap-2 text-sm text-muted"
+          >
+            {cs.packing.groupBy}
+            {[false, true].map((v) => (
+              <button
+                key={String(v)}
+                type="button"
+                className={`btn btn-sm ${byGroup === v ? 'btn-primary' : ''}`}
+                aria-pressed={byGroup === v}
+                onClick={() => setWantGroups(v)}
+              >
+                {v ? cs.packing.byGroup : cs.packing.byShelf}
+              </button>
+            ))}
+          </div>
+        )}
         {pl.byWarehouse.map((w) => (
           <section key={w.warehouseId} className="space-y-2">
             <h2>{cs.packing.warehouse(warehouseName(s, w.warehouseId))}</h2>
-            {w.groups.map((g) => (
-              <div key={g.locationId ?? 'none'}>
-                <h3 className="mb-1 text-xs font-semibold text-muted">
-                  {g.locationId ? locationPath(s, g.locationId) : cs.packing.noLocation}
-                </h3>
-                <ul className="space-y-2">{g.lines.map(card)}</ul>
-              </div>
-            ))}
+            {byGroup &&
+              packByGroup(
+                b,
+                w.groups.flatMap((g) => g.lines),
+              ).map((g) => (
+                <div key={g.id || 'none'}>
+                  <h3 className="mb-1 text-sm font-semibold">{g.name ?? cs.lines.noGroup}</h3>
+                  <ul className="space-y-2">{g.lines.map(card)}</ul>
+                </div>
+              ))}
+            {!byGroup &&
+              w.groups.map((g) => (
+                <div key={g.locationId ?? 'none'}>
+                  <h3 className="mb-1 text-xs font-semibold text-muted">
+                    {g.locationId ? locationPath(s, g.locationId) : cs.packing.noLocation}
+                  </h3>
+                  <ul className="space-y-2">{g.lines.map(card)}</ul>
+                </div>
+              ))}
           </section>
         ))}
         {pl.external.length > 0 && (

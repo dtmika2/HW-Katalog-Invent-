@@ -2,13 +2,18 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import {
   ackConflict,
+  addCheckCandidate,
   addDays,
   addLine,
   bookingPriceTotal,
   can,
+  canLeave,
+  canNest,
+  groupOfLine,
+  moveToGroup,
+  nestLine,
+  parentMap,
   categoryPath,
-  chooseOr,
-  clearOverride,
   closeBooking,
   confirmBooking,
   coverWithExternal,
@@ -21,28 +26,24 @@ import {
   firstBookedFrom,
   firstEventDay,
   lastBookedUntil,
-  markLine,
   minFreeInWarehouse,
   openIssues,
   periodWithBuffer,
   postMessage,
   recalcBooking,
-  removeLine,
   restoreAutoLine,
   returnToPm,
   saveBooking,
-  setLineQty,
-  setLineSource,
   setOverrideReason,
   splitLine,
   submitPrebooking,
   thread,
   type AppState,
   type Booking,
+  type BookingGroup,
   type BookingLine,
   type BookingPeriod,
   type LineAvailability,
-  type OrChoiceInfo,
   type Target,
   type User,
 } from '@quix/core';
@@ -51,27 +52,13 @@ import { ClientPicker } from '../components/Clients';
 import { BookingPrint } from '../components/BookingPrint';
 import { LoanNames } from '../components/Loans';
 import { PrintButton } from '../components/print';
-import {
-  AvailabilityBadge,
-  CaseLabel,
-  Empty,
-  Field,
-  PartlyShipped,
-  Section,
-  StatusChip,
-} from '../components/ui';
+import { CaseLabel, Empty, Field, PartlyShipped, Section, StatusChip } from '../components/ui';
 import { cs, fmtDate } from '../i18n/cs';
-import {
-  ageDays,
-  caseTypeName,
-  isCaseLine,
-  itemName,
-  lineCategoryId,
-  lineName,
-  targetName,
-  userName,
-} from '../lib/names';
+import { ageDays, isCaseLine, itemName, lineName, targetName, userName } from '../lib/names';
 import { useAppState, useProto, useToday, useUser } from '../store';
+import { DragHandle, DragProvider, type DragPayload } from '../components/lines/drag';
+import { LineList } from '../components/lines/LineList';
+import { DEFAULT_VIEW } from '../components/lines/view';
 import { IssuesList } from './Issues';
 
 const EDITABLE = ['draft', 'submitted', 'confirmed', 'packing'];
@@ -93,6 +80,8 @@ function Editor({ stored }: { stored: Booking }) {
   const [dirty, setDirty] = useState(false);
   const [printPrices, setPrintPrices] = useState(true);
   const [printInternal, setPrintInternal] = useState(false);
+  const [view, setView] = useState(DEFAULT_VIEW);
+  const [addTo, setAddTo] = useState('');
 
   // Follow the stored booking when it changes elsewhere (after save, other users' actions).
   useEffect(() => {
@@ -135,8 +124,35 @@ function Editor({ stored }: { stored: Booking }) {
     if (!err) setDirty(false);
   };
 
+  // Something added must be visible, so a filter is lifted.
+  const showAll = () => setView((v) => ({ ...v, category: '', text: '' }));
+  const groupId = booking.groups?.some((g) => g.id === addTo) ? addTo : undefined;
+  const addTop = (t: Target, q: number) => {
+    update(addLine(s, booking, t, q, groupId ? { groupId } : {}));
+    showAll();
+  };
+
+  const canDrop = (p: DragPayload, key: string) => {
+    const [kind, id] = [key.slice(0, key.indexOf(':')), key.slice(key.indexOf(':') + 1)];
+    if (p.kind === 'new') return kind === 'group' || booking.lines.some((l) => l.id === id);
+    if (kind === 'line') return canNest(booking, p.id, id) && parentMap(booking).get(p.id) !== id;
+    const line = booking.lines.find((l) => l.id === p.id);
+    if (!line || !canLeave(line)) return false;
+    // already at the top level of that group
+    return parentMap(booking).has(p.id) || (groupOfLine(booking, p.id)?.id ?? '') !== id;
+  };
+  const onDrop = (p: DragPayload, key: string) => {
+    const [kind, id] = [key.slice(0, key.indexOf(':')), key.slice(key.indexOf(':') + 1)];
+    if (p.kind === 'new') {
+      const place = kind === 'line' ? { nestedUnder: id } : id ? { groupId: id } : {};
+      update(addLine(s, booking, p.target, p.qty, place));
+      showAll();
+    } else if (kind === 'line') update(nestLine(s, booking, p.id, id));
+    else update(moveToGroup(booking, p.id, id || undefined));
+  };
+
   return (
-    <>
+    <DragProvider canDrop={canDrop} onDrop={onDrop}>
       <BookingPrint
         s={s}
         b={booking}
@@ -158,12 +174,20 @@ function Editor({ stored }: { stored: Booking }) {
 
         <div className={`grid gap-4 ${hasSide ? 'xl:grid-cols-[1fr_22rem]' : ''}`}>
           <div className="space-y-4">
-            {editable && <AddPanel s={s} onAdd={(t, q) => update(addLine(s, draft, t, q))} />}
+            {editable && (
+              <AddPanel
+                s={s}
+                groups={booking.groups ?? []}
+                addTo={groupId ?? ''}
+                setAddTo={setAddTo}
+                onAdd={addTop}
+              />
+            )}
             <Section title={cs.editor.linesTitle}>
               {expansion.cycleWarnings.length > 0 && (
                 <p className="mb-2 text-xs text-warn">{cs.editor.cycle}</p>
               )}
-              <LineTree
+              <LineList
                 s={s}
                 booking={booking}
                 av={av}
@@ -171,6 +195,8 @@ function Editor({ stored }: { stored: Booking }) {
                 editable={editable}
                 user={user}
                 update={update}
+                view={view}
+                setView={setView}
               />
               {Object.keys(booking.suppressedAuto).length > 0 && (
                 <div className="mt-3 text-xs text-muted">
@@ -258,7 +284,18 @@ function Editor({ stored }: { stored: Booking }) {
                             type="button"
                             className="btn btn-sm"
                             disabled={!editable}
-                            onClick={() => update(addLine(s, draft, c.target, Math.max(1, c.qty)))}
+                            onClick={() => {
+                              update(
+                                addCheckCandidate(
+                                  s,
+                                  booking,
+                                  w.fromItemId,
+                                  c.target,
+                                  Math.max(1, c.qty),
+                                ),
+                              );
+                              showAll();
+                            }}
                           >
                             + {c.qty}× {targetName(s, c.target)}
                           </button>
@@ -283,7 +320,16 @@ function Editor({ stored }: { stored: Booking }) {
                 <ul className="space-y-2">
                   {expansion.recommendations.map((r) => (
                     <li key={r.key} className="flex items-center justify-between gap-2 text-sm">
-                      <span>
+                      <DragHandle
+                        payload={{
+                          kind: 'new',
+                          target: r.target,
+                          qty: Math.max(1, r.qty),
+                          label: targetName(s, r.target),
+                        }}
+                        title={cs.lines.dragNew}
+                      />
+                      <span className="flex-1">
                         {targetName(s, r.target)}
                         <span className="block text-xs text-muted">
                           {cs.editor.recFor(r.forItemIds.map((i) => itemName(s, i)).join(', '))}
@@ -293,7 +339,7 @@ function Editor({ stored }: { stored: Booking }) {
                         <button
                           type="button"
                           className="btn btn-sm"
-                          onClick={() => update(addLine(s, draft, r.target, Math.max(1, r.qty)))}
+                          onClick={() => addTop(r.target, Math.max(1, r.qty))}
                         >
                           + {r.qty}
                         </button>
@@ -412,7 +458,7 @@ function Editor({ stored }: { stored: Booking }) {
           )}
         </div>
       </div>
-    </>
+    </DragProvider>
   );
 }
 
@@ -627,7 +673,20 @@ function Header({
   );
 }
 
-function AddPanel({ s, onAdd }: { s: AppState; onAdd: (t: Target, qty: number) => void }) {
+function AddPanel({
+  s,
+  groups,
+  addTo,
+  setAddTo,
+  onAdd,
+}: {
+  s: AppState;
+  groups: BookingGroup[];
+  /** Group new items go to; '' = none. */
+  addTo: string;
+  setAddTo: (id: string) => void;
+  onAdd: (t: Target, qty: number) => void;
+}) {
   const [q, setQ] = useState('');
   const [qty, setQty] = useState(1);
   const [sel, setSel] = useState<Target | undefined>();
@@ -680,6 +739,21 @@ function AddPanel({ s, onAdd }: { s: AppState; onAdd: (t: Target, qty: number) =
           value={qty}
           onChange={(e) => setQty(Math.max(1, Number(e.target.value) || 1))}
         />
+        {groups.length > 0 && (
+          <select
+            className="input w-auto max-w-56"
+            aria-label={cs.lines.addTo}
+            value={addTo}
+            onChange={(e) => setAddTo(e.target.value)}
+          >
+            <option value="">{cs.lines.addToNone}</option>
+            {groups.map((g) => (
+              <option key={g.id} value={g.id}>
+                {cs.lines.addToGroup(g.name)}
+              </option>
+            ))}
+          </select>
+        )}
       </div>
       {matches.length > 0 && (
         <ul
@@ -688,12 +762,16 @@ function AddPanel({ s, onAdd }: { s: AppState; onAdd: (t: Target, qty: number) =
           aria-label={cs.editor.addTitle}
         >
           {matches.map((m) => (
-            <li key={m.name}>
+            <li key={m.name} className="flex items-center hover:bg-alu">
+              <DragHandle
+                payload={{ kind: 'new', target: m.target, qty, label: m.name }}
+                title={cs.lines.dragNew}
+              />
               <button
                 type="button"
                 role="option"
                 aria-selected={sel === m.target}
-                className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm hover:bg-alu"
+                className="flex min-w-0 flex-1 items-center justify-between gap-2 px-2 py-2 text-left text-sm"
                 onClick={() => {
                   onAdd(m.target, qty);
                   setQ('');
@@ -716,314 +794,6 @@ function AddPanel({ s, onAdd }: { s: AppState; onAdd: (t: Target, qty: number) =
 }
 
 // ---------------------------------------------------------------------------
-
-interface TreeProps {
-  s: AppState;
-  booking: Booking;
-  av: Map<string, LineAvailability>;
-  orChoices: OrChoiceInfo[];
-  editable: boolean;
-  user: User;
-  update: (b: Booking) => void;
-}
-
-function LineTree(props: TreeProps) {
-  const { booking } = props;
-  if (booking.lines.length === 0) return <Empty>{cs.editor.noLines}</Empty>;
-  const byParent = new Map<string, BookingLine[]>();
-  const roots: BookingLine[] = [];
-  const ids = new Set(booking.lines.map((l) => l.id));
-  for (const l of booking.lines) {
-    const parent = l.origin === 'auto' ? l.parentLineIds.find((p) => ids.has(p)) : undefined;
-    if (parent) byParent.set(parent, [...(byParent.get(parent) ?? []), l]);
-    else roots.push(l);
-  }
-  const render = (l: BookingLine, depth: number): JSX.Element => (
-    <li key={l.id}>
-      <LineRow {...props} line={l} depth={depth} />
-      {(byParent.get(l.id) ?? []).length > 0 && (
-        <ul>{(byParent.get(l.id) ?? []).map((c) => render(c, depth + 1))}</ul>
-      )}
-    </li>
-  );
-  return (
-    <ul data-testid="lines" className="divide-y divide-alu-line">
-      {roots.map((l) => render(l, 0))}
-    </ul>
-  );
-}
-
-function LineRow({
-  s,
-  booking,
-  av,
-  orChoices,
-  editable,
-  user,
-  update,
-  line,
-  depth,
-}: TreeProps & { line: BookingLine; depth: number }) {
-  const a = av.get(line.id);
-  const name = lineName(s, line);
-  const categoryId = lineCategoryId(s, line);
-  const isAuto = line.origin === 'auto';
-  const isExt = 'external' in line.target;
-  const qty = line.overriddenQty ?? line.qty;
-  const parents = line.parentLineIds
-    .map((p) => booking.lines.find((x) => x.id === p))
-    .filter((p): p is BookingLine => !!p)
-    .map((p) => `${lineName(s, p)} ×${p.overriddenQty ?? p.qty}`);
-  const groups = orChoices.filter((o) => o.parentLineId === line.id);
-  const sources = sourceOptions(s, booking, line);
-  const isChief = user.role === 'chief';
-
-  return (
-    <div
-      data-testid={`line-${line.id}`}
-      data-line-name={name}
-      className={`py-2 ${line.status !== 'ok' ? 'opacity-60' : ''}`}
-      style={{ paddingLeft: `${depth * 1.25}rem` }}
-    >
-      <div className="flex flex-wrap items-center gap-2">
-        {depth > 0 && (
-          <span aria-hidden="true" className="text-muted">
-            └
-          </span>
-        )}
-        {isExt ? (
-          <span className="font-cond text-[15px] font-semibold">{name}</span>
-        ) : (
-          <Link
-            to={
-              'itemId' in line.target
-                ? `/items/${line.target.itemId}`
-                : `/case-types/${(line.target as { caseTypeId: string }).caseTypeId}`
-            }
-            className={`font-cond text-[15px] font-semibold hover:underline ${line.status !== 'ok' ? 'line-through' : ''}`}
-          >
-            {name}
-          </Link>
-        )}
-        {isCaseLine(line) && <CaseLabel>{cs.editor.caseTag}</CaseLabel>}
-        {/* not a link: a click would leave the editor and lose unsaved changes */}
-        {categoryId && <CategoryLabel s={s} categoryId={categoryId} link={false} />}
-        {isAuto && (
-          <span className="rounded bg-alu px-1.5 text-[11px] font-medium text-muted">
-            {cs.editor.autoTag}
-          </span>
-        )}
-        {isExt && (
-          <span className="rounded bg-tape-light px-1.5 text-[11px] font-medium text-tape-dark">
-            {cs.editor.externalTag}{' '}
-            {cs.editor.externalFrom(
-              (line.target as { external: { supplier: string } }).external.supplier,
-            )}
-          </span>
-        )}
-        {line.status === 'missing' && (
-          <span className="text-xs text-bad">{cs.editor.statusMissing}</span>
-        )}
-        {line.status === 'substituted' && (
-          <span className="text-xs text-warn">{cs.editor.statusSubstituted}</span>
-        )}
-        <span className="ml-auto flex items-center gap-2">
-          <AvailabilityBadge
-            a={a}
-            isCase={isCaseLine(line)}
-            caseName={a?.breaksCase ? caseTypeName(s, a.breaksCase.caseTypeId) : undefined}
-          />
-          <input
-            type="number"
-            min={0}
-            className="input w-20 text-right"
-            aria-label={`${cs.common.qty} ${name}`}
-            value={qty}
-            disabled={!editable || isExt}
-            onChange={(e) => update(setLineQty(s, booking, line.id, Number(e.target.value) || 0))}
-          />
-        </span>
-      </div>
-      {(parents.length > 0 || line.note || line.overriddenQty !== undefined) && (
-        <div className="mt-0.5 flex flex-wrap gap-x-3 text-xs text-muted">
-          {parents.length > 0 && <span>{cs.editor.forHint(parents.join(', '))}</span>}
-          {line.overriddenQty !== undefined && (
-            <span className="text-warn">
-              {cs.editor.overridden(line.qty)}
-              {editable && (
-                <button
-                  type="button"
-                  className="ml-1 underline"
-                  onClick={() => update(clearOverride(s, booking, line.id))}
-                >
-                  {cs.editor.resetOverride}
-                </button>
-              )}
-            </span>
-          )}
-          {line.note && <span>{line.note}</span>}
-        </div>
-      )}
-      {groups.map((g) => (
-        <div
-          key={g.groupKey}
-          className="mt-1 flex flex-wrap items-center gap-1 text-xs"
-          role="radiogroup"
-          aria-label={cs.editor.orTitle(name)}
-        >
-          <span className="text-muted">{cs.editor.orTitle(name)}:</span>
-          {g.options.map((o) => (
-            <button
-              key={o.key}
-              type="button"
-              role="radio"
-              aria-checked={g.selected === o.key}
-              disabled={!editable}
-              onClick={() => update(chooseOr(s, booking, g.groupKey, o.key))}
-              className={`rounded-full border px-2 py-0.5 ${g.selected === o.key ? 'border-tape bg-tape text-white' : 'border-alu-line bg-white'}`}
-            >
-              {o.targets.map((t) => targetName(s, t.target)).join(' + ')}
-            </button>
-          ))}
-          {g.open && <span className="text-bad">{cs.editor.orOpen}</span>}
-        </div>
-      ))}
-      {editable && !isExt && (sources.length > 1 || line.fromBookingId) && (
-        <div className="mt-1 flex items-center gap-2 text-xs">
-          <label className="text-muted" htmlFor={`src-${line.id}`}>
-            {cs.editor.source}
-          </label>
-          <select
-            id={`src-${line.id}`}
-            className="input min-h-7 w-auto py-0 text-xs"
-            value={
-              line.fromBookingId
-                ? `b:${line.fromBookingId}`
-                : `w:${line.sourceWarehouseId ?? a?.warehouseId ?? booking.defaultWarehouseId}`
-            }
-            onChange={(e) => {
-              const v = e.target.value;
-              update(
-                setLineSource(
-                  s,
-                  booking,
-                  line.id,
-                  v.startsWith('b:') ? { fromBookingId: v.slice(2) } : { warehouseId: v.slice(2) },
-                ),
-              );
-            }}
-          >
-            {sources.map((o) => (
-              <option key={o.value} value={o.value}>
-                {o.label}
-              </option>
-            ))}
-          </select>
-        </div>
-      )}
-      {editable && (
-        <div className="mt-1 flex flex-wrap gap-2 text-xs">
-          {!isAuto && (
-            <button
-              type="button"
-              className="text-muted underline"
-              onClick={() => update(removeLine(s, booking, line.id))}
-            >
-              {cs.common.remove}
-            </button>
-          )}
-          {isAuto && can(user, 'remove_auto_line') && (
-            <button
-              type="button"
-              className="text-muted underline"
-              onClick={() => {
-                const r = globalThis.prompt?.(cs.editor.removeAutoPrompt) ?? '';
-                if (r.trim()) update(removeLine(s, booking, line.id, r));
-              }}
-            >
-              {cs.editor.removeAuto}
-            </button>
-          )}
-          {isChief && line.status === 'ok' && !isExt && (
-            <>
-              <button
-                type="button"
-                className="text-muted underline"
-                onClick={() => {
-                  const r = globalThis.prompt?.(cs.editor.markReasonPrompt) ?? '';
-                  update(markLine(s, booking, line.id, 'missing', r));
-                }}
-              >
-                {cs.editor.markMissing}
-              </button>
-              <button
-                type="button"
-                className="text-muted underline"
-                onClick={() => {
-                  const r = globalThis.prompt?.(cs.editor.markReasonPrompt) ?? '';
-                  update(markLine(s, booking, line.id, 'substituted', r));
-                }}
-              >
-                {cs.editor.markSubstituted}
-              </button>
-            </>
-          )}
-          {isChief && line.status !== 'ok' && (
-            <button
-              type="button"
-              className="text-muted underline"
-              onClick={() => update(markLine(s, booking, line.id, 'ok'))}
-            >
-              {cs.editor.markOk}
-            </button>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
-/** Warehouses that stock the line's resource, plus orders it could come from directly. */
-function sourceOptions(
-  s: AppState,
-  b: Booking,
-  line: BookingLine,
-): { value: string; label: string }[] {
-  if ('external' in line.target) return [];
-  const t = line.target;
-  const out = s.warehouses
-    .filter((w) =>
-      'itemId' in t
-        ? s.stock.some((st) => st.itemId === t.itemId && st.warehouseId === w.id && st.qty > 0)
-        : s.cases.some(
-            (c) => c.caseTypeId === t.caseTypeId && c.warehouseId === w.id && !c.archived,
-          ),
-    )
-    .map((w) => ({ value: `w:${w.id}`, label: w.name }));
-  if ('itemId' in t && line.origin !== 'auto') {
-    const start = firstBookedFrom(b);
-    for (const o of s.bookings) {
-      if (
-        o.id === b.id ||
-        o.type !== 'order' ||
-        !['confirmed', 'packing', 'shipped'].includes(o.status)
-      )
-        continue;
-      const end = lastBookedUntil(o);
-      if (end >= start || addDays(end, 14) < start) continue;
-      if (!o.lines.some((l) => 'itemId' in l.target && l.target.itemId === t.itemId)) continue;
-      out.push({ value: `b:${o.id}`, label: cs.editor.sourceFromBooking(o.eventName) });
-    }
-  }
-  if (line.fromBookingId && !out.some((o) => o.value === `b:${line.fromBookingId}`)) {
-    const o = s.bookings.find((x) => x.id === line.fromBookingId);
-    out.push({
-      value: `b:${line.fromBookingId}`,
-      label: cs.editor.sourceFromBooking(o?.eventName ?? ''),
-    });
-  }
-  return out;
-}
 
 // ---------------------------------------------------------------------------
 

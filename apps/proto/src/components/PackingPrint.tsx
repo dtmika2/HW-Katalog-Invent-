@@ -11,6 +11,7 @@ import {
   eventSpan,
   itemName,
   locationPath,
+  packByGroup,
   warehouseName,
 } from '../lib/names';
 import { Bar, Box, Paper, PaperHead, Signatures, usePrintTitle } from './print';
@@ -25,7 +26,7 @@ function Row({ children, qty, done }: { children: ReactNode; qty: string; done?:
   );
 }
 
-function Hints({ l }: { l: PackLine }) {
+function Hints({ s, l, byGroup }: { s: AppState; l: PackLine; byGroup: boolean }) {
   return (
     <span className="block text-[9pt] text-neutral-600">
       {[
@@ -33,6 +34,9 @@ function Hints({ l }: { l: PackLine }) {
           cs.editor.forHint(l.forHint.map((h) => `${h.name} ×${h.qty}`).join(', ')),
         l.consumable && cs.packing.consumable,
         l.shipped > 0 && cs.packing.print.alreadyOut(l.shipped, l.qty),
+        byGroup
+          ? l.locationId && cs.packing.shelf(locationPath(s, l.locationId))
+          : l.group && cs.packing.group(l.group.name),
       ]
         .filter(Boolean)
         .join(' · ')}
@@ -41,7 +45,17 @@ function Hints({ l }: { l: PackLine }) {
 }
 
 /** One block per physical case, so its contents can be ticked box by box. */
-function CaseRows({ s, l, ids }: { s: AppState; l: PackLine; ids: string[] }) {
+function CaseRows({
+  s,
+  l,
+  ids,
+  byGroup,
+}: {
+  s: AppState;
+  l: PackLine;
+  ids: string[];
+  byGroup: boolean;
+}) {
   return (
     <>
       {Array.from({ length: l.qty }, (_, i) => (
@@ -58,7 +72,7 @@ function CaseRows({ s, l, ids }: { s: AppState; l: PackLine; ids: string[] }) {
               </li>
             ))}
           </ul>
-          {i === 0 && <Hints l={l} />}
+          {i === 0 && <Hints s={s} l={l} byGroup={byGroup} />}
         </Row>
       ))}
     </>
@@ -70,12 +84,15 @@ export function PackingPrint({
   b,
   list,
   pickedCases,
+  byGroup,
 }: {
   s: AppState;
   b: Booking;
   list: PackingList;
   /** Case numbers chosen on the screen, not shipped yet. */
   pickedCases: Record<string, string[]>;
+  /** By the PM's groups instead of by shelf. */
+  byGroup: boolean;
 }) {
   usePrintTitle(cs.packing.print.fileName(b.eventName));
   const event = eventSpan(b);
@@ -88,11 +105,11 @@ export function PackingPrint({
   ];
   const row = (l: PackLine) =>
     l.kind === 'case' ? (
-      <CaseRows key={l.lineId} s={s} l={l} ids={caseIds(l)} />
+      <CaseRows key={l.lineId} s={s} l={l} ids={caseIds(l)} byGroup={byGroup} />
     ) : (
       <Row key={l.lineId} qty={`${l.qty}×`} done={l.remaining === 0}>
         <span className="font-semibold">{l.name}</span>
-        <Hints l={l} />
+        <Hints s={s} l={l} byGroup={byGroup} />
       </Row>
     );
   const head = (title: string) => (
@@ -117,12 +134,23 @@ export function PackingPrint({
       {list.byWarehouse.map((w, i) => (
         <section key={w.warehouseId} className={i > 0 ? 'break-before-page' : ''}>
           {head(cs.packing.warehouse(warehouseName(s, w.warehouseId)))}
-          {w.groups.map((g) => (
-            <div key={g.locationId ?? 'none'} className="mb-2">
-              <Bar>{g.locationId ? locationPath(s, g.locationId) : cs.packing.noLocation}</Bar>
-              <ul>{g.lines.map(row)}</ul>
-            </div>
-          ))}
+          {byGroup &&
+            packByGroup(
+              b,
+              w.groups.flatMap((g) => g.lines),
+            ).map((g) => (
+              <div key={g.id || 'none'} className="mb-2">
+                <Bar>{g.name ?? cs.lines.noGroup}</Bar>
+                <ul>{g.lines.map(row)}</ul>
+              </div>
+            ))}
+          {!byGroup &&
+            w.groups.map((g) => (
+              <div key={g.locationId ?? 'none'} className="mb-2">
+                <Bar>{g.locationId ? locationPath(s, g.locationId) : cs.packing.noLocation}</Bar>
+                <ul>{g.lines.map(row)}</ul>
+              </div>
+            ))}
           {sign}
         </section>
       ))}
