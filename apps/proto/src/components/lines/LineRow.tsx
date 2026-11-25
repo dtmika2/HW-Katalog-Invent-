@@ -202,9 +202,9 @@ export function LineRow({
       {line.late && (
         <p className="mt-0.5 text-xs text-muted">
           {cs.late.by(userName(s, line.late.by), fmtDate(line.late.on))}
-          {line.late.note && `. ${line.late.note}`}
-          {line.late.reason && `. ${cs.common.reason}: ${line.late.reason}`}
-          {!line.late.charged && `. ${cs.late.notCharged}`}
+          {line.late.note && ` · ${line.late.note}`}
+          {line.late.reason && ` · ${cs.common.reason}: ${line.late.reason}`}
+          {!line.late.charged && ` · ${cs.late.notCharged}`}
         </p>
       )}
       {groups.map((g) => (

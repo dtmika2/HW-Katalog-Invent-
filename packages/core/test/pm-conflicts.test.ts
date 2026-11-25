@@ -214,6 +214,22 @@ describe('on an approved order', () => {
     expect(fix(s, ext(1), U.petr, 'nope')).toMatchObject({ error: { code: 'invalid_state' } });
   });
 
+  it('never more than the line asks for, however overbooked the item is', () => {
+    const s = recomputeConflictRecords(
+      withBookings(
+        baseState(),
+        order({ id: 'o', lines: [ln('l1', item('ledbeam'), 10)] }, 1),
+        order({ id: 'o2', lines: [ln('l1', item('ledbeam'), 10)] }, 2),
+        order({ id: 'me', pmId: U.petr.id, lines: [ln('l1', item('ledbeam'), 3)] }, 3),
+      ),
+      T,
+    );
+    expect(solvableShortages(s, U.petr, get(s))[0]!.short).toBe(11);
+    expect(fix(s, ext(4))).toMatchObject({ error: { details: { field: 'qty', short: 3 } } });
+    const r = unwrap(fix(s, ext(3)));
+    expect(get(r).lines).toMatchObject([{ qty: 3, target: { external: {} } }]);
+  });
+
   it('the rest of the approved order stays locked for its PM', () => {
     const s = short();
     expect(saveBooking(s, U.petr, T, get(s))).toMatchObject({ error: { code: 'forbidden' } });

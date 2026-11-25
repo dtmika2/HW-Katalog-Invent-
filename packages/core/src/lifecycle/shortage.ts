@@ -8,7 +8,7 @@ import { detectConflicts, recomputeConflictRecords, type LineConflict } from '..
 import { chiefIds, notify, postEvent, warehouseIds } from '../notifications';
 import { statusAfter } from '../packing';
 import type { AppState, Booking, BookingLine, BookingStatus, Id, User } from '../types';
-import { err, isExternal, isItemTarget, ok, produce, type Result } from '../util';
+import { effectiveQty, err, isExternal, isItemTarget, ok, produce, type Result } from '../util';
 import { coverWithExternal, splitLine } from './edit';
 import { can } from './permissions';
 
@@ -28,6 +28,14 @@ export function solvableShortages(state: AppState, user: User, b: Booking): Line
         (s) => s.bookingId === b.id && s.lines.some((l) => l.lineId === c.lineId),
       ),
   );
+}
+
+/**
+ * Pieces to get elsewhere: what is missing, but never more than the line asks for (other bookings
+ * may have overbooked the item even without it).
+ */
+export function missingOf(c: Pick<LineConflict, 'short'>, line: BookingLine): number {
+  return Math.min(c.short, effectiveQty(line));
 }
 
 /** Pieces of a line the other warehouse can give for all its days. */
@@ -59,8 +67,9 @@ export function resolveShortage(
   const line = b.lines.find((l) => l.id === lineId);
   if (!c || !line || isExternal(line.target))
     return err('invalid_state', 'The line is not short, or part of it has left');
-  if (!Number.isInteger(fix.qty) || fix.qty <= 0 || fix.qty > c.short)
-    return err('validation', 'Only what is missing', { field: 'qty', short: c.short });
+  const missing = missingOf(c, line);
+  if (!Number.isInteger(fix.qty) || fix.qty <= 0 || fix.qty > missing)
+    return err('validation', 'Only what is missing', { field: 'qty', short: missing });
 
   let changed: Booking;
   let from: string;

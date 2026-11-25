@@ -37,6 +37,7 @@ import {
   isProposedOverride,
   lastBookedUntil,
   minFreeInWarehouse,
+  missingOf,
   openCancelRequests,
   openIssues,
   openPromises,
@@ -924,7 +925,8 @@ function ConflictPanel({
             : canSolve
               ? freeElsewhere(s, booking, line, otherW.id)
               : minFreeInWarehouse(s, booking, line.target as Target, otherW.id);
-          const fromOther = Math.min(freeOther, c.short);
+          const missing = missingOf(c, line);
+          const fromOther = Math.min(freeOther, missing);
           return (
             <li key={c.lineId} className="text-sm">
               <p className="font-semibold">
@@ -1015,7 +1017,7 @@ function ConflictPanel({
                 <ExternalForm
                   booking={booking}
                   line={line}
-                  short={c.short}
+                  short={missing}
                   onAdd={(qty, spec) => {
                     if (canSolve) solve(line.id, { kind: 'external', qty, ...spec });
                     else update(coverWithExternal(s, booking, line.id, qty, spec));
