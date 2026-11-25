@@ -6,6 +6,8 @@ import {
   can,
   chooseOr,
   closeBooking,
+  conflictDays,
+  conflictOverview,
   confirmBooking,
   coverWithExternal,
   createBooking,
@@ -345,6 +347,28 @@ describe('lifecycle — conflict records', () => {
       ok: false,
       error: { code: 'invalid_state' },
     });
+  });
+
+  it('overview: the short order and its partner are marked per day; a written resolution removes it', () => {
+    const s = confirmedWithConflict();
+    const list = conflictOverview(s, T);
+    expect(list.map((c) => [c.bookingId, c.level])).toContainEqual(['d1', 'order']);
+    const days = conflictDays(s, list);
+    const day = list[0]!.days[0]!;
+    expect(days.get('d1')?.get(day)?.role).toBe('short');
+    expect(days.get('o1')?.get(day)?.role).toBe('partner');
+    const closed = unwrap(resolveConflict(s, U.tomas, T, s.conflicts[0]!.id, 'Domluveno'));
+    expect(conflictOverview(closed, T)).toEqual([]);
+    expect(conflictOverview(s, '2099-01-01')).toEqual([]);
+  });
+
+  it('overview: a short pre-booking is a request and does not mark the order it collides with', () => {
+    const s = shortSetup();
+    const list = conflictOverview(s, T);
+    expect(list.map((c) => [c.bookingId, c.level])).toEqual([['d1', 'prebooking']]);
+    const days = conflictDays(s, list);
+    expect([...(days.get('d1')?.values() ?? [])][0]?.role).toBe('request');
+    expect(days.has('o1')).toBe(false);
   });
 
   it('a confirmed order that becomes short gets a detected conflict record', () => {

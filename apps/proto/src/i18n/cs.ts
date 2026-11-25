@@ -456,6 +456,21 @@ export const cs = {
     noBookings: 'V tomto měsíci nejsou žádné rezervace.',
     eventDays: 'dny akce',
     bufferDays: 'balení / vratka',
+    onlyConflicts: 'Jen s konfliktem',
+    conflict: {
+      short: 'potvrzené objednávce chybí technika',
+      partner: 'drží techniku, která chybí jiné objednávce',
+      request: 'předrezervaci by technika chyběla',
+    },
+    conflictMark: (event: string, day: string, what: string) => `${event}, ${day}: ${what}`,
+    conflictJump: (event: string) => `Zobrazit konflikt akce ${event}`,
+    conflictTitle: (event: string, day: string) => `Konflikt: ${event}, ${day}`,
+    conflictMissing: (n: number, item: string, warehouse: string) =>
+      `chybí ${n}× ${item} (sklad ${warehouse})`,
+    conflictDays: (range: string) => `Dny: ${range}`,
+    conflictHeldBy: 'Techniku drží:',
+    conflictOf: 'Komu:',
+    noConflicts: 'V tomto měsíci nejsou žádné konflikty.',
   },
   catalog: {
     title: 'Katalog',

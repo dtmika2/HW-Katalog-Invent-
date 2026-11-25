@@ -1,7 +1,7 @@
 /**
  * M4 acceptance: prototype 1B (availability calendar).
  */
-import { fireEvent, screen, within } from '@testing-library/react';
+import { cleanup, fireEvent, screen, within } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { setLineQty, unwrap, saveBooking } from '@quix/core';
 import { CHAIN } from '@quix/fixtures';
@@ -9,6 +9,57 @@ import { renderApp, state } from './helpers';
 
 const cell = (d: string) => screen.getByTestId(`day-${d}`);
 const freeText = (d: string) => within(cell(d)).getByText(/-?\d+ \/ \d+/).textContent;
+
+describe('conflicts in the event calendar', () => {
+  const open = (scenario: 'conflictChain' | 'base') => {
+    renderApp('/calendar', { scenario, user: 'u-tomas' });
+    for (let i = 0; i < 2; i += 1)
+      fireEvent.click(screen.getByRole('button', { name: 'Další měsíc' }));
+    expect(screen.getByTestId('month-title')).toHaveTextContent('červen 2027');
+  };
+  const marksOf = (id: string) =>
+    [...screen.getByTestId(`row-${id}`).querySelectorAll('[data-conflict]')].map((e) => [
+      e.getAttribute('data-conflict'),
+      e.getAttribute('aria-label')?.match(/, (\d+\. \d+)\./)?.[1],
+    ]);
+
+  it('marks the short order, its partner and the requesting pre-booking on the exact days', () => {
+    open('conflictChain');
+    expect(marksOf(CHAIN.b)).toEqual([
+      ['short', '9. 6'],
+      ['short', '10. 6'],
+    ]);
+    expect(marksOf(CHAIN.a)).toEqual([
+      ['partner', '9. 6'],
+      ['partner', '10. 6'],
+    ]);
+    expect(marksOf(CHAIN.c)).toEqual([['request', '10. 6']]);
+  });
+
+  it('a click explains what is missing and who holds it', () => {
+    open('conflictChain');
+    fireEvent.click(screen.getByRole('button', { name: /Módní přehlídka, 10\. 6\. 2027/ }));
+    const d = screen.getByTestId('conflict-detail');
+    expect(d).toHaveTextContent('chybí 2× Robe LEDBeam 150 (sklad Brod)');
+    expect(d).toHaveTextContent('Techniku drží: Koncert v parku Petr Dvořák, 7.–10. 6. 2027');
+    expect(d).toHaveTextContent('Dny: 9. 6., 10. 6.');
+    expect(within(d).getByRole('link', { name: 'Módní přehlídka' })).toBeInTheDocument();
+    fireEvent.click(within(d).getByRole('button', { name: 'Zavřít' }));
+    expect(screen.queryByTestId('conflict-detail')).toBeNull();
+  });
+
+  it('the filter leaves only bookings with a conflict; no conflicts show no marks', () => {
+    open('conflictChain');
+    const before = screen.getAllByTestId(/^row-/).length;
+    fireEvent.click(screen.getByLabelText('Jen s konfliktem'));
+    const left = screen.getAllByTestId(/^row-/);
+    expect(left.length).toBeLessThan(before);
+    for (const r of left) expect(r.querySelector('[data-conflict]')).not.toBeNull();
+    cleanup();
+    open('base');
+    expect(document.querySelectorAll('[data-conflict="short"]')).toHaveLength(0);
+  });
+});
 
 describe('M4 availability calendar', () => {
   it('conflictChain: LEDBeam calendar (Brod) shows the exact free counts', () => {

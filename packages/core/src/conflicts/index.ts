@@ -185,6 +185,80 @@ export function recomputeConflictRecords(state: AppState, today: IsoDate): AppSt
   }).state;
 }
 
+/** A live shortage of one line, for overviews over many bookings. */
+export interface OverviewConflict extends LineConflict {
+  bookingId: Id;
+  /** 'order': a confirmed order is short; 'prebooking': a request would be short. */
+  level: 'order' | 'prebooking';
+}
+
+const OVERVIEW_PRE = new Set(['draft', 'submitted']);
+
+/**
+ * All live conflicts of bookings that have not ended, computed the same way as on the booking
+ * page. Lines whose conflict a person closed with a written resolution are left out.
+ */
+export function conflictOverview(state: AppState, today: IsoDate): OverviewConflict[] {
+  const out: OverviewConflict[] = [];
+  for (const b of state.bookings) {
+    if (lastBookedUntil(b) < today) continue;
+    const level =
+      b.type === 'order' && DETECT_STATUSES.has(b.status)
+        ? 'order'
+        : b.type === 'prebooking' && OVERVIEW_PRE.has(b.status)
+          ? 'prebooking'
+          : undefined;
+    if (!level) continue;
+    for (const c of detectConflicts(state, b)) {
+      const records = state.conflicts.filter((r) => r.bookingId === b.id && r.lineId === c.lineId);
+      const closed =
+        records.some((r) => r.status === 'resolved' && r.resolvedBy) &&
+        records.every((r) => r.status === 'resolved');
+      if (!closed) out.push({ ...c, bookingId: b.id, level });
+    }
+  }
+  return out;
+}
+
+export interface ConflictDay {
+  /** 'short': this order misses gear; 'partner': its gear is what another order misses; 'request': a pre-booking would be short. */
+  role: 'short' | 'partner' | 'request';
+  conflicts: OverviewConflict[];
+}
+
+const ROLE_RANK = { request: 0, partner: 1, short: 2 };
+
+/** Booking id → day → what collides there (the strongest role wins). */
+export function conflictDays(
+  state: Pick<AppState, 'bookings'>,
+  overview: OverviewConflict[],
+): Map<Id, Map<IsoDate, ConflictDay>> {
+  const out = new Map<Id, Map<IsoDate, ConflictDay>>();
+  const mark = (id: Id, day: IsoDate, role: ConflictDay['role'], c: OverviewConflict) => {
+    const days = out.get(id) ?? new Map<IsoDate, ConflictDay>();
+    out.set(id, days);
+    const e = days.get(day);
+    if (!e) days.set(day, { role, conflicts: [c] });
+    else {
+      e.conflicts.push(c);
+      if (ROLE_RANK[role] > ROLE_RANK[e.role]) e.role = role;
+    }
+  };
+  for (const c of overview) {
+    for (const day of c.days) {
+      mark(c.bookingId, day, c.level === 'order' ? 'short' : 'request', c);
+      if (c.level !== 'order') continue;
+      for (const x of c.colliding) {
+        if (x.type !== 'order') continue;
+        const b = state.bookings.find((y) => y.id === x.id);
+        if (b?.periods.some((p) => day >= p.bookedFrom && day <= p.bookedUntil))
+          mark(x.id, day, 'partner', c);
+      }
+    }
+  }
+  return out;
+}
+
 /** Chief moves a record to "V řešení". */
 export function setConflictInProgress(state: AppState, user: User, id: Id): Result<AppState> {
   if (user.role !== 'chief' && user.role !== 'admin')
