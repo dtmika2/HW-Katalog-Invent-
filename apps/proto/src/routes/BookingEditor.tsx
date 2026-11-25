@@ -27,6 +27,7 @@ import {
   firstEventDay,
   lastBookedUntil,
   minFreeInWarehouse,
+  openCancelRequests,
   openIssues,
   openPromises,
   orderProgress,
@@ -51,7 +52,7 @@ import {
 } from '@quix/core';
 import { CategoryLabel } from '../components/Category';
 import { ClientPicker } from '../components/Clients';
-import { promisedRow } from '../components/Delivery';
+import { CancelRequests, promisedRow } from '../components/Delivery';
 import { BookingPrint } from '../components/BookingPrint';
 import { LoanNames } from '../components/Loans';
 import { PrintButton } from '../components/print';
@@ -174,6 +175,11 @@ function Editor({ stored }: { stored: Booking }) {
         {openIssues(s).some((i) => i.bookingId === stored.id) && (
           <Section title={cs.issues.onBooking}>
             <IssuesList bookingId={stored.id} />
+          </Section>
+        )}
+        {openCancelRequests(s, stored).length > 0 && (
+          <Section title={cs.packing.cancel.requests}>
+            <CancelRequests id={stored.id} />
           </Section>
         )}
         {promises.length > 0 && (

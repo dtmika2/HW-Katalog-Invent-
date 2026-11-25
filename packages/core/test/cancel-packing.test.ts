@@ -1,6 +1,11 @@
 /** Packing ahead of time, and cancelling packing or a delivery. */
 import { describe, expect, it } from 'vitest';
 import {
+  approveCancel,
+  declineCancel,
+  openCancelRequests,
+  requestCancel,
+  withdrawCancel,
   cancelPacking,
   cancelShipment,
   canCancelShipment,
@@ -441,5 +446,139 @@ describe('cancelling cannot replace the vratka', () => {
   it('a show on several weekends is locked from its first day', () => {
     const b = { periods: [P('2027-05-08', '2027-05-09'), P('2027-05-22', '2027-05-23')] };
     expect([cancelLocked(b, '2027-05-07'), cancelLocked(b, '2027-05-15')]).toEqual([false, true]);
+  });
+});
+
+describe('the warehouse asks the Chief to cancel', () => {
+  const START = '2027-04-23';
+  const gone = () => {
+    let s = withBookings(
+      baseState(),
+      order({
+        id: 'o1',
+        status: 'packing',
+        lines: [ln('l1', item('ledbeam'), 4), ln('l3', item('hazer'), 1)],
+      }),
+    );
+    s = unwrap(
+      packLines(s, U.martin, T, 'o1', [
+        { lineId: 'l1', qty: 4 },
+        { lineId: 'l3', qty: 1 },
+      ]),
+    );
+    return unwrap(
+      shipBatch(s, U.martin, T, 'o1', { label: 'Dodávka 1', lines: [{ lineId: 'l1', qty: 4 }] }),
+    );
+  };
+  const idOf = (s: AppState) => s.shipments[0]!.id;
+  const ask = (
+    s: AppState,
+    extra: Partial<Parameters<typeof requestCancel>[4]> = {},
+    user = U.martin as Parameters<typeof requestCancel>[1],
+    today = START,
+  ) =>
+    requestCancel(s, user, today, 'o1', {
+      shipmentId: idOf(s),
+      confirmed: ['l1'],
+      reason: 'Akce odpadla',
+      ...extra,
+    });
+  const asked = () => unwrap(ask(gone()));
+  const req = (s: AppState) => openCancelRequests(s, get(s))[0]!;
+
+  it('confirms what is back and gives a reason; Chief is notified, conversation records it', () => {
+    const s = gone();
+    expect(ask(s, { reason: ' ' })).toMatchObject({ error: { details: { field: 'reason' } } });
+    expect(ask(s, { confirmed: [] })).toMatchObject({ error: { details: { missing: ['l1'] } } });
+    expect(ask(s, {}, U.petr)).toMatchObject({ error: { code: 'forbidden' } });
+    expect(ask(s, { shipmentId: 'nope' })).toMatchObject({ error: { code: 'not_found' } });
+    // before the start, or by the Chief, it is cancelled directly
+    expect(ask(s, {}, U.martin, '2027-04-22')).toMatchObject({ error: { code: 'invalid_state' } });
+    expect(ask(s, {}, U.tomas)).toMatchObject({ error: { code: 'invalid_state' } });
+    const a = asked();
+    expect(get(a).status).toBe(get(s).status);
+    expect(a.shipments).toEqual(s.shipments);
+    expect(req(a)).toMatchObject({ by: U.martin.id, on: START, reason: 'Akce odpadla' });
+    expect(events(a).at(-1)).toBe('cancel_requested');
+    expect(
+      a.notifications.filter((n) => n.type === 'cancel_requested').map((n) => n.userId),
+    ).toEqual([U.tomas.id]);
+    expect(ask(a)).toMatchObject({ error: { code: 'invalid_state' } });
+  });
+
+  it('approved: cancelled with the warehouse confirmation, the requester is told', () => {
+    const a = asked();
+    expect(approveCancel(a, U.karel, START, 'o1', req(a).id)).toMatchObject({
+      error: { code: 'forbidden' },
+    });
+    const s = unwrap(approveCancel(a, U.tomas, START, 'o1', req(a).id));
+    expect(s.shipments).toEqual([]);
+    expect(openCancelRequests(s, get(s))).toEqual([]);
+    expect(s.messages.at(-1)!.event).toMatchObject({
+      type: 'shipping_cancelled',
+      params: { reason: 'Akce odpadla' },
+    });
+    expect(s.notifications.at(-1)).toMatchObject({
+      type: 'cancel_decided',
+      userId: U.martin.id,
+      params: { approved: 1 },
+    });
+  });
+
+  it('packing can be asked for too; what was packed since then must be confirmed first', () => {
+    const s = unwrap(ask(gone(), { shipmentId: undefined as never, confirmed: ['l3'] }));
+    const r = req(s);
+    expect(r).not.toHaveProperty('shipmentId');
+    const more = unwrap(
+      cancelShipment(s, U.tomas, START, idOf(s), { confirmed: ['l1'], reason: 'x' }),
+    );
+    expect(approveCancel(more, U.tomas, START, 'o1', r.id)).toMatchObject({
+      error: { details: { field: 'confirmed', missing: ['l1'] } },
+    });
+    const done = unwrap(approveCancel(s, U.tomas, START, 'o1', r.id));
+    expect(packingBackItems(done, get(done))).toEqual([]);
+  });
+
+  it('declined with a reason, or taken back by who asked', () => {
+    const a = asked();
+    expect(declineCancel(a, U.tomas, START, 'o1', req(a).id, '')).toMatchObject({
+      error: { code: 'validation' },
+    });
+    const no = unwrap(declineCancel(a, U.tomas, START, 'o1', req(a).id, 'Zapište vratku'));
+    expect(openCancelRequests(no, get(no))).toEqual([]);
+    expect(no.shipments).toHaveLength(1);
+    expect(events(no).at(-1)).toBe('cancel_declined');
+    expect(no.notifications.at(-1)).toMatchObject({
+      userId: U.martin.id,
+      params: { approved: 0, reason: 'Zapište vratku' },
+    });
+    expect(ask(no).ok).toBe(true);
+    expect(withdrawCancel(a, U.karel, START, 'o1', req(a).id)).toMatchObject({
+      error: { code: 'forbidden' },
+    });
+    const back = unwrap(withdrawCancel(a, U.martin, START, 'o1', req(a).id));
+    expect(openCancelRequests(back, get(back))).toEqual([]);
+    expect(events(back).at(-1)).toBe('cancel_withdrawn');
+  });
+
+  it('a vratka makes the request pointless', () => {
+    const a = asked();
+    const s = unwrap(
+      recordReturnSession(a, U.martin, START, 'o1', {
+        lines: [
+          {
+            lineId: 'l1',
+            returnedQty: 4,
+            condition: 'ok',
+            confirmed: true,
+            locationId: 'loc-b-a1',
+          },
+        ],
+      }),
+    );
+    expect(openCancelRequests(s, get(s))).toEqual([]);
+    expect(approveCancel(s, U.tomas, START, 'o1', 'cnr-1')).toMatchObject({
+      error: { code: 'not_found' },
+    });
   });
 });

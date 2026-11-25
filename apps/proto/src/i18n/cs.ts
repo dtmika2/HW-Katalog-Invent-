@@ -399,6 +399,12 @@ export const cs = {
       `Balení zrušeno (${p.count ?? 0} ks)${p.reason ? `. Důvod: ${p.reason}` : ''}`,
     shipping_cancelled: (p: Params) =>
       `Odvoz zrušen: ${p.label ?? ''} (${p.count ?? 0} ks)${p.reason ? `. Důvod: ${p.reason}` : ''}`,
+    cancel_requested: (p: Params) =>
+      `Žádost o zrušení ${p.label ? `odvozu ${p.label}` : 'balení'}. Důvod: ${p.reason ?? ''}`,
+    cancel_declined: (p: Params) =>
+      `Žádost o zrušení ${p.label ? `odvozu ${p.label}` : 'balení'} zamítnuta. Důvod: ${p.reason ?? ''}`,
+    cancel_withdrawn: (p: Params) =>
+      `Žádost o zrušení ${p.label ? `odvozu ${p.label}` : 'balení'} vzata zpět`,
     shipped_without: (p: Params) =>
       `Odvezeno bez přislíbeného: ${p.what ?? ''}${p.note ? `. Poznámka: ${p.note}` : ''}`,
     promised_arrived: (p: Params) => `Dorazilo dodatečně: ${p.what ?? ''}`,
@@ -460,6 +466,12 @@ export const cs = {
         `${p.event}: zabaleno, připraveno k odvozu${p.promised ? ` (při odvozu přijede: ${p.promised})` : ''}`,
       shipping_cancelled: (p: Params) =>
         `${p.event}: odvoz zrušen (${p.label}, ${p.count} ks)${p.reason ? `, důvod: ${p.reason}` : ''}`,
+      cancel_requested: (p: Params) =>
+        `${p.event}: ${p.who} žádá o zrušení ${p.label ? `odvozu ${p.label}` : 'balení'}, důvod: ${p.reason}`,
+      cancel_decided: (p: Params) =>
+        p.approved
+          ? `${p.event}: zrušení ${p.label ? `odvozu ${p.label}` : 'balení'} schváleno`
+          : `${p.event}: zrušení ${p.label ? `odvozu ${p.label}` : 'balení'} zamítnuto, důvod: ${p.reason}`,
       promised_missing: (p: Params) =>
         p.closed
           ? `${p.event}: nedorazí ${p.what}, důvod: ${p.reason}`
@@ -918,6 +930,29 @@ export const cs = {
       missing: (n: number) => `Zbývá potvrdit ${n}.`,
       notBack: 'Něco chybí? Zrušení nepoužívejte, zapište vratku.',
       locked: 'Akce už začala. Zrušit může jen šéf techniky, technika se vrací přes vratku.',
+      askChief: 'Požádat šéfa o zrušení',
+      askPacking: 'Požádat šéfa o zrušení balení',
+      askLabel: (label: string) => `Požádat šéfa o zrušení odvozu: ${label}`,
+      askText: (label: string) =>
+        label
+          ? `Žádost o zrušení odvozu ${label}. Rozhodne šéf techniky.`
+          : 'Žádost o zrušení balení. Rozhodne šéf techniky.',
+      askYes: 'Odeslat žádost',
+      askDone: 'Žádost odeslána šéfovi techniky.',
+      requests: 'Žádosti o zrušení',
+      request: (label: string) => (label ? `Zrušit odvoz: ${label}` : 'Zrušit balení'),
+      requestBy: (who: string, on: string, reason: string) => `${who}, ${on}. Důvod: ${reason}`,
+      requestBack: (list: string) => `Sklad potvrdil, že je zpátky: ${list}`,
+      approve: 'Schválit zrušení',
+      approved: 'Zrušeno.',
+      decline: 'Zamítnout',
+      declineReason: 'Proč zamítáte (povinné)',
+      declineHint: 'Např. zapište vratku',
+      declineYes: 'Zamítnout žádost',
+      declined: 'Žádost zamítnuta.',
+      withdraw: 'Vzít žádost zpět',
+      withdrawn: 'Žádost vzata zpět.',
+      waiting: 'Čeká na šéfa techniky.',
       lockedChief: 'Akce už začala, proto je důvod povinný.',
       reasonRequired: 'Důvod (povinné)',
     },

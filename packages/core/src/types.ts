@@ -225,6 +225,18 @@ export interface BookingLine {
   followsCheck?: { fromItemId: Id; byHand?: boolean };
 }
 
+/** The warehouse asks the Chief to cancel after the event has begun. */
+export interface CancelRequest {
+  id: Id;
+  /** The delivery to cancel; without it, the packing. */
+  shipmentId?: Id;
+  by: Id;
+  on: IsoDate;
+  reason: string;
+  /** What the warehouse confirmed as back (see `BackItem`). */
+  confirmed: Id[];
+}
+
 export interface Booking {
   id: Id;
   type: BookingType;
@@ -256,6 +268,7 @@ export interface Booking {
   editedAfterShipping?: boolean;
   /** Why it is packed early although a confirmed order needs the gear in the meantime. */
   earlyPacking?: { by: Id; on: IsoDate; reason: string };
+  cancelRequests?: CancelRequest[];
   closedOn?: IsoDate;
 }
 
@@ -504,7 +517,9 @@ export type NotificationType =
   | 'loan_overdue'
   | 'order_packed'
   | 'promised_missing'
-  | 'shipping_cancelled';
+  | 'shipping_cancelled'
+  | 'cancel_requested'
+  | 'cancel_decided';
 
 export type Params = Record<string, string | number>;
 
@@ -534,6 +549,9 @@ export type SystemEventType =
   | 'batch_shipped'
   | 'packing_cancelled'
   | 'shipping_cancelled'
+  | 'cancel_requested'
+  | 'cancel_declined'
+  | 'cancel_withdrawn'
   | 'shipped_without'
   | 'promised_arrived'
   | 'promised_closed'

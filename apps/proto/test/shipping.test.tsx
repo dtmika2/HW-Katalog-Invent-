@@ -371,6 +371,69 @@ describe('cancelling', () => {
     expect(shipments('bk-tiskovka')).toEqual([]);
   });
 
+  /** Delivery shipped, the event has begun, Martin asks the Chief to cancel it. */
+  const askChief = () => {
+    renderApp('/shipping/bk-tiskovka', { scenario: 'base', user: 'u-martin' });
+    click(/^Odvézt \(\d+ ks\)/);
+    click(/^Potvrdit odvoz/);
+    fireEvent.change(screen.getByLabelText('Simulované dnes'), { target: { value: '22.04.2027' } });
+    click('Požádat šéfa o zrušení odvozu: Dodávka 1');
+    const ask = within(screen.getByRole('alertdialog'));
+    const send = () => ask.getByRole('button', { name: 'Odeslat žádost' });
+    for (const x of ask.getAllByRole('checkbox')) {
+      expect(send()).toBeDisabled();
+      fireEvent.click(x);
+    }
+    expect(send()).toBeDisabled();
+    fireEvent.change(ask.getByLabelText('Důvod (povinné)'), { target: { value: 'Akce odpadla' } });
+    fireEvent.click(send());
+  };
+
+  it('the warehouse asks the Chief, who approves on the dashboard', () => {
+    askChief();
+    expect(shipments('bk-tiskovka')).toHaveLength(1);
+    expect(screen.getByTestId('cancel-requests')).toHaveTextContent('Čeká na šéfa techniky.');
+    // asked once
+    expect(screen.queryByRole('button', { name: /^Požádat šéfa o zrušení odvozu/ })).toBeNull();
+    page('u-tomas', '/notifications');
+    expect(screen.getByTestId('notifications')).toHaveTextContent(
+      'Tiskovka Město Brod: Martin Svoboda žádá o zrušení odvozu Dodávka 1, důvod: Akce odpadla',
+    );
+    page('u-tomas', '/');
+    const box = screen.getByTestId('cancel-requests');
+    expect(box).toHaveTextContent('Sklad potvrdil, že je zpátky: ');
+    expect(box).toHaveTextContent('4× Vysílačka Motorola');
+    fireEvent.click(within(box).getByRole('button', { name: 'Schválit zrušení' }));
+    expect(shipments('bk-tiskovka')).toEqual([]);
+    expect(screen.queryByTestId('cancel-requests')).toBeNull();
+    page('u-martin', '/notifications');
+    expect(screen.getByTestId('notifications')).toHaveTextContent(
+      'Tiskovka Město Brod: zrušení odvozu Dodávka 1 schváleno',
+    );
+  });
+
+  it('the Chief declines with a reason; who asked can take it back', () => {
+    askChief();
+    page('u-tomas', '/bookings/bk-tiskovka');
+    click('Zamítnout');
+    expect(screen.getByRole('button', { name: 'Zamítnout žádost' })).toBeDisabled();
+    fireEvent.change(screen.getByLabelText('Proč zamítáte (povinné)'), {
+      target: { value: 'Zapište vratku' },
+    });
+    click('Zamítnout žádost');
+    expect(shipments('bk-tiskovka')).toHaveLength(1);
+    expect(
+      screen.getByText(/Žádost o zrušení odvozu Dodávka 1 zamítnuta\. Důvod: Zapište vratku/),
+    ).toBeInTheDocument();
+    cleanup();
+    askChief();
+    click('Vzít žádost zpět');
+    expect(screen.queryByTestId('cancel-requests')).toBeNull();
+    expect(
+      screen.getByRole('button', { name: 'Požádat šéfa o zrušení odvozu: Dodávka 1' }),
+    ).toBeInTheDocument();
+  });
+
   it('a PM cannot cancel; nobody can once a vratka was recorded', () => {
     renderApp('/packing/bk-tiskovka', { scenario: 'base', user: 'u-petr' });
     expect(screen.queryByRole('button', { name: 'Zrušit balení' })).toBeNull();

@@ -930,7 +930,9 @@ export function cancelPacking(
       // a lowered order may have left more records than it needs
       d.packings = d.packings.filter((p) => p.bookingId !== bookingId);
       delete booking.earlyPacking;
-    }
+      delete booking.cancelRequests;
+    } else if (booking.cancelRequests)
+      booking.cancelRequests = booking.cancelRequests.filter((r) => r.shipmentId);
     booking.status = gone ? statusAfter(d, booking) : 'confirmed';
     const why = reason.trim();
     postEvent(d, bookingId, user.id, today, 'packing_cancelled', {

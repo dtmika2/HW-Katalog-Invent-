@@ -30,6 +30,7 @@ import {
   BackToBooking,
   Batches,
   CancelPacking,
+  CancelRequests,
   DeliveryTabs,
   PromiseReasons,
   ShipConfirm,
@@ -248,6 +249,7 @@ export function Shipping() {
         </p>
         <DeliveryTabs id={id} ready={progress.ready} />
       </div>
+      <CancelRequests id={id} />
       {progress.toPack > 0 && (
         <p className="rounded border border-warn/40 bg-warn-light p-3 text-sm">
           {cs.shipping.notPacked(progress.toPack)}{' '}

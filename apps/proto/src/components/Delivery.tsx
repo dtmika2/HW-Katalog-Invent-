@@ -2,18 +2,26 @@
 import { useState } from 'react';
 import { Link, NavLink } from 'react-router-dom';
 import {
+  approveCancel,
   can,
   cancelLocked,
   cancelPacking,
   cancelShipment,
   canCancelShipment,
+  declineCancel,
+  openCancelRequests,
   orderProgress,
   packedInHouse,
   packingBackItems,
+  requestCancel,
+  requestLabel,
   shipmentBackItems,
+  withdrawCancel,
   type AppState,
   type BackItem,
+  type Booking,
   type CancelInput,
+  type CancelRequest,
   type PackLine,
   type PromisedLine,
 } from '@quix/core';
@@ -235,6 +243,163 @@ function CancelConfirm({
   );
 }
 
+/** Requests of the warehouse to cancel: the Chief decides, who asked can take it back. */
+export function CancelRequests({ id }: { id: string }) {
+  const s = useAppState();
+  const b = s.bookings.find((x) => x.id === id);
+  const open = b ? openCancelRequests(s, b) : [];
+  if (!b || open.length === 0) return null;
+  return (
+    <ul data-testid="cancel-requests" className="space-y-2">
+      {open.map((r) => (
+        <RequestRow key={r.id} b={b} r={r} />
+      ))}
+    </ul>
+  );
+}
+
+function RequestRow({ b, r }: { b: Booking; r: CancelRequest }) {
+  const s = useAppState();
+  const user = useUser();
+  const today = useToday();
+  const run = useProto((p) => p.run);
+  const [reason, setReason] = useState<string | undefined>();
+  const items = r.shipmentId ? shipmentBackItems(s, r.shipmentId) : packingBackItems(s, b);
+  const back = items.filter((i) => r.confirmed.includes(i.key));
+  return (
+    <li className="space-y-1 rounded border border-warn/40 bg-warn-light p-3 text-sm">
+      <p className="font-semibold">{cs.packing.cancel.request(requestLabel(s, r))}</p>
+      <p>{cs.packing.cancel.requestBy(userName(s, r.by), fmtDate(r.on), r.reason)}</p>
+      {back.length > 0 && (
+        <p className="text-xs text-muted">
+          {cs.packing.cancel.requestBack(
+            back
+              .map((i) => (i.caseId ? caseNumber(s, i.caseId) : `${i.qty}× ${i.name}`))
+              .join(', '),
+          )}
+        </p>
+      )}
+      {can(user, 'cancel_after_start') ? (
+        reason === undefined ? (
+          <div className="flex flex-wrap gap-2 pt-1">
+            <button
+              type="button"
+              className="btn btn-sm btn-danger"
+              onClick={() =>
+                run((st) => approveCancel(st, user, today, b.id, r.id), cs.packing.cancel.approved)
+              }
+            >
+              {cs.packing.cancel.approve}
+            </button>
+            <button type="button" className="btn btn-sm" onClick={() => setReason('')}>
+              {cs.packing.cancel.decline}
+            </button>
+          </div>
+        ) : (
+          <form
+            className="flex flex-wrap items-end gap-2 pt-1"
+            onSubmit={(e) => {
+              e.preventDefault();
+              run(
+                (st) => declineCancel(st, user, today, b.id, r.id, reason),
+                cs.packing.cancel.declined,
+              );
+            }}
+          >
+            <label className="min-w-52 flex-1">
+              <span className="label">{cs.packing.cancel.declineReason}</span>
+              <input
+                className="input"
+                autoFocus
+                placeholder={cs.packing.cancel.declineHint}
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+              />
+            </label>
+            <button type="submit" className="btn" disabled={!reason.trim()}>
+              {cs.packing.cancel.declineYes}
+            </button>
+            <button type="button" className="btn" onClick={() => setReason(undefined)}>
+              {cs.common.cancel}
+            </button>
+          </form>
+        )
+      ) : (
+        <p className="flex flex-wrap items-center gap-3 text-xs">
+          {cs.packing.cancel.waiting}
+          {r.by === user.id && (
+            <button
+              type="button"
+              className="underline"
+              onClick={() =>
+                run(
+                  (st) => withdrawCancel(st, user, today, b.id, r.id),
+                  cs.packing.cancel.withdrawn,
+                )
+              }
+            >
+              {cs.packing.cancel.withdraw}
+            </button>
+          )}
+        </p>
+      )}
+    </li>
+  );
+}
+
+/** Button and form of the warehouse asking the Chief to cancel. */
+function AskChief({
+  b,
+  shipmentId,
+  label = '',
+  items,
+}: {
+  b: Booking;
+  shipmentId?: string;
+  label?: string;
+  items: BackItem[];
+}) {
+  const s = useAppState();
+  const user = useUser();
+  const today = useToday();
+  const run = useProto((p) => p.run);
+  const [asking, setAsking] = useState(false);
+  if (openCancelRequests(s, b).some((r) => r.shipmentId === shipmentId)) return null;
+  if (!asking)
+    return (
+      <button
+        type="button"
+        className={shipmentId ? 'text-xs underline' : 'btn'}
+        aria-label={shipmentId ? cs.packing.cancel.askLabel(label) : cs.packing.cancel.askPacking}
+        onClick={() => setAsking(true)}
+      >
+        {shipmentId ? cs.packing.cancel.askChief : cs.packing.cancel.askPacking}
+      </button>
+    );
+  return (
+    <CancelConfirm
+      text={cs.packing.cancel.askText(label)}
+      yes={cs.packing.cancel.askYes}
+      items={items}
+      started
+      bookingId={b.id}
+      onYes={(input) => {
+        const err = run(
+          (st) =>
+            requestCancel(st, user, today, b.id, {
+              ...(shipmentId ? { shipmentId } : {}),
+              confirmed: input.confirmed,
+              reason: input.reason ?? '',
+            }),
+          cs.packing.cancel.askDone,
+        );
+        if (!err) setAsking(false);
+      }}
+      onNo={() => setAsking(false)}
+    />
+  );
+}
+
 /** "Zrušit balení": everything still here is unpacked. */
 export function CancelPacking({ id }: { id: string }) {
   const s = useAppState();
@@ -253,7 +418,12 @@ export function CancelPacking({ id }: { id: string }) {
   if (gone && here === 0 && orderProgress(s, b).promised === 0) return null;
   const started = cancelLocked(b, today);
   if (started && !can(user, 'cancel_after_start'))
-    return <p className="text-sm text-muted">{cs.packing.cancel.locked}</p>;
+    return (
+      <div className="space-y-2">
+        <p className="text-sm text-muted">{cs.packing.cancel.locked}</p>
+        <AskChief b={b} items={packingBackItems(s, b)} />
+      </div>
+    );
   if (!asking)
     return (
       <button type="button" className="btn btn-danger" onClick={() => setAsking(true)}>
@@ -315,6 +485,14 @@ export function Batches({ s, id }: { s: AppState; id: string }) {
                   </button>
                 )}
               </span>
+              {!may && can(user, 'cancel_delivery') && canCancelShipment(s, sh.id) && (
+                <AskChief
+                  b={b}
+                  shipmentId={sh.id}
+                  label={sh.label}
+                  items={shipmentBackItems(s, sh.id)}
+                />
+              )}
               {asking === sh.id && (
                 <CancelConfirm
                   text={cs.packing.cancel.shipAsk(sh.label, count)}

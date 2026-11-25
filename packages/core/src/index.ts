@@ -15,6 +15,7 @@
  * - `lifecycle` — booking state machine, permissions, pure booking edits for the editor.
  * - `packing` — packed but still in the warehouse, promised gear, case checks.
  * - `shipping` — packing list, batches, lines added after shipping.
+ * - `cancel` — asking the Chief to cancel packing or a delivery.
  * - `returns` — vratka sheet and sessions: outcomes, transfers, cases, unexpected items.
  * - `cases` — refill ("Doplnit case") tasks.
  * - `service` — service cases and their status flow.
@@ -39,6 +40,7 @@ export * from './lifecycle';
 export * from './clients';
 export * from './packing';
 export * from './shipping';
+export * from './cancel';
 export * from './returns';
 export * from './cases';
 export * from './service';

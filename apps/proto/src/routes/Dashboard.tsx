@@ -3,6 +3,7 @@ import {
   can,
   isServiceOverdue,
   loansOn,
+  openCancelRequests,
   openIssues,
   openLoans,
   resolveConflict,
@@ -13,6 +14,7 @@ import {
   type ConflictRecord,
   type User,
 } from '@quix/core';
+import { CancelRequests } from '../components/Delivery';
 import { byReturn, LoanList, LoanNames } from '../components/Loans';
 import { Empty, Section, StatusChip } from '../components/ui';
 import { cs, fmtDate, fmtRange } from '../i18n/cs';
@@ -112,6 +114,7 @@ function ConflictRecords({ s, user, today }: { s: AppState; user: User; today: s
 
 function ChiefDashboard({ s, user, today }: { s: AppState; user: User; today: string }) {
   const queue = s.bookings.filter((b) => b.type === 'prebooking' && b.status === 'submitted');
+  const requests = s.bookings.filter((b) => openCancelRequests(s, b).length > 0);
   const overdue = s.serviceCases.filter((sc) => isServiceOverdue(sc, today));
   const externalOpen = s.bookings.flatMap((b) =>
     ['shipped', 'returning', 'returned_with_issues'].includes(b.status)
@@ -133,6 +136,20 @@ function ChiefDashboard({ s, user, today }: { s: AppState; user: User; today: st
           </ul>
         )}
       </Section>
+      {requests.length > 0 && (
+        <Section title={`${cs.packing.cancel.requests} (${requests.length})`}>
+          <ul className="space-y-3">
+            {requests.map((b) => (
+              <li key={b.id} className="space-y-1">
+                <Link to={`/bookings/${b.id}`} className="font-cond font-semibold hover:underline">
+                  {b.eventName}
+                </Link>
+                <CancelRequests id={b.id} />
+              </li>
+            ))}
+          </ul>
+        </Section>
+      )}
       <Section
         title={`${cs.dashboard.openConflicts} (${s.conflicts.filter((c) => c.status !== 'resolved').length})`}
       >

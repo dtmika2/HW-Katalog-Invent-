@@ -38,6 +38,8 @@ describe('notification importance', () => {
       'loan_overdue',
       'promised_missing',
       'shipping_cancelled',
+      'cancel_requested',
+      'cancel_decided',
       'prebooking_returned',
       'prebooking_expiring',
       'prebooking_expired',

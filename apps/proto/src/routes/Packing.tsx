@@ -33,6 +33,7 @@ import {
   BackToBooking,
   Batches,
   CancelPacking,
+  CancelRequests,
   DeliveryTabs,
   PromiseReasons,
   ShipConfirm,
@@ -454,6 +455,7 @@ export function Packing() {
             </div>
           )}
         </div>
+        <CancelRequests id={id} />
         {b.editedAfterShipping && newLinesPending && (
           <p
             role="alert"

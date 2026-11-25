@@ -487,6 +487,8 @@ export function cancelShipment(
   const next = produce(state, (d) => {
     const booking = d.bookings.find((x) => x.id === shipment.bookingId) as Booking;
     d.shipments = d.shipments.filter((x) => x.id !== shipmentId);
+    if (booking.cancelRequests)
+      booking.cancelRequests = booking.cancelRequests.filter((r) => r.shipmentId !== shipmentId);
     for (const sl of shipment.lines) {
       const line = booking.lines.find((l) => l.id === sl.lineId);
       if (!line || !isItemTarget(line.target)) continue;
