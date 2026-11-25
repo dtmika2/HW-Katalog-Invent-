@@ -33,6 +33,8 @@ function Hints({ s, l, byGroup }: { s: AppState; l: PackLine; byGroup: boolean }
         l.forHint.length > 0 &&
           cs.editor.forHint(l.forHint.map((h) => `${h.name} ×${h.qty}`).join(', ')),
         l.consumable && cs.packing.consumable,
+        l.progress.readyPacked > 0 && cs.packing.packedN(l.progress.readyPacked),
+        l.progress.readyDeferred > 0 && cs.packing.deferredN(l.progress.readyDeferred),
         l.shipped > 0 && cs.packing.print.alreadyOut(l.shipped, l.qty),
         byGroup
           ? l.locationId && cs.packing.shelf(locationPath(s, l.locationId))
@@ -59,7 +61,7 @@ function CaseRows({
   return (
     <>
       {Array.from({ length: l.qty }, (_, i) => (
-        <Row key={i} qty="1×" done={i < l.shipped}>
+        <Row key={i} qty="1×" done={i < l.qty - l.progress.toPack}>
           <span className="font-semibold">{l.name}</span>{' '}
           {cs.packing.print.caseNo(ids[i] ? caseNumber(s, ids[i]) : '')}
           <ul className="ml-1 mt-0.5">
@@ -98,7 +100,7 @@ export function PackingPrint({
   const event = eventSpan(b);
   const span = bookingSpan(b);
   const caseIds = (l: PackLine) => [
-    ...s.shipments
+    ...s.packings
       .filter((x) => x.bookingId === b.id)
       .flatMap((x) => x.lines.filter((y) => y.lineId === l.lineId).flatMap((y) => y.caseIds ?? [])),
     ...(pickedCases[l.lineId] ?? []),
@@ -107,7 +109,7 @@ export function PackingPrint({
     l.kind === 'case' ? (
       <CaseRows key={l.lineId} s={s} l={l} ids={caseIds(l)} byGroup={byGroup} />
     ) : (
-      <Row key={l.lineId} qty={`${l.qty}×`} done={l.remaining === 0}>
+      <Row key={l.lineId} qty={`${l.qty}×`} done={l.progress.toPack === 0}>
         <span className="font-semibold">{l.name}</span>
         <Hints s={s} l={l} byGroup={byGroup} />
       </Row>

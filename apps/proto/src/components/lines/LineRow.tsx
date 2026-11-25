@@ -462,7 +462,7 @@ function sourceOptions(
       if (
         o.id === b.id ||
         o.type !== 'order' ||
-        !['confirmed', 'packing', 'shipped'].includes(o.status)
+        !['confirmed', 'packing', 'packed', 'shipped'].includes(o.status)
       )
         continue;
       const end = lastBookedUntil(o);

@@ -207,6 +207,37 @@ export function statusAfter(
   return all.some((p) => p.toPack > 0) ? 'packing' : 'packed';
 }
 
+export interface OrderProgress {
+  qty: number;
+  /** Packed so far, shipped ones included. */
+  packed: number;
+  shipped: number;
+  toPack: number;
+  /** Can be shipped now: packed and standing here, or promised. */
+  ready: number;
+  /** Promised for the shipping and not confirmed yet. */
+  promised: number;
+}
+
+/** Progress of a whole order (gear coming straight from another event is not packed here). */
+export function orderProgress(
+  state: Pick<AppState, 'packings' | 'shipments'>,
+  b: Pick<Booking, 'id' | 'lines'>,
+): OrderProgress {
+  const out: OrderProgress = { qty: 0, packed: 0, shipped: 0, toPack: 0, ready: 0, promised: 0 };
+  for (const l of b.lines) {
+    if (!isActiveLine(l) || l.fromBookingId) continue;
+    const p = lineProgress(state, b, l);
+    out.qty += p.qty;
+    out.shipped += p.shipped;
+    out.packed += p.readyPacked + p.shipped;
+    out.toPack += p.toPack;
+    out.ready += p.readyPacked + p.readyDeferred;
+    out.promised += p.readyDeferred;
+  }
+  return out;
+}
+
 /** Packed pieces of a line still in the house, oldest first (they leave in that order). */
 export function packedInHouse(state: AppState, bookingId: Id, lineId: Id): PackedLine[] {
   let gone = shippedSplit(state, bookingId, lineId).normal;

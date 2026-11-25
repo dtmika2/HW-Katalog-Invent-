@@ -84,6 +84,38 @@ describe('older saved demo data', () => {
     expect(screen.queryByTestId('stale-data')).not.toBeInTheDocument();
   });
 
+  it('an order partly shipped before packing was recorded can be finished', async () => {
+    await new Promise((r) => setTimeout(r, 400));
+    const { packings: _packings, ...rest } = generateState();
+    const b = rest.bookings.find((x) => x.id === 'bk-letni-warmup')!;
+    const k12 = b.lines.find((l) => 'itemId' in l.target && l.target.itemId === 'qsc-k12')!;
+    const shipment = {
+      id: 'old-1',
+      bookingId: b.id,
+      label: 'Dodávka 1',
+      shippedOn: '2027-04-20',
+      userId: 'u-martin',
+      lines: [{ lineId: k12.id, qty: 1 }],
+    };
+    localStorage.setItem(
+      KEY,
+      JSON.stringify({
+        state: { ...rest, shipments: [...rest.shipments, shipment] },
+        scenarioId: 'base',
+        today: '2027-04-20',
+        userId: 'u-martin',
+        dataVersion: DATA_VERSION,
+      }),
+    );
+    useProto.setState({ state: null, staleData: false });
+    renderAt('/packing/bk-letni-warmup');
+    const card = await screen.findByTestId(`pack-${k12.id}`, {}, { timeout: 5000 });
+    expect(card).toHaveTextContent('odvezeno 1, zbývá zabalit 1');
+    fireEvent.click(within(card).getAllByRole('checkbox')[0]!);
+    fireEvent.click(screen.getByRole('button', { name: 'Zabalit zatržené (1)' }));
+    expect(card).toHaveTextContent('odvezeno 1, zabaleno 1 (Martin Svoboda');
+  });
+
   it('current saved data shows no banner', async () => {
     const s = generateState();
     localStorage.setItem(

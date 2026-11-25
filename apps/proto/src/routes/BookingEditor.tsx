@@ -28,6 +28,8 @@ import {
   lastBookedUntil,
   minFreeInWarehouse,
   openIssues,
+  openPromises,
+  orderProgress,
   periodWithBuffer,
   postMessage,
   recalcBooking,
@@ -49,6 +51,7 @@ import {
 } from '@quix/core';
 import { CategoryLabel } from '../components/Category';
 import { ClientPicker } from '../components/Clients';
+import { promisedRow } from '../components/Delivery';
 import { BookingPrint } from '../components/BookingPrint';
 import { LoanNames } from '../components/Loans';
 import { PrintButton } from '../components/print';
@@ -62,7 +65,7 @@ import { LineList } from '../components/lines/LineList';
 import { DEFAULT_VIEW } from '../components/lines/view';
 import { IssuesList } from './Issues';
 
-const EDITABLE = ['draft', 'submitted', 'confirmed', 'packing'];
+const EDITABLE = ['draft', 'submitted', 'confirmed', 'packing', 'packed'];
 
 export function BookingEditor() {
   const { id = '' } = useParams();
@@ -125,6 +128,7 @@ function Editor({ stored }: { stored: Booking }) {
     if (!err) setDirty(false);
   };
 
+  const promises = openPromises(s, stored);
   // Something added must be visible, so a filter is lifted.
   const showAll = () => setView((v) => ({ ...v, category: '', text: '' }));
   const groupId = booking.groups?.some((g) => g.id === addTo) ? addTo : undefined;
@@ -170,6 +174,20 @@ function Editor({ stored }: { stored: Booking }) {
         {openIssues(s).some((i) => i.bookingId === stored.id) && (
           <Section title={cs.issues.onBooking}>
             <IssuesList bookingId={stored.id} />
+          </Section>
+        )}
+        {promises.length > 0 && (
+          <Section title={cs.shipping.openOnBooking}>
+            <ul data-testid="open-promises" className="list-disc pl-5 text-sm">
+              {promises.map((p) => (
+                <li key={p.lineId}>
+                  {promisedRow(p)}
+                  {p.kind === 'transfer' && (
+                    <span className="text-xs text-muted"> {cs.shipping.transferKind}</span>
+                  )}
+                </li>
+              ))}
+            </ul>
           </Section>
         )}
 
@@ -434,13 +452,19 @@ function Editor({ stored }: { stored: Booking }) {
               )}
             </>
           )}
-          {['packing', 'confirmed', 'shipped'].includes(stored.status) && (
+          {['packing', 'packed', 'confirmed', 'shipped'].includes(stored.status) && (
             <Link to={`/packing/${stored.id}`} className="btn">
               {cs.editor.actions.openPacking}
             </Link>
           )}
+          {['packing', 'packed', 'shipped'].includes(stored.status) &&
+            (orderProgress(s, stored).ready > 0 || promises.length > 0) && (
+              <Link to={`/shipping/${stored.id}`} className="btn">
+                {cs.shipping.tabShipping(orderProgress(s, stored).ready)}
+              </Link>
+            )}
           {(['shipped', 'returning', 'returned_with_issues'].includes(stored.status) ||
-            (stored.status === 'packing' &&
+            (['packing', 'packed'].includes(stored.status) &&
               s.shipments.some((x) => x.bookingId === stored.id))) && (
             <Link to={`/vratka/${stored.id}`} className="btn">
               {cs.editor.actions.openVratka}

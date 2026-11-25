@@ -368,6 +368,21 @@ export const BOOKINGS: BookingSpec[] = [
     ],
   },
   {
+    id: 'bk-tiskovka',
+    name: 'Tiskovka Město Brod',
+    pm: U.petr,
+    client: 'cl-brod',
+    purpose: 'Zabaleno, čeká na odvoz; LED obrazovku přiveze dodavatel',
+    periods: [['2027-04-22', '2027-04-22']],
+    stage: 'packed',
+    lines: [
+      I('lectern', 1),
+      I('tv-65', 1),
+      I('walkie', 4),
+      { external: { name: 'LED obrazovka 3×2 m', supplier: 'LED Rent CZ' }, qty: 1 },
+    ],
+  },
+  {
     id: 'bk-firemni',
     name: 'Firemní den',
     pm: U.jana,

@@ -15,6 +15,7 @@ const STATUS_STYLE: Record<BookingStatus, string> = {
   submitted: 'bg-warn-light text-warn border-warn/40',
   confirmed: 'bg-tape-light text-tape-dark border-tape/30',
   packing: 'bg-tape text-white border-tape',
+  packed: 'bg-tape-dark text-white border-tape-dark',
   shipped: 'bg-ink text-white border-ink',
   returning: 'bg-ink-soft text-white border-ink-soft',
   returned: 'bg-ok-light text-ok border-ok/30',
@@ -159,7 +160,7 @@ export function Toasts() {
   const dismiss = useProto((p) => p.dismissToast);
   return (
     <div
-      className="pointer-events-none fixed bottom-4 right-4 z-50 flex max-w-sm flex-col gap-2"
+      className="pointer-events-none fixed right-4 top-4 sm:bottom-4 sm:top-auto z-50 flex max-w-sm flex-col gap-2"
       aria-live="polite"
     >
       {toasts.map((t) => (
@@ -183,7 +184,7 @@ export function Toasts() {
 
 /** "část odvezena, zbývá N ks" while an order is still being packed but a batch has left. */
 export function PartlyShipped({ s, b }: { s: AppState; b: Booking }) {
-  if (b.status !== 'packing' && b.status !== 'shipped') return null;
+  if (!['packing', 'packed', 'shipped'].includes(b.status)) return null;
   const left = remainingToShip(s, b.id);
   const anyOut = s.shipments.some((x) => x.bookingId === b.id && !x.transferFromBookingId);
   if (!anyOut || left === 0) return null;

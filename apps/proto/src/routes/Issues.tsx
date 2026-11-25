@@ -26,7 +26,7 @@ function whatHappened(s: AppState, i: Issue): string | undefined {
     const std = s.caseTypes
       .find((t) => t.id === c?.caseTypeId)
       ?.contents.find((x) => x.itemId === i.itemId)?.qty;
-    const atPacking = s.shipments.some(
+    const atPacking = [...s.packings, ...s.shipments].some(
       (x) =>
         x.bookingId === i.bookingId &&
         x.lines.some((l) =>

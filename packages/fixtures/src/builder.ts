@@ -17,6 +17,7 @@ import {
   newLine,
   nextLineId,
   packingList,
+  packLines,
   periodWithBuffer,
   recordReturnSession,
   returnSheet,
@@ -44,6 +45,7 @@ export type Stage =
   | 'expired'
   | 'confirmed'
   | 'packing'
+  | 'packed'
   | 'shipped'
   | 'returning'
   | 'returned'
@@ -224,7 +226,7 @@ export class Builder {
     this.state = unwrap(startPacking(this.state, wh, this.upTo(addDays(first, -1)), spec.id));
     if (spec.stage === 'packing') return;
 
-    // Ship: everything not coming by transfer, optionally in two batches.
+    // Pack (and ship): everything not coming by transfer, optionally in two batches.
     const pl = packingList(this.state, spec.id);
     if (!pl) throw new Error('packing list');
     const batch1: ShipmentLine[] = [];
@@ -247,8 +249,16 @@ export class Builder {
         if (entry.caseIds.length < pline.remaining)
           throw new Error(`Fixture ${spec.id}: not enough complete cases`);
       }
+      // rentals of a packed order are promised for the shipping
+      if (spec.stage === 'packed' && pline.kind === 'external') entry.deferred = true;
       if (pline.itemId && spec.secondBatch?.includes(pline.itemId)) batch2.push(entry);
       else batch1.push(entry);
+    }
+    if (spec.stage === 'packed') {
+      this.state = unwrap(
+        packLines(this.state, wh, this.upTo(addDays(first, -1)), spec.id, batch1),
+      );
+      return;
     }
     this.state = unwrap(
       packAndShip(this.state, wh, this.at(first), spec.id, { label: 'Dodávka 1', lines: batch1 }),

@@ -3,21 +3,35 @@ import { Link, useParams } from 'react-router-dom';
 import {
   can,
   caseContentQty,
+  casePlaces,
   firstBookedFrom,
   loansOut,
+  openPromises,
+  orderProgress,
+  packAndShip,
+  packedInHouse,
   packingList,
-  shipBatch,
+  packLines,
   startPacking,
+  unpackLine,
+  type PackedLine,
   type PackLine,
-  type ShipmentLine,
 } from '@quix/core';
 import {
-  CaseChecklist,
-  emptyDraft,
-  isChecked,
-  toCheck,
-  type CaseDraft,
-} from '../components/CaseChecklist';
+  CasePicker,
+  caseChecksOf,
+  firstFreeCases,
+  noCases,
+  uncheckedCases,
+  type CasePicks,
+} from '../components/CasePicker';
+import {
+  BackToBooking,
+  Batches,
+  DeliveryTabs,
+  PromiseReasons,
+  ShipConfirm,
+} from '../components/Delivery';
 import { loanLine } from '../components/Loans';
 import { PackingPrint } from '../components/PackingPrint';
 import { PrintButton } from '../components/print';
@@ -33,16 +47,16 @@ import {
 } from '../lib/names';
 import { useAppState, useProto, useToday, useUser } from '../store';
 
-interface Pick {
+interface Pick extends CasePicks {
   ticked: boolean;
   qty: number;
-  caseIds: string[];
   fromCaseId: string;
-  /** Case checklists by case id; a case that is deselected starts over. */
-  checks: Record<string, CaseDraft>;
 }
 
-/** Packing list on a phone: one card per line, grouped by warehouse and shelf; ship in batches. */
+/**
+ * Packing on a phone: one card per line, grouped by warehouse and shelf. What is ticked here is
+ * ready but still in the warehouse; it leaves on the shipping screen (or at once).
+ */
 export function Packing() {
   const { id = '' } = useParams();
   const s = useAppState();
@@ -53,64 +67,56 @@ export function Packing() {
   const [picks, setPicks] = useState<Record<string, Pick>>({});
   const batchNo =
     s.shipments.filter((x) => x.bookingId === id && !x.transferFromBookingId).length + 1;
-  const [label, setLabel] = useState('');
+  const [confirming, setConfirming] = useState(false);
   const [wantGroups, setWantGroups] = useState(false);
   if (!b) return <Empty>{cs.errors.not_found}</Empty>;
   const pl = packingList(s, id);
   if (!pl) return <Empty>{cs.errors.not_found}</Empty>;
-  const canShip = can(user, 'ship') && ['packing', 'shipped'].includes(b.status);
+  const canPack = can(user, 'pack') && ['packing', 'packed', 'shipped'].includes(b.status);
+  const progress = orderProgress(s, b);
 
   const pick = (l: PackLine): Pick =>
-    picks[l.lineId] ?? { ticked: false, qty: l.remaining, caseIds: [], fromCaseId: '', checks: {} };
-  const setPick = (l: PackLine, p: Partial<Pick>) => {
-    const next = { ...pick(l), ...p };
-    next.checks = Object.fromEntries(
-      Object.entries(next.checks).filter(([id]) => next.caseIds.includes(id)),
-    );
-    setPicks({ ...picks, [l.lineId]: next });
-  };
+    picks[l.lineId] ?? { ...noCases(), ticked: false, qty: l.progress.toPack, fromCaseId: '' };
+  const setPick = (l: PackLine, p: Partial<Pick>) =>
+    setPicks({ ...picks, [l.lineId]: { ...pick(l), ...p } });
   const allLines = [
     ...pl.byWarehouse.flatMap((w) => w.groups.flatMap((g) => g.lines)),
     ...pl.external,
   ];
-  const ticked = allLines.filter((l) => l.remaining > 0 && pick(l).ticked);
-  const unchecked = ticked.flatMap((l) =>
-    l.kind === 'case'
-      ? pick(l).caseIds.filter(
-          (c) => !isChecked(s, c, l.contents ?? [], pick(l).checks[c] ?? emptyDraft()),
-        )
-      : [],
-  );
-  const newLinesPending = allLines.some((l) => l.addedAfterShipping && l.remaining > 0);
+  const ticked = allLines.filter((l) => l.progress.toPack > 0 && pick(l).ticked);
+  const unchecked = ticked.flatMap((l) => (l.kind === 'case' ? uncheckedCases(s, l, pick(l)) : []));
+  const newLinesPending = allLines.some((l) => l.addedAfterShipping && l.progress.toPack > 0);
 
-  const ship = () => {
-    const lines: ShipmentLine[] = ticked.map((l) => {
-      const p = pick(l);
-      const sl: ShipmentLine = {
-        lineId: l.lineId,
-        qty: l.kind === 'case' ? p.caseIds.length : p.qty,
-      };
-      if (l.kind === 'case') {
-        sl.caseIds = p.caseIds;
-        sl.caseChecks = p.caseIds.map((c) =>
-          toCheck(c, l.contents ?? [], p.checks[c] ?? emptyDraft()),
-        );
-      }
-      if (p.fromCaseId) sl.fromCaseId = p.fromCaseId;
-      return sl;
-    });
-    const name = label.trim() || cs.packing.labelDefault(batchNo);
-    if (
-      !run((st) => shipBatch(st, user, today, id, { label: name, lines }), cs.packing.shipped(name))
-    ) {
-      setPicks({});
-      setLabel('');
-    }
+  const lines: PackedLine[] = ticked.map((l) => {
+    const p = pick(l);
+    return {
+      lineId: l.lineId,
+      qty: l.kind === 'case' ? p.caseIds.length : Math.min(p.qty, l.progress.toPack),
+      ...(l.kind === 'case' ? { caseIds: p.caseIds, caseChecks: caseChecksOf(l, p) } : {}),
+      ...(p.fromCaseId ? { fromCaseId: p.fromCaseId } : {}),
+    };
+  });
+  const pack = () => {
+    const n = lines.reduce((x, l) => x + l.qty, 0);
+    if (!run((st) => packLines(st, user, today, id, lines), cs.packing.packedOk(n))) setPicks({});
   };
+  const packShip = (label: string, note: string) => {
+    const err = run(
+      (st) => packAndShip(st, user, today, id, { label, lines, ...(note.trim() ? { note } : {}) }),
+      cs.packing.shipped(label),
+    );
+    if (err) return;
+    setPicks({});
+    setConfirming(false);
+  };
+  const places = casePlaces(s);
 
   const card = (l: PackLine) => {
     const p = pick(l);
-    const done = l.remaining === 0;
+    const g = l.progress;
+    const done = g.toPack === 0;
+    const here = packedInHouse(s, id, l.lineId);
+    const casesHere = here.flatMap((e) => e.caseIds ?? []);
     const lent = l.itemId && l.warehouseId ? loansOut(s, l.itemId, l.warehouseId, today) : [];
     const sourceCases =
       l.kind === 'item' && l.itemId
@@ -118,6 +124,7 @@ export function Packing() {
             (c) =>
               c.warehouseId === l.warehouseId &&
               !c.archived &&
+              !places.has(c.id) &&
               caseContentQty(c, l.itemId ?? '') > 0,
           )
         : [];
@@ -132,18 +139,17 @@ export function Packing() {
             type="checkbox"
             className="mt-1 h-6 w-6 shrink-0"
             aria-label={`${cs.packing.packed}: ${l.name}`}
-            disabled={done || !canShip}
+            disabled={done || !canPack}
             checked={done || p.ticked}
             onChange={(e) => {
-              if (l.kind === 'case' && e.target.checked && p.caseIds.length === 0) {
-                // Ticking a case line picks the first free complete cases; the packer can change them.
-                const free = (l.candidateCases ?? []).filter((c) => c.complete && !c.busy);
+              if (l.kind !== 'case') setPick(l, { ticked: e.target.checked });
+              // Ticking a case line picks the first free complete cases; the packer can change them.
+              else
                 setPick(l, {
-                  ticked: true,
-                  caseIds: free.slice(0, l.remaining).map((c) => c.caseId),
+                  ticked: e.target.checked,
+                  caseIds: e.target.checked ? firstFreeCases(l, g.toPack) : [],
+                  checks: {},
                 });
-              } else if (!e.target.checked) setPick(l, { ticked: false, caseIds: [] });
-              else setPick(l, { ticked: true });
             }}
           />
           <span className="min-w-0 flex-1">
@@ -160,13 +166,29 @@ export function Packing() {
             <span className="block text-sm">
               <strong className="font-cond text-xl">{l.qty}×</strong>{' '}
               <span className="text-muted">
-                {done
-                  ? cs.packing.allShipped
-                  : l.shipped > 0
-                    ? cs.packing.remaining(l.remaining)
-                    : ''}
+                {[
+                  g.shipped > 0 && cs.packing.shippedN(g.shipped),
+                  g.readyPacked > 0 &&
+                    (l.packedBy
+                      ? cs.packing.packedBy(
+                          g.readyPacked,
+                          userName(s, l.packedBy.userId),
+                          fmtDate(l.packedBy.on),
+                        )
+                      : cs.packing.packedN(g.readyPacked)),
+                  g.readyDeferred > 0 && cs.packing.deferredN(g.readyDeferred),
+                  !done && g.toPack < g.qty && cs.packing.remaining(g.toPack),
+                ]
+                  .filter(Boolean)
+                  .join(', ')}
               </span>
             </span>
+            {g.extra > 0 && (
+              <span className="block text-xs font-medium text-warn">
+                {cs.packing.extra(g.extra)}
+              </span>
+            )}
+            <PromiseReasons l={l} />
             {!done && lent.length > 0 && (
               <span className="block text-xs font-medium text-warn">
                 {cs.loans.packingHint(lent.map((x) => loanLine(s, x)).join('; '))}
@@ -195,68 +217,54 @@ export function Packing() {
                 </li>
               ))}
             </ul>
-            {!done && canShip && (
-              <fieldset className="mt-2">
-                <legend className="label">{cs.packing.pickCases}</legend>
-                <div className="flex flex-wrap gap-2">
-                  {(l.candidateCases ?? []).map((c) => {
-                    const on = p.caseIds.includes(c.caseId);
-                    return (
-                      <label
-                        key={c.caseId}
-                        className={`flex items-center gap-1 rounded border px-2 py-1 text-sm ${on ? 'border-tape bg-tape-light' : 'border-alu-line'}`}
+            {casesHere.length > 0 && (
+              <ul className="mt-2 space-y-1">
+                {casesHere.map((c) => (
+                  <li key={c} className="flex items-center gap-2 text-sm">
+                    <CaseLabel>{caseNumber(s, c)}</CaseLabel> {cs.packing.packed.toLowerCase()}
+                    {canPack && (
+                      <button
+                        type="button"
+                        className="text-xs underline"
+                        aria-label={`${cs.packing.unpack}: ${caseNumber(s, c)}`}
+                        onClick={() =>
+                          run(
+                            (st) => unpackLine(st, user, today, id, l.lineId, { caseId: c }),
+                            cs.packing.unpacked,
+                          )
+                        }
                       >
-                        <input
-                          type="checkbox"
-                          disabled={c.busy || !c.complete}
-                          checked={on}
-                          onChange={(e) => {
-                            const ids = e.target.checked
-                              ? [...p.caseIds, c.caseId].slice(-l.remaining)
-                              : p.caseIds.filter((x) => x !== c.caseId);
-                            setPick(l, { caseIds: ids, ticked: ids.length > 0 });
-                          }}
-                        />
-                        <CaseLabel>{c.number}</CaseLabel>
-                        {c.busy && (
-                          <span className="text-xs text-muted">{cs.packing.caseBusy}</span>
-                        )}
-                        {!c.complete && !c.busy && (
-                          <span className="text-xs text-bad">{cs.packing.caseIncomplete}</span>
-                        )}
-                      </label>
-                    );
-                  })}
-                </div>
-              </fieldset>
+                        {cs.packing.unpack}
+                      </button>
+                    )}
+                  </li>
+                ))}
+              </ul>
             )}
-            {!done &&
-              canShip &&
-              p.caseIds.map((caseId) => (
-                <CaseChecklist
-                  key={caseId}
-                  s={s}
-                  caseId={caseId}
-                  contents={l.contents ?? []}
-                  value={p.checks[caseId] ?? emptyDraft()}
-                  onChange={(d) => setPick(l, { checks: { ...p.checks, [caseId]: d } })}
-                />
-              ))}
+            {!done && canPack && (
+              <CasePicker
+                s={s}
+                l={l}
+                limit={g.toPack}
+                value={p}
+                onChange={(v) => setPick(l, { ...v, ticked: v.caseIds.length > 0 })}
+              />
+            )}
           </div>
         )}
-        {l.kind !== 'case' && !done && canShip && (
+        {l.kind !== 'case' && !done && canPack && (
           <div className="mt-2 flex flex-wrap items-end gap-3 pl-9 text-sm">
             <label className="flex items-center gap-1">
-              <span className="text-xs text-muted">{cs.packing.shipQty}</span>
+              <span className="text-xs text-muted">{cs.packing.packQty}</span>
               <input
                 type="number"
                 className="input w-20"
                 min={1}
-                max={l.remaining}
-                value={p.qty}
+                max={g.toPack}
+                value={Math.min(p.qty, g.toPack)}
                 onChange={(e) =>
                   setPick(l, {
-                    qty: Math.min(l.remaining, Math.max(1, Number(e.target.value) || 1)),
+                    qty: Math.min(g.toPack, Math.max(1, Number(e.target.value) || 1)),
                   })
                 }
               />
@@ -280,11 +288,66 @@ export function Packing() {
             )}
           </div>
         )}
+        {canPack && (
+          <div className="mt-2 flex flex-wrap gap-3 pl-9 text-sm">
+            {l.deferrable > 0 && (
+              <button
+                type="button"
+                className="btn btn-sm"
+                aria-label={`${cs.packing.defer(l.deferrable)}: ${l.name}`}
+                onClick={() =>
+                  run(
+                    (st) =>
+                      packLines(st, user, today, id, [
+                        { lineId: l.lineId, qty: l.deferrable, deferred: true },
+                      ]),
+                    cs.packing.deferOk,
+                  )
+                }
+              >
+                {cs.packing.defer(l.deferrable)}
+              </button>
+            )}
+            {g.readyDeferred > 0 && (
+              <button
+                type="button"
+                className="text-xs underline"
+                onClick={() =>
+                  run((st) => unpackLine(st, user, today, id, l.lineId, { deferred: true }))
+                }
+              >
+                {cs.packing.undoDefer}
+              </button>
+            )}
+            {l.kind !== 'case' && here.length > 0 && (
+              <button
+                type="button"
+                className="text-xs underline"
+                aria-label={`${cs.packing.unpack}: ${l.name}`}
+                onClick={() =>
+                  run(
+                    (st) =>
+                      unpackLine(
+                        st,
+                        user,
+                        today,
+                        id,
+                        l.lineId,
+                        g.extra > 0 ? { qty: g.extra } : {},
+                      ),
+                    cs.packing.unpacked,
+                  )
+                }
+              >
+                {g.extra > 0 ? cs.packing.unpackExtra(g.extra) : cs.packing.unpack}
+              </button>
+            )}
+          </div>
+        )}
       </li>
     );
   };
 
-  const shipments = s.shipments.filter((x) => x.bookingId === id);
   const hasGroups = allLines.some((l) => l.group);
   const byGroup = hasGroups && wantGroups;
   const pickedCases = Object.fromEntries(
@@ -295,16 +358,22 @@ export function Packing() {
       <PackingPrint s={s} b={b} list={pl} pickedCases={pickedCases} byGroup={byGroup} />
       <div className="mx-auto max-w-2xl space-y-4 print:hidden">
         <div>
-          <Link to={`/bookings/${id}`} className="text-sm underline">
-            {cs.common.back}
-          </Link>
+          <BackToBooking id={id} />
           <div className="mt-1 flex flex-wrap items-start justify-between gap-2">
             <h1>{cs.packing.title(b.eventName)}</h1>
             <PrintButton />
           </div>
           <p className="mt-1 flex items-center gap-2 text-sm text-muted">
             <StatusChip status={b.status} /> {fmtDate(firstBookedFrom(b))}
+            {progress.toPack > 0 && b.status !== 'confirmed' && (
+              <span>{cs.packing.progress(progress.packed, progress.qty)}</span>
+            )}
           </p>
+          {b.status !== 'confirmed' && (
+            <div className="mt-2">
+              <DeliveryTabs id={id} ready={progress.ready} />
+            </div>
+          )}
         </div>
         {b.editedAfterShipping && newLinesPending && (
           <p
@@ -382,6 +451,7 @@ export function Packing() {
         {pl.transfers.length > 0 && (
           <section className="space-y-2">
             <h2>{cs.packing.transfers}</h2>
+            <p className="text-sm text-muted">{cs.packing.transferHint}</p>
             <ul className="space-y-1 text-sm">
               {pl.transfers.map((l) => (
                 <li key={l.lineId} className="panel p-3">
@@ -394,49 +464,52 @@ export function Packing() {
             </ul>
           </section>
         )}
-        {canShip && (
+        {canPack && progress.toPack > 0 && (
           <div className="sticky bottom-0 -mx-4 space-y-2 border-t border-alu-line bg-alu/95 px-4 py-3 backdrop-blur">
-            <label className="block">
-              <span className="label">{cs.packing.label}</span>
-              <input
-                className="input"
-                placeholder={cs.packing.labelDefault(batchNo)}
-                value={label}
-                onChange={(e) => setLabel(e.target.value)}
-              />
-            </label>
             {unchecked.length > 0 && (
               <p className="text-sm text-bad" role="status">
                 {cs.packing.check.missing(unchecked.map((c) => caseNumber(s, c)).join(', '))}
               </p>
             )}
-            <button
-              type="button"
-              className="btn btn-primary min-h-12 w-full text-base"
-              disabled={ticked.length === 0 || unchecked.length > 0}
-              onClick={ship}
-            >
-              {cs.packing.ship(ticked.length)}
-            </button>
+            {confirming && lines.length > 0 && unchecked.length === 0 ? (
+              <ShipConfirm
+                defaultLabel={cs.packing.labelDefault(batchNo)}
+                missing={openPromises(s, b)}
+                button={cs.packing.packShip(ticked.length)}
+                onShip={packShip}
+                onCancel={() => setConfirming(false)}
+              />
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  className="btn btn-primary min-h-12 flex-1 whitespace-nowrap text-base"
+                  disabled={ticked.length === 0 || unchecked.length > 0}
+                  onClick={pack}
+                >
+                  {cs.packing.pack(ticked.length)}
+                </button>
+                <button
+                  type="button"
+                  className="btn min-h-12 flex-1 whitespace-nowrap"
+                  disabled={ticked.length === 0 || unchecked.length > 0}
+                  onClick={() => setConfirming(true)}
+                >
+                  {cs.packing.packShip(ticked.length)}
+                </button>
+              </div>
+            )}
           </div>
         )}
-        {shipments.length > 0 && (
-          <section>
-            <h2>{cs.packing.batches}</h2>
-            <ul className="mt-1 text-sm">
-              {shipments.map((sh) => (
-                <li key={sh.id}>
-                  {cs.packing.batchRow(
-                    sh.label,
-                    fmtDate(sh.shippedOn),
-                    sh.lines.reduce((n, x) => n + x.qty, 0),
-                    userName(s, sh.userId),
-                  )}
-                </li>
-              ))}
-            </ul>
-          </section>
+        {canPack && progress.toPack === 0 && progress.ready > 0 && (
+          <div className="panel flex flex-wrap items-center justify-between gap-2 border-ok p-3 text-sm">
+            <span>{cs.packing.allPacked}</span>
+            <Link to={`/shipping/${id}`} className="btn btn-primary">
+              {cs.shipping.open}
+            </Link>
+          </div>
         )}
+        <Batches s={s} id={id} />
       </div>
     </>
   );

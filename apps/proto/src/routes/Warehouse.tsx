@@ -1,15 +1,15 @@
 import { Link } from 'react-router-dom';
 import {
   addDays,
-  casesOut,
+  casePlaces,
   firstBookedFrom,
   isOpenService,
   isServiceOverdue,
   lastBookedUntil,
   openLoans,
+  orderProgress,
   refillCase,
   refillTasksWithAge,
-  remainingToShip,
 } from '@quix/core';
 import { byReturn, LoanList } from '../components/Loans';
 import { CaseLabel, PartlyShipped, Section, StatusChip } from '../components/ui';
@@ -28,22 +28,26 @@ export function WarehouseDashboard() {
     .filter(
       (b) =>
         b.type === 'order' &&
-        (['confirmed', 'packing'].includes(b.status) ||
-          (b.status === 'shipped' && remainingToShip(s, b.id) > 0)) &&
+        (b.status === 'confirmed' || (b.status === 'packing' && orderProgress(s, b).toPack > 0)) &&
         firstBookedFrom(b) <= addDays(today, 3),
+    )
+    .sort((a, b) => (firstBookedFrom(a) < firstBookedFrom(b) ? -1 : 1));
+  const ready = s.bookings
+    .filter(
+      (b) => ['packing', 'packed', 'shipped'].includes(b.status) && orderProgress(s, b).ready > 0,
     )
     .sort((a, b) => (firstBookedFrom(a) < firstBookedFrom(b) ? -1 : 1));
   const returns = s.bookings
     .filter(
       (b) =>
         ['shipped', 'returning'].includes(b.status) ||
-        (b.status === 'packing' && s.shipments.some((x) => x.bookingId === b.id)),
+        (['packing', 'packed'].includes(b.status) && s.shipments.some((x) => x.bookingId === b.id)),
     )
     .sort((a, b) => (lastBookedUntil(a) < lastBookedUntil(b) ? -1 : 1));
   const open = s.serviceCases.filter(isOpenService);
   const check = open.filter((sc) => sc.status === 'back_to_check' || sc.status === 'reported');
   const refill = refillTasksWithAge(s, today);
-  const out = casesOut(s);
+  const places = casePlaces(s);
   return (
     <div className="grid gap-4 lg:grid-cols-2">
       <Section title={cs.warehouseUi.packingSoon}>
@@ -68,6 +72,37 @@ export function WarehouseDashboard() {
               </span>
             </li>
           ))}
+        </ul>
+      </Section>
+      <Section title={cs.shipping.ready}>
+        <ul data-testid="ready-to-ship" className="divide-y divide-alu-line text-sm">
+          {ready.length === 0 && <li className="text-muted">{cs.warehouseUi.none}</li>}
+          {ready.map((b) => {
+            const p = orderProgress(s, b);
+            return (
+              <li key={b.id} className="flex flex-wrap items-center justify-between gap-2 py-2">
+                <span>
+                  <span className="font-cond font-semibold">{b.eventName}</span>
+                  <span className="block text-xs text-muted">
+                    {cs.warehouseUi.loading(fmtDate(firstBookedFrom(b)))},{' '}
+                    {cs.packing.progress(p.packed, p.qty)}
+                    {p.shipped > 0 && `, ${cs.packing.shippedN(p.shipped)}`}
+                  </span>
+                  {p.promised > 0 && (
+                    <span className="block text-xs font-medium text-warn">
+                      {cs.packing.deferredN(p.promised)}
+                    </span>
+                  )}
+                </span>
+                <span className="flex items-center gap-2">
+                  <StatusChip status={b.status} />
+                  <Link to={`/shipping/${b.id}`} className="btn btn-sm btn-primary">
+                    {cs.shipping.open}
+                  </Link>
+                </span>
+              </li>
+            );
+          })}
         </ul>
       </Section>
       <Section title={cs.warehouseUi.expectedReturns}>
@@ -106,8 +141,15 @@ export function WarehouseDashboard() {
                   {cs.warehouseUi.age(t.ageDays)}
                 </span>
               </span>
-              {out.has(t.caseId) ? (
-                <span className="text-xs text-muted">{cs.packing.caseBusy}</span>
+              {places.has(t.caseId) ? (
+                <span className="text-xs text-muted">
+                  {places.get(t.caseId)?.place === 'packed'
+                    ? cs.packing.casePacked(
+                        s.bookings.find((b) => b.id === places.get(t.caseId)?.bookingId)
+                          ?.eventName ?? '',
+                      )
+                    : cs.packing.caseBusy}
+                </span>
               ) : (
                 <button
                   type="button"

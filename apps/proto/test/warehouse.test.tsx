@@ -12,6 +12,15 @@ const confirmed = (s: AppState) => GALA_STEPS.confirm(GALA_STEPS.submit(GALA_STE
 const lineIdOf = (s: AppState, pred: (t: object) => boolean) =>
   s.bookings.find((b) => b.id === GALA_ID)!.lines.find((l) => pred(l.target))!.id;
 
+/** "Zabalit a rovnou odvézt" of what is ticked. */
+function packAndShipNow(label?: string) {
+  fireEvent.click(screen.getByRole('button', { name: /^Zabalit a rovnou odvézt/ }));
+  const form = within(screen.getByTestId('ship-confirm'));
+  if (label)
+    fireEvent.change(form.getByLabelText('Označení dodávky'), { target: { value: label } });
+  fireEvent.click(form.getByRole('button', { name: /^Zabalit a rovnou odvézt/ }));
+}
+
 describe('M5b packing (mobile)', () => {
   it('starts packing, picks case numbers and ships a labelled batch', () => {
     renderApp(`/packing/${GALA_ID}`, {
@@ -28,11 +37,8 @@ describe('M5b packing (mobile)', () => {
     const card = screen.getByTestId(`pack-${ax9}`);
     expect(card).toHaveTextContent('Astera AX9 PowerPAR');
     fireEvent.click(within(card).getByRole('checkbox', { name: /AX9-02/ }));
-    fireEvent.change(screen.getByLabelText('Označení dodávky'), {
-      target: { value: 'Dodávka 1 — case' },
-    });
     // the contents are checked line by line, there is no "tick all"
-    const go = () => screen.getByRole('button', { name: 'Odvézt zatržené (1)' });
+    const go = () => screen.getByRole('button', { name: 'Zabalit zatržené (1)' });
     expect(go()).toBeDisabled();
     expect(screen.getByText('Nejdřív dokončete kontrolu obsahu: AX9-02')).toBeInTheDocument();
     const boxes = within(screen.getByTestId('check-case-ax9-02')).getAllByRole('checkbox');
@@ -42,7 +48,7 @@ describe('M5b packing (mobile)', () => {
       fireEvent.click(x);
     }
     expect(go()).toBeEnabled();
-    fireEvent.click(screen.getByRole('button', { name: 'Odvézt zatržené (1)' }));
+    packAndShipNow('Dodávka 1 — case');
     const sh = state().shipments.filter((x) => x.bookingId === GALA_ID);
     expect(sh).toEqual([
       expect.objectContaining({
@@ -72,7 +78,7 @@ describe('M5b packing (mobile)', () => {
       box()
         .getAllByRole('checkbox')
         .forEach((x) => !(x as HTMLInputElement).disabled && fireEvent.click(x));
-    const go = () => screen.getByRole('button', { name: 'Odvézt zatržené (1)' });
+    const go = () => screen.getByRole('button', { name: 'Zabalit zatržené (1)' });
     choose(/^AX9-02$/);
     tickAll();
     expect(go()).toBeEnabled();
@@ -88,6 +94,8 @@ describe('M5b packing (mobile)', () => {
       target: { value: 'Jeden je v opravě' },
     });
     fireEvent.click(go());
+    // packed only: counted and reported, but still in the warehouse
+    expect(state().shipments.filter((x) => x.bookingId === GALA_ID)).toEqual([]);
     const c = state().cases.find((x) => x.id === 'case-ax9-02')!;
     expect(isCaseComplete(state(), c)).toBe(false);
     const iss = state().issues.find((i) => i.caseId === 'case-ax9-02')!;
@@ -101,12 +109,16 @@ describe('M5b packing (mobile)', () => {
     cleanup();
     renderCurrent('/notifications');
     expect(screen.getByTestId('notifications')).toHaveTextContent(
-      'case AX9-02 odvezen neúplný, chybí 1× Astera AX9 PowerPAR (důvod: Jeden je v opravě)',
+      'case AX9-02 zabalen neúplný, chybí 1× Astera AX9 PowerPAR (důvod: Jeden je v opravě)',
     );
     cleanup();
 
     // vratka expects what left
     useProto.getState().setUser('u-martin');
+    renderCurrent(`/shipping/${GALA_ID}`);
+    fireEvent.click(screen.getByRole('button', { name: 'Odvézt (1 ks)' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Potvrdit odvoz (1 ks)' }));
+    cleanup();
     renderCurrent(`/vratka/${GALA_ID}`);
     const ret = screen.getByTestId('ret-case-case-ax9-02');
     expect(ret).toHaveTextContent('Odvezen neúplný, chybělo 1× Astera AX9 PowerPAR');
@@ -143,7 +155,7 @@ describe('M5b packing (mobile)', () => {
     const card = screen.getByTestId('pack-bk-gala-x1');
     fireEvent.click(within(card).getByRole('checkbox'));
     fireEvent.change(within(card).getByRole('combobox'), { target: { value: 'case-ax9-01' } });
-    fireEvent.click(screen.getByRole('button', { name: /Odvézt zatržené/ }));
+    packAndShipNow();
     const c = state().cases.find((x) => x.id === 'case-ax9-01')!;
     expect(isCaseComplete(state(), c)).toBe(false);
     expect(state().shipments.at(-1)?.lines).toEqual([
@@ -157,7 +169,7 @@ describe('M5b packing — partial batches', () => {
     renderApp('/packing/bk-letni-warmup', { scenario: 'base', user: 'u-martin' });
     const first = screen.getAllByTestId(/^pack-/)[0]!;
     fireEvent.click(within(first).getAllByRole('checkbox')[0]!);
-    fireEvent.click(screen.getByRole('button', { name: 'Odvézt zatržené (1)' }));
+    packAndShipNow();
     expect(booking('bk-letni-warmup')?.status).toBe('packing');
     fireEvent.click(screen.getByRole('link', { name: 'Přehled' }));
     expect(screen.getAllByText('Balí se').length).toBeGreaterThan(0);

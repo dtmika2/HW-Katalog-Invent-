@@ -12,6 +12,7 @@ import { EventCalendar } from './routes/EventCalendar';
 import { CaseTypeDetail, ItemDetail } from './routes/ItemDetail';
 import { Loans } from './routes/Loans';
 import { Packing } from './routes/Packing';
+import { Shipping } from './routes/Shipping';
 import { Service } from './routes/Service';
 import { Vratka } from './routes/Vratka';
 import { WarehouseDashboard } from './routes/Warehouse';
@@ -35,6 +36,7 @@ export function AppRoutes() {
         <Route path="/items/:id" element={<ItemDetail />} />
         <Route path="/case-types/:id" element={<CaseTypeDetail />} />
         <Route path="/packing/:id" element={<Packing />} />
+        <Route path="/shipping/:id" element={<Shipping />} />
         <Route path="/vratka/:id" element={<Vratka />} />
         <Route path="/loans" element={<Loans />} />
         <Route path="/clients" element={<Clients />} />

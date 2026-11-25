@@ -21,6 +21,7 @@ const BAR: Record<BookingStatus, string> = {
   submitted: 'bg-warn',
   confirmed: 'bg-tape',
   packing: 'bg-tape-dark',
+  packed: 'bg-tape-dark',
   shipped: 'bg-ink',
   returning: 'bg-ink-soft',
   returned: 'bg-ok',
