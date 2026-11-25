@@ -25,6 +25,9 @@ const paramDate = (d: string | number | undefined) =>
   fmtDate(d === undefined ? undefined : String(d));
 const cases = (n: number) => (n === 1 ? '1 case' : `${n} casy`);
 
+/** What somebody asks to cancel. */
+const cancelWhat = (p: Params) => (p.booking ? 'akce' : p.label ? `odvozu ${p.label}` : 'balení');
+
 const STATUS = {
   tentative: 'Nepotvrzená rezervace',
   planned: 'Potvrzená rezervace',
@@ -213,7 +216,11 @@ export const cs = {
         holds: 'ne',
       },
       closed: { means: 'Hotovo, jen ke čtení.', next: 'Konec.', holds: 'ne' },
-      cancelled: { means: 'Akce byla zrušena, jen ke čtení.', next: 'Konec.', holds: 'ne' },
+      cancelled: {
+        means: 'Akce byla zrušena, jen ke čtení. Najdete ji v Archivu, v kalendáři jen po zapnutí.',
+        next: 'Konec, nebo ji jde do začátku akce obnovit.',
+        holds: 'ne',
+      },
     } satisfies Record<BookingStatus, { means: string; next: string; holds: string }>,
     arrow: 'zpět na',
     backTitle: 'Cesty zpátky',
@@ -234,7 +241,33 @@ export const cs = {
         to: ['packed', 'packing'],
         how: 'Zrušit odvoz, do první vratky. Sklad potvrdí, že je vše zpátky. Od prvního dne akce jen šéf techniky; sklad ho může o zrušení požádat.',
       },
+      {
+        from: ['cancelled'],
+        to: ['tentative', 'planned', 'draft'],
+        how: 'Obnovit, do začátku akce: PM nebo šéf techniky. Vrátí se do stavu, ve kterém byla zrušena.',
+      },
+      {
+        from: ['cancelled'],
+        to: ['submitted'],
+        how: 'Obnovit, pokud už byla potvrzená k expedici nebo schválená: jen šéf techniky. Musí se znovu schválit.',
+      },
     ] satisfies { from: BookingStatus[]; to: BookingStatus[]; how: string }[],
+    cancelTitle: 'Zrušení akce',
+    cancelHint: 'Vždy s důvodem. Technika se uvolní a kdo na ni čekal, dostane upozornění.',
+    cancelWays: [
+      {
+        from: ['tentative', 'planned', 'draft', 'submitted', 'confirmed'],
+        how: 'PM nebo šéf techniky rovnou.',
+      },
+      {
+        from: ['packing', 'packed'],
+        how: 'PM požádá šéfa techniky. Sklad pak potvrdí, že je vše vybalené, a teprve potom je zrušená.',
+      },
+      {
+        from: ['shipped', 'returning', 'returned_with_issues', 'returned'],
+        how: 'Nejde, ani když odjela jen část. Nejdřív Zrušit odvoz, nebo vratka.',
+      },
+    ] satisfies { from: BookingStatus[]; how: string }[],
     tiersTitle: 'Jak vážný je konflikt',
     tiersHint: 'Podle stavu té druhé rezervace. Sklad rezervace termínu nevidí.',
     tiersEffect: {
@@ -265,7 +298,12 @@ export const cs = {
       },
       {
         name: 'Žádost o zrušení',
-        means: 'U Balí se, Zabaleno a Odvezeno: sklad požádal o zrušení a čeká na šéfa techniky.',
+        means:
+          'U Balí se, Zabaleno a Odvezeno: sklad (nebo PM celou akci) požádal o zrušení a čeká na šéfa techniky.',
+      },
+      {
+        name: 'Akce je zrušená, čeká na vybalení',
+        means: 'U Balí se a Zabaleno: sklad ještě nepotvrdil, že je vše zpátky na místě.',
       },
     ],
   },
@@ -560,12 +598,14 @@ export const cs = {
       `Balení zrušeno (${p.count ?? 0} ks)${p.reason ? `. Důvod: ${p.reason}` : ''}`,
     shipping_cancelled: (p: Params) =>
       `Odvoz zrušen: ${p.label ?? ''} (${p.count ?? 0} ks)${p.reason ? `. Důvod: ${p.reason}` : ''}`,
-    cancel_requested: (p: Params) =>
-      `Žádost o zrušení ${p.label ? `odvozu ${p.label}` : 'balení'}. Důvod: ${p.reason ?? ''}`,
+    cancel_requested: (p: Params) => `Žádost o zrušení ${cancelWhat(p)}. Důvod: ${p.reason ?? ''}`,
     cancel_declined: (p: Params) =>
-      `Žádost o zrušení ${p.label ? `odvozu ${p.label}` : 'balení'} zamítnuta. Důvod: ${p.reason ?? ''}`,
-    cancel_withdrawn: (p: Params) =>
-      `Žádost o zrušení ${p.label ? `odvozu ${p.label}` : 'balení'} vzata zpět`,
+      `Žádost o zrušení ${cancelWhat(p)} zamítnuta. Důvod: ${p.reason ?? ''}`,
+    cancel_withdrawn: (p: Params) => `Žádost o zrušení ${cancelWhat(p)} vzata zpět`,
+    cancel_started: (p: Params) => `Akce zrušena, čeká na vybalení. Důvod: ${p.reason ?? ''}`,
+    cancelled: (p: Params) =>
+      `Akce zrušena. Důvod: ${p.reason ?? ''}${p.rented ? `. Odvolat u dodavatelů: ${p.rented}` : ''}`,
+    reopened: (p: Params) => `Akce obnovena, stav: ${STATUS[p.to as BookingStatus]}`,
     shipped_without: (p: Params) =>
       `Odvezeno bez přislíbeného: ${p.what ?? ''}${p.note ? `. Poznámka: ${p.note}` : ''}`,
     promised_arrived: (p: Params) => `Dorazilo dodatečně: ${p.what ?? ''}`,
@@ -628,13 +668,22 @@ export const cs = {
       shipping_cancelled: (p: Params) =>
         `${p.event}: odvoz zrušen (${p.label}, ${p.count} ks)${p.reason ? `, důvod: ${p.reason}` : ''}`,
       cancel_requested: (p: Params) =>
-        `${p.event}: ${p.who} žádá o zrušení ${p.label ? `odvozu ${p.label}` : 'balení'}, důvod: ${p.reason}`,
+        `${p.event}: ${p.who} žádá o zrušení ${cancelWhat(p)}, důvod: ${p.reason}`,
       reservation_affected: (p: Params) =>
         `${p.event}: technika už skutečně chybí, byla schválena akce ${p.other}`,
+      booking_cancelled: (p: Params) =>
+        `${p.event}: akce zrušena, důvod: ${p.reason}${p.rented ? `. Odvolat u dodavatelů: ${p.rented}` : ''}`,
+      booking_reopened: (p: Params) =>
+        `${p.event}: akce obnovena, stav: ${STATUS[p.to as BookingStatus]}`,
+      cancel_unpack: (p: Params) => `${p.event}: akce zrušena, vybalte ji. Důvod: ${p.reason}`,
+      gear_released: (p: Params) =>
+        `${p.event}: uvolnila se technika, akce ${p.other} byla zrušena`,
+      transfer_lost: (p: Params) =>
+        `${p.event}: ${p.what} už nepřijde z akce ${p.other}, byla zrušena. Počítá se znovu ze skladu.`,
       cancel_decided: (p: Params) =>
         p.approved
-          ? `${p.event}: zrušení ${p.label ? `odvozu ${p.label}` : 'balení'} schváleno`
-          : `${p.event}: zrušení ${p.label ? `odvozu ${p.label}` : 'balení'} zamítnuto, důvod: ${p.reason}`,
+          ? `${p.event}: zrušení ${cancelWhat(p)} schváleno`
+          : `${p.event}: zrušení ${cancelWhat(p)} zamítnuto, důvod: ${p.reason}`,
       promised_missing: (p: Params) =>
         p.closed
           ? `${p.event}: nedorazí ${p.what}, důvod: ${p.reason}`
@@ -1065,6 +1114,32 @@ export const cs = {
     button: 'Tisk / uložit PDF',
     buttonHint: 'V okně tisku zvolte jako tiskárnu „Uložit jako PDF“.',
   },
+  cancelBooking: {
+    button: 'Zrušit akci',
+    ask: 'Požádat šéfa o zrušení akce',
+    text: {
+      direct: 'Akce se přesune do archivu. Do jejího začátku ji jde obnovit.',
+      order:
+        'Technika se hned uvolní, šéf techniky a sklad dostanou upozornění. Obnovit ji může jen šéf techniky a musí se znovu schválit.',
+      unpack: 'Sklad dostane pokyn akci vybalit. Zrušená bude, až to potvrdí.',
+      ask: 'Akce už se balí, proto rozhodne šéf techniky.',
+    },
+    reasonHint: 'Např. klient akci zrušil',
+    yes: 'Ano, zrušit akci',
+    done: 'Akce zrušena.',
+    startedOk: 'Sklad dostal pokyn akci vybalit.',
+    note: (on: string, who: string, reason: string) => `Zrušeno ${on}, ${who}. Důvod: ${reason}`,
+    reopen: 'Obnovit',
+    reopenTo: (state: string) => `Vrátí se do stavu ${state}.`,
+    reopened: 'Akce obnovena.',
+    pending: 'Akce je zrušená, čeká na vybalení.',
+    pendingWhy: (who: string, reason: string) => `${who}. Důvod: ${reason}`,
+    toUnpack: 'Zrušené akce k vybalení',
+    unpackText: 'Po potvrzení je akce zrušená a technika zase volná.',
+    unpackYes: 'Potvrdit, že je vše vybalené',
+    unpackDone: 'Vybaleno, akce je zrušená.',
+    paper: 'ZRUŠENO',
+  },
   packing: {
     title: (event: string) => `Balicí list: ${event}`,
     start: 'Začít balit',
@@ -1115,6 +1190,8 @@ export const cs = {
       askYes: 'Odeslat žádost',
       askDone: 'Žádost odeslána šéfovi techniky.',
       requests: 'Žádosti o zrušení',
+      requestBooking: 'Zrušit celou akci',
+      bookingApproved: 'Zrušení schváleno.',
       request: (label: string) => (label ? `Zrušit odvoz: ${label}` : 'Zrušit balení'),
       requestBy: (who: string, on: string, reason: string) => `${who}, ${on}. Důvod: ${reason}`,
       requestBack: (list: string) => `Sklad potvrdil, že je zpátky: ${list}`,

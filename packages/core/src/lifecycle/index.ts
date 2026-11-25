@@ -3,7 +3,7 @@
  * Each action checks role/permission and the current state and returns a typed error otherwise.
  */
 import type { IsoDate } from '../dates';
-import { evaluateBooking, firstEventDay } from '../availability';
+import { evaluateBooking, firstBookedFrom, firstEventDay, lastBookedUntil } from '../availability';
 import { checkBookingClient } from '../clients';
 import {
   addConflictRecord,
@@ -44,6 +44,8 @@ export type LifecycleAction =
   | 'recordReturnSession'
   | 'resolveIssue'
   | 'close'
+  | 'cancel'
+  | 'reopen'
   | 'expire';
 
 /** Allowed source statuses per action and the resulting status. */
@@ -70,6 +72,9 @@ export const TRANSITIONS: Record<
     to: 'computed',
   },
   close: { from: ['returned'], to: 'closed' },
+  // 'packing' and 'packed' only while nothing has left
+  cancel: { from: [...PRE_STATUSES, 'confirmed', 'packing', 'packed'], to: 'cancelled' },
+  reopen: { from: ['cancelled'], to: 'computed' },
   expire: { from: [...PRE_STATUSES], to: 'expired' },
 };
 
@@ -85,6 +90,8 @@ const PERMISSION_OF: Record<LifecycleAction, Action> = {
   recordReturnSession: 'record_return',
   resolveIssue: 'resolve_issue',
   close: 'close',
+  cancel: 'cancel_booking',
+  reopen: 'cancel_booking',
   expire: 'admin',
 };
 
@@ -110,6 +117,8 @@ export function guard(
       status: b.status,
     });
   }
+  if (b.cancelPending)
+    return err('invalid_state', 'The booking is being cancelled', { field: 'cancelPending' });
   return ok(b);
 }
 
@@ -203,6 +212,8 @@ export function saveBooking(
   if (!EDITABLE.includes(current.status)) {
     return err('invalid_state', `Cannot edit a booking in state ${current.status}`);
   }
+  if (current.cancelPending)
+    return err('invalid_state', 'The booking is being cancelled', { field: 'cancelPending' });
   const client = checkBookingClient(state, edited.clientId, current.clientId);
   if (!client.ok) return client;
   const { clientId, ...rest } = edited;
@@ -433,16 +444,20 @@ export function confirmBooking(
     );
   });
   // What was only likely is real now for whoever counted with the same gear.
+  // Whoever approved it has just seen it.
   const hit = uniq(
-    newShortages(state, approved, today, '9999-12-31', (b) => b.id !== bookingId, PRE_STATUSES)
-      .filter((h) => h.level === 'prebooking')
-      .map((h) => h.bookingId),
+    newShortages(
+      state,
+      approved,
+      firstBookedFrom(booking),
+      lastBookedUntil(booking),
+      (b) => b.type === 'prebooking' && b.id !== bookingId && b.pmId !== user.id,
+      PRE_STATUSES,
+    ).map((h) => h.bookingId),
   );
   const { state: next } = produce(approved, (d) => {
     for (const id of hit) {
       const b = d.bookings.find((x) => x.id === id) as Booking;
-      // whoever approved it has just seen it
-      if (b.pmId === user.id) continue;
       notify(
         d,
         [b.pmId],
@@ -517,6 +532,7 @@ export function expireBooking(state: AppState, today: IsoDate, bookingId: Id): R
   return ok(
     produce(state, (d) => {
       const x = d.bookings.find((y) => y.id === bookingId) as Booking;
+      x.expiredFrom = x.status;
       x.status = 'expired';
       postEvent(d, x.id, SYSTEM_USER_ID, today, 'expired', {});
       notify(

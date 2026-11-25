@@ -160,6 +160,26 @@ function Window({ onClose }: { onClose: () => void }) {
             </ul>
           </section>
 
+          <section data-testid="stage-cancel">
+            <h3 className="mb-1 font-cond text-lg font-bold">{cs.stages.cancelTitle}</h3>
+            <p className="mb-2 text-sm text-muted">{cs.stages.cancelHint}</p>
+            <ul className="divide-y divide-alu-line rounded border border-alu-line">
+              {cs.stages.cancelWays.map((x) => (
+                <li
+                  key={x.from.join()}
+                  className="grid gap-x-4 gap-y-1 p-3 text-sm md:grid-cols-[18rem_1fr] md:items-center"
+                >
+                  <span className="flex flex-wrap items-center gap-1.5">
+                    {x.from.map((st) => (
+                      <StatusChip key={st} status={st} />
+                    ))}
+                  </span>
+                  <span>{x.how}</span>
+                </li>
+              ))}
+            </ul>
+          </section>
+
           <section data-testid="stage-tiers">
             <h3 className="mb-1 font-cond text-lg font-bold">{cs.stages.tiersTitle}</h3>
             <p className="mb-2 text-sm text-muted">{cs.stages.tiersHint}</p>

@@ -55,6 +55,7 @@ export function runDailyJobs(state: AppState, today: IsoDate): DailyJobResult {
       if (b.type === 'prebooking' && PRE_STATUSES.includes(b.status)) {
         const first = firstEventDay(b);
         if (today >= first) {
+          b.expiredFrom = b.status;
           b.status = 'expired';
           expired.push(b.id);
           postEvent(d, b.id, SYSTEM_USER_ID, today, 'expired', {});
@@ -109,7 +110,7 @@ export function runDailyJobs(state: AppState, today: IsoDate): DailyJobResult {
         continue;
       }
       if (b.type !== 'order') continue;
-      if (['confirmed', 'packing', 'packed'].includes(b.status)) {
+      if (['confirmed', 'packing', 'packed'].includes(b.status) && !b.cancelPending) {
         for (const p of b.periods) {
           if (today > p.bookedFrom) continue;
           if (due(`loading:${b.id}:${p.bookedFrom}`, addDays(p.bookedFrom, -r.loadingBefore))) {

@@ -148,7 +148,7 @@ function CancelConfirm({
   started: boolean;
   bookingId: string;
   onYes: (input: CancelInput) => void;
-  onNo: () => void;
+  onNo?: () => void;
 }) {
   const s = useAppState();
   const [reason, setReason] = useState('');
@@ -235,9 +235,11 @@ function CancelConfirm({
         >
           {yes}
         </button>
-        <button type="button" className="btn" onClick={onNo}>
-          {cs.packing.cancel.keep}
-        </button>
+        {onNo && (
+          <button type="button" className="btn" onClick={onNo}>
+            {cs.packing.cancel.keep}
+          </button>
+        )}
       </div>
     </form>
   );
@@ -265,10 +267,15 @@ function RequestRow({ b, r }: { b: Booking; r: CancelRequest }) {
   const run = useProto((p) => p.run);
   const [reason, setReason] = useState<string | undefined>();
   const items = r.shipmentId ? shipmentBackItems(s, r.shipmentId) : packingBackItems(s, b);
+  const done = r.booking ? cs.packing.cancel.bookingApproved : cs.packing.cancel.approved;
   const back = items.filter((i) => r.confirmed.includes(i.key));
   return (
     <li className="space-y-1 rounded border border-warn/40 bg-warn-light p-3 text-sm">
-      <p className="font-semibold">{cs.packing.cancel.request(requestLabel(s, r))}</p>
+      <p className="font-semibold">
+        {r.booking
+          ? cs.packing.cancel.requestBooking
+          : cs.packing.cancel.request(requestLabel(s, r))}
+      </p>
       <p>{cs.packing.cancel.requestBy(userName(s, r.by), fmtDate(r.on), r.reason)}</p>
       {back.length > 0 && (
         <p className="text-xs text-muted">
@@ -285,9 +292,7 @@ function RequestRow({ b, r }: { b: Booking; r: CancelRequest }) {
             <button
               type="button"
               className="btn btn-sm btn-danger"
-              onClick={() =>
-                run((st) => approveCancel(st, user, today, b.id, r.id), cs.packing.cancel.approved)
-              }
+              onClick={() => run((st) => approveCancel(st, user, today, b.id, r.id), done)}
             >
               {cs.packing.cancel.approve}
             </button>
@@ -364,7 +369,7 @@ function AskChief({
   const today = useToday();
   const run = useProto((p) => p.run);
   const [asking, setAsking] = useState(false);
-  if (openCancelRequests(s, b).some((r) => r.shipmentId === shipmentId)) return null;
+  if (openCancelRequests(s, b).some((r) => !r.booking && r.shipmentId === shipmentId)) return null;
   if (!asking)
     return (
       <button
@@ -416,6 +421,19 @@ export function CancelPacking({ id }: { id: string }) {
     0,
   );
   if (gone && here === 0 && orderProgress(s, b).promised === 0) return null;
+  if (b.cancelPending)
+    return (
+      <CancelConfirm
+        text={cs.cancelBooking.unpackText}
+        yes={cs.cancelBooking.unpackYes}
+        items={packingBackItems(s, b)}
+        started={false}
+        bookingId={id}
+        onYes={(input) =>
+          run((st) => cancelPacking(st, user, today, id, input), cs.cancelBooking.unpackDone)
+        }
+      />
+    );
   const started = cancelLocked(b, today);
   if (started && !can(user, 'cancel_after_start'))
     return (

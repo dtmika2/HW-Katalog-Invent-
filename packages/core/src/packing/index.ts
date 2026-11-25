@@ -14,6 +14,7 @@ import {
   resolveSourceWarehouse,
   standardQty,
 } from '../catalog';
+import { cancelNow } from '../cancel/apply';
 import { newShortages, recomputeConflictRecords, type ShortageHit } from '../conflicts';
 import { guard } from '../lifecycle';
 import { can } from '../lifecycle/permissions';
@@ -784,7 +785,8 @@ export function cancelGuard(
   if (!can(user, 'cancel_delivery', b)) return err('forbidden', 'Not allowed to cancel');
   if (!IN_HOUSE.has(b.status))
     return err('invalid_state', `Cannot cancel a booking in state ${b.status}`);
-  if (cancelLocked(b, today)) {
+  // a cancelled event is unpacked whenever it was to be: the Chief has decided
+  if (cancelLocked(b, today) && !b.cancelPending) {
     if (!can(user, 'cancel_after_start', b))
       return err('forbidden', 'The event has begun, only the Chief may cancel', {
         field: 'started',
@@ -820,7 +822,12 @@ export function unpackLine(
     ? cancelGuard(state, user, today, bookingId, [], { confirmed: [], reason: 'unpack' })
     : guard(state, user, 'pack', bookingId);
   if (!g.ok) return g;
-  if (!what.deferred && cancelLocked(g.value, today) && !can(user, 'cancel_after_start'))
+  if (
+    !what.deferred &&
+    cancelLocked(g.value, today) &&
+    !g.value.cancelPending &&
+    !can(user, 'cancel_after_start')
+  )
     return err('forbidden', 'The event has begun, only the Chief may unpack', { field: 'started' });
   const line = g.value.lines.find((l) => l.id === lineId);
   if (!line) return err('not_found', `Line ${lineId} not found`);
@@ -940,6 +947,9 @@ export function cancelPacking(
       ...(why ? { reason: why } : {}),
     });
   }).state;
+  const pending = b.cancelPending;
+  if (pending && !gone)
+    return ok(cancelNow(next, user.id, today, bookingId, pending.by, pending.reason));
   return ok(recomputeConflictRecords(next, today));
 }
 

@@ -38,6 +38,7 @@ import {
   PromiseReasons,
   ShipConfirm,
 } from '../components/Delivery';
+import { CancelPendingNote } from '../components/CancelBooking';
 import { Hits, loanLine } from '../components/Loans';
 import { PackingPrint } from '../components/PackingPrint';
 import { PrintButton } from '../components/print';
@@ -130,11 +131,13 @@ export function Packing() {
   if (!b) return <Empty>{cs.errors.not_found}</Empty>;
   const pl = packingList(s, id);
   if (!pl) return <Empty>{cs.errors.not_found}</Empty>;
-  const canPack = can(user, 'pack') && ['packing', 'packed', 'shipped'].includes(b.status);
+  const canPack =
+    can(user, 'pack') && ['packing', 'packed', 'shipped'].includes(b.status) && !b.cancelPending;
   // taking packed gear back: the Chief always, the warehouse until the event begins
   const canUnpack =
     ['packing', 'packed', 'shipped'].includes(b.status) &&
     can(user, 'cancel_delivery') &&
+    !b.cancelPending &&
     (!cancelLocked(b, today) || can(user, 'cancel_after_start'));
   const progress = orderProgress(s, b);
 
@@ -455,6 +458,7 @@ export function Packing() {
             </div>
           )}
         </div>
+        <CancelPendingNote b={b} />
         <CancelRequests id={id} />
         {b.editedAfterShipping && newLinesPending && (
           <p

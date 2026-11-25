@@ -459,6 +459,8 @@ describe('lifecycle — editing and transitions', () => {
       recordReturnSession: U.martin,
       resolveIssue: U.tomas,
       close: U.tomas,
+      cancel: U.tomas,
+      reopen: U.tomas,
       expire: U.admin,
     };
     for (const action of Object.keys(TRANSITIONS) as LifecycleAction[]) {

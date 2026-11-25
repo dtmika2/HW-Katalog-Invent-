@@ -91,7 +91,7 @@ describe('conflict tiers', () => {
     expect(screen.getByRole('button', { name: 'Potvrdit ke schválení' })).toBeEnabled();
   });
 
-  it('unconfirmed becomes possible, approved becomes real', () => {
+  it('with an unconfirmed reservation it is only possible', () => {
     const view = renderApp(`/bookings/${PLANNED}`, { scenario: 'base', user: 'u-lucie' });
     change('Stav', 'tentative');
     view.unmount();
@@ -129,5 +129,118 @@ describe('conflict tiers', () => {
     expect(screen.queryByTestId('conflict-detail')).toBeNull();
     change('Konflikty', 'all');
     expect(marks().length).toBeGreaterThan(0);
+  });
+});
+
+describe('cancelling a booking', () => {
+  const cancel = (reason = 'Klient akci zrušil') => {
+    click('Zrušit akci');
+    expect(screen.getByRole('button', { name: 'Ano, zrušit akci' })).toBeDisabled();
+    change('Důvod (povinné)', reason);
+    click('Ano, zrušit akci');
+  };
+
+  it('a PM cancels a draft with a reason, finds it in the archive and takes it back', () => {
+    const page = renderApp(`/bookings/${DRAFT}`, { scenario: 'base', user: 'u-petr' });
+    cancel();
+    expect(booking(DRAFT)?.status).toBe('cancelled');
+    expect(screen.getByTestId('cancelled-note')).toHaveTextContent(
+      'Zrušeno 20.04.2027, Petr Dvořák. Důvod: Klient akci zrušil',
+    );
+    expect(screen.getByLabelText('Název akce')).toBeDisabled();
+    expect(screen.getByTestId('booking-print')).toHaveTextContent('ZRUŠENO');
+    page.unmount();
+    const list = renderCurrent('/bookings');
+    expect(screen.queryByText('Teambuilding Spektrum')).toBeNull();
+    click('Archiv');
+    expect(screen.getByText('Teambuilding Spektrum')).toBeInTheDocument();
+    expect(screen.getByText('Zahradní slavnost Horizont')).toBeInTheDocument();
+    list.unmount();
+    renderCurrent(`/bookings/${DRAFT}`);
+    click('Obnovit');
+    expect(booking(DRAFT)?.status).toBe('draft');
+    expect(screen.getByLabelText('Název akce')).toBeEnabled();
+  });
+
+  it('unsaved edits do not stay on a cancelled booking', () => {
+    renderApp(`/bookings/${DRAFT}`, { scenario: 'base', user: 'u-petr' });
+    change('Název akce', 'Rozepsané');
+    cancel();
+    expect(screen.getByLabelText('Název akce')).toHaveValue('Teambuilding Spektrum');
+  });
+
+  it('an approved order: its PM cancels alone, only the Chief takes it back, to be approved again', () => {
+    const ID = 'bk-letni-noc';
+    const page = renderApp(`/bookings/${ID}`, { scenario: 'base', user: 'u-lucie' });
+    cancel();
+    expect(booking(ID)?.status).toBe('cancelled');
+    expect(screen.queryByRole('button', { name: 'Obnovit' })).toBeNull();
+    page.unmount();
+    const gone = state();
+    renderApp(`/bookings/${ID}`, { scenario: 'base', user: 'u-tomas', prepare: () => gone });
+    click('Obnovit');
+    expect(booking(ID)).toMatchObject({ status: 'submitted', type: 'prebooking' });
+    expect(screen.getByRole('button', { name: 'Schválit objednávku' })).toBeInTheDocument();
+  });
+
+  it('hidden in the calendar until asked for, without conflict marks', () => {
+    renderApp('/calendar', { scenario: 'base', user: 'u-petr' });
+    click('Další měsíc');
+    expect(screen.queryByTestId('row-bk-zahradni')).toBeNull();
+    fireEvent.click(screen.getByLabelText('Zobrazit zrušené'));
+    const row = screen.getByTestId('row-bk-zahradni');
+    expect(row.querySelector('[data-status="cancelled"]')).not.toBeNull();
+    expect(row.querySelector('[data-conflict]')).toBeNull();
+  });
+
+  it('while packed: the PM asks, the Chief approves, the warehouse unpacks', () => {
+    const s0 = renderApp('/', { scenario: 'base', user: 'u-tomas' });
+    const b = state().bookings.find(
+      (x) => x.status === 'packed' && !state().shipments.some((y) => y.bookingId === x.id),
+    )!;
+    s0.unmount();
+    const pm = renderApp(`/bookings/${b.id}`, { scenario: 'base', user: b.pmId });
+    click('Požádat šéfa o zrušení akce');
+    change('Důvod (povinné)', 'Klient akci zrušil');
+    click('Odeslat žádost');
+    expect(screen.queryByRole('button', { name: 'Požádat šéfa o zrušení akce' })).toBeNull();
+    pm.unmount();
+    const asked = state();
+    const chief = renderApp('/', { scenario: 'base', user: 'u-tomas', prepare: () => asked });
+    expect(screen.getByTestId('cancel-requests')).toHaveTextContent('Zrušit celou akci');
+    click('Schválit zrušení');
+    expect(booking(b.id)).toMatchObject({ status: 'packed' });
+    chief.unmount();
+    const pending = state();
+    const wh = renderApp('/', { scenario: 'base', user: 'u-martin', prepare: () => pending });
+    expect(screen.getByTestId('to-unpack')).toHaveTextContent(b.eventName);
+    expect(screen.getByTestId('ready-to-ship')).not.toHaveTextContent(b.eventName);
+    wh.unmount();
+    const page = renderCurrent(`/packing/${b.id}`);
+    expect(screen.getByTestId('cancel-pending')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Potvrdit, že je vše vybalené' })).toBeDisabled();
+    for (const c of screen.getAllByLabelText(/^Zpátky:/)) fireEvent.click(c);
+    click('Potvrdit, že je vše vybalené');
+    expect(booking(b.id)?.status).toBe('cancelled');
+    page.unmount();
+  });
+
+  it('once anything has left there is no cancelling', () => {
+    for (const st of ['shipped', 'returning', 'closed'] as const) {
+      const first = renderApp('/', { scenario: 'base', user: 'u-tomas' });
+      const b = state().bookings.find((x) => x.status === st)!;
+      first.unmount();
+      const page = renderCurrent(`/bookings/${b.id}`);
+      expect(screen.queryByRole('button', { name: /zruš/i })).toBeNull();
+      page.unmount();
+    }
+  });
+
+  it('other PMs and the warehouse cannot cancel', () => {
+    for (const user of ['u-lucie', 'u-martin', 'u-admin']) {
+      const page = renderApp(`/bookings/${DRAFT}`, { scenario: 'base', user });
+      expect(screen.queryByRole('button', { name: 'Zrušit akci' })).toBeNull();
+      page.unmount();
+    }
   });
 });

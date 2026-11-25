@@ -35,6 +35,7 @@ import {
   PromiseReasons,
   ShipConfirm,
 } from '../components/Delivery';
+import { CancelPendingNote } from '../components/CancelBooking';
 import { CaseLabel, Empty, StatusChip } from '../components/ui';
 import { cs, fmtDate } from '../i18n/cs';
 import { caseNumber, packByGroup, warehouseName } from '../lib/names';
@@ -103,7 +104,8 @@ export function Shipping() {
   const b = s.bookings.find((x) => x.id === id);
   const pl = b && packingList(s, id);
   if (!b || !pl) return <Empty>{cs.errors.not_found}</Empty>;
-  const canShip = can(user, 'ship') && ['packing', 'packed', 'shipped'].includes(b.status);
+  const canShip =
+    can(user, 'ship') && ['packing', 'packed', 'shipped'].includes(b.status) && !b.cancelPending;
   const canClose = canShip || can(user, 'mark_line');
   const all = [...pl.byWarehouse.flatMap((w) => w.groups.flatMap((g) => g.lines)), ...pl.external];
   const packed = all.filter((l) => l.progress.readyPacked > 0);
@@ -249,6 +251,7 @@ export function Shipping() {
         </p>
         <DeliveryTabs id={id} ready={progress.ready} />
       </div>
+      <CancelPendingNote b={b} />
       <CancelRequests id={id} />
       {progress.toPack > 0 && (
         <p className="rounded border border-warn/40 bg-warn-light p-3 text-sm">

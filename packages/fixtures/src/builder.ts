@@ -3,6 +3,7 @@
  * shipment, return, issue and conflict record in the fixtures is consistent with the rules.
  */
 import {
+  cancelBooking,
   ackConflict,
   addDays,
   addLine,
@@ -45,6 +46,7 @@ export type Stage =
   | 'draft'
   | 'submitted'
   | 'expired'
+  | 'cancelled'
   | 'confirmed'
   | 'packing'
   | 'packed'
@@ -225,6 +227,12 @@ export class Builder {
       confirmBooking(this.state, confirmer, this.upTo(addDays(created, 3)), spec.id),
     );
     if (spec.stage === 'confirmed') return;
+    if (spec.stage === 'cancelled') {
+      this.state = unwrap(
+        cancelBooking(this.state, pm, this.today, spec.id, 'Klient akci přesunul na podzim'),
+      );
+      return;
+    }
 
     this.state = unwrap(startPacking(this.state, wh, this.upTo(addDays(first, -1)), spec.id));
     if (spec.stage === 'packing') return;

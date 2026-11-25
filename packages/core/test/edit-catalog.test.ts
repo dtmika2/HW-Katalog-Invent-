@@ -128,7 +128,12 @@ describe('catalogue helpers', () => {
       bk({ id: 'd1', pmId: U.jana.id, lines: [ln('l1', item('hazer'), 1)] }),
       order({ id: 'o1' }),
     );
-    expect(availableActions(st, U.jana, 'd1').sort()).toEqual(['confirm', 'setStage', 'submit']);
+    expect(availableActions(st, U.jana, 'd1').sort()).toEqual([
+      'cancel',
+      'confirm',
+      'setStage',
+      'submit',
+    ]);
     expect(availableActions(st, U.martin, 'o1')).toEqual(['startPacking']);
   });
 });

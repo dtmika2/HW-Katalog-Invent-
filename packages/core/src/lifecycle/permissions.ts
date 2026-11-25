@@ -16,6 +16,7 @@ export type Action =
   | 'ship'
   | 'cancel_delivery'
   | 'cancel_after_start'
+  | 'cancel_booking'
   | 'mark_line'
   | 'add_lines_after_shipping'
   | 'record_return'
@@ -38,8 +39,12 @@ export type Action =
 const isChief = (u: User) => u.role === 'chief';
 
 /** Reservations without an order behind them are no concern of the warehouse. */
-export function canSeeBooking(user: User, b: Pick<Booking, 'status'>): boolean {
-  return !RESERVATION_STATUSES.includes(b.status) || can(user, 'see_reservations');
+export function canSeeBooking(
+  user: User,
+  b: Pick<Booking, 'status' | 'cancelled' | 'expiredFrom'>,
+): boolean {
+  const stage = b.cancelled?.from ?? b.expiredFrom ?? b.status;
+  return !RESERVATION_STATUSES.includes(stage) || can(user, 'see_reservations');
 }
 
 /** The state as `user` may see it, for lists, calendars and conflicts. */
@@ -60,6 +65,7 @@ export function can(user: User, action: Action, booking?: Booking): boolean {
     case 'edit_booking':
       if (isChief(user)) return true;
       return user.role === 'pm' && own && booking?.type === 'prebooking';
+    case 'cancel_booking':
     case 'submit':
       return (user.role === 'pm' && own) || isChief(user);
     case 'return_to_pm':

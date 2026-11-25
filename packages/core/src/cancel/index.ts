@@ -6,10 +6,19 @@
 import type { IsoDate } from '../dates';
 import { can } from '../lifecycle/permissions';
 import { chiefIds, notify, postEvent } from '../notifications';
+import { cancelBooking, hasLeft } from './booking';
 import { cancelGuard, cancelLocked, cancelPacking, packingBackItems } from '../packing';
 import { canCancelShipment, cancelShipment, shipmentBackItems } from '../shipping';
 import type { AppState, Booking, CancelRequest, Id, User } from '../types';
 import { err, nextId, ok, produce, type Result } from '../util';
+
+export * from './booking';
+
+/** What a request wants to cancel, for events and notifications. */
+const what = (state: Pick<AppState, 'shipments'>, r: CancelRequest) => ({
+  label: requestLabel(state, r),
+  ...(r.booking ? { booking: 1 } : {}),
+});
 
 /** What a request wants to cancel, for texts: the delivery's label, or '' for packing. */
 export function requestLabel(
@@ -21,9 +30,11 @@ export function requestLabel(
 
 /** Requests waiting for the Chief; one whose target can no longer be cancelled is gone. */
 export function openCancelRequests(state: AppState, b: Booking): CancelRequest[] {
-  if (!['packing', 'packed', 'shipped'].includes(b.status)) return [];
+  if (!['packing', 'packed', 'shipped'].includes(b.status) || b.cancelPending) return [];
   return (b.cancelRequests ?? []).filter(
-    (r) => !r.shipmentId || canCancelShipment(state, r.shipmentId),
+    (r) =>
+      (r.booking ? !hasLeft(state, b.id) : !r.shipmentId) ||
+      (!!r.shipmentId && canCancelShipment(state, r.shipmentId)),
   );
 }
 
@@ -47,6 +58,7 @@ export function requestCancel(
   if (!can(user, 'cancel_delivery', b)) return err('forbidden', 'Not allowed to ask for this');
   if (!cancelLocked(b, today) || can(user, 'cancel_after_start', b))
     return err('invalid_state', 'It can be cancelled directly');
+  if (b.cancelPending) return err('invalid_state', 'The booking is being cancelled');
   if (!input.reason.trim()) return err('validation', 'A reason is required', { field: 'reason' });
   const { shipmentId } = input;
   if (shipmentId) {
@@ -55,7 +67,7 @@ export function requestCancel(
     if (!canCancelShipment(state, shipmentId))
       return err('invalid_state', 'The delivery can no longer be cancelled');
   }
-  if (openCancelRequests(state, b).some((r) => r.shipmentId === shipmentId))
+  if (openCancelRequests(state, b).some((r) => !r.booking && r.shipmentId === shipmentId))
     return err('invalid_state', 'The Chief has already been asked');
   const items = shipmentId ? shipmentBackItems(state, shipmentId) : packingBackItems(state, b);
   // the same rules as for cancelling, as if the Chief did it
@@ -104,7 +116,7 @@ function decided(
   b: Booking,
   r: CancelRequest,
   today: IsoDate,
-  label: string,
+  label: ReturnType<typeof what>,
   approved: boolean,
   reason: string,
 ): void {
@@ -114,7 +126,7 @@ function decided(
     {
       type: 'cancel_decided',
       text: `${b.eventName}: cancelling was ${approved ? 'approved' : 'declined'}`,
-      params: { event: b.eventName, label, approved: approved ? 1 : 0, reason },
+      params: { event: b.eventName, ...label, approved: approved ? 1 : 0, reason },
       bookingId: b.id,
     },
     today,
@@ -133,11 +145,13 @@ export function approveCancel(
   if (!f.ok) return f;
   const [b, r] = f.value;
   if (!can(user, 'cancel_after_start', b)) return err('forbidden', 'Only the Chief decides');
-  const label = requestLabel(state, r);
+  const label = what(state, r);
   const input = { confirmed: r.confirmed, reason: r.reason };
-  const done = r.shipmentId
-    ? cancelShipment(state, user, today, r.shipmentId, input)
-    : cancelPacking(state, user, today, bookingId, input);
+  const done = r.booking
+    ? cancelBooking(state, user, today, bookingId, r.reason)
+    : r.shipmentId
+      ? cancelShipment(state, user, today, r.shipmentId, input)
+      : cancelPacking(state, user, today, bookingId, input);
   if (!done.ok) return done;
   return ok(produce(done.value, (d) => decided(d, b, r, today, label, true, '')).state);
 }
@@ -161,8 +175,8 @@ export function declineCancel(
     produce(state, (d) => {
       const booking = d.bookings.find((x) => x.id === bookingId) as Booking;
       booking.cancelRequests = (booking.cancelRequests ?? []).filter((x) => x.id !== requestId);
-      const label = requestLabel(d, r);
-      postEvent(d, bookingId, user.id, today, 'cancel_declined', { label, reason: why });
+      const label = what(d, r);
+      postEvent(d, bookingId, user.id, today, 'cancel_declined', { ...label, reason: why });
       decided(d, b, r, today, label, false, why);
     }).state,
   );
@@ -184,7 +198,7 @@ export function withdrawCancel(
     produce(state, (d) => {
       const booking = d.bookings.find((x) => x.id === bookingId) as Booking;
       booking.cancelRequests = (booking.cancelRequests ?? []).filter((x) => x.id !== requestId);
-      postEvent(d, bookingId, user.id, today, 'cancel_withdrawn', { label: requestLabel(d, r) });
+      postEvent(d, bookingId, user.id, today, 'cancel_withdrawn', what(d, r));
     }).state,
   );
 }

@@ -86,6 +86,11 @@ export function PaperHead({
         <p className="font-cond text-[18pt] font-bold leading-tight">{b.eventName}</p>
         <p className="shrink-0 text-[9pt]">{doc}</p>
       </div>
+      {(b.cancelled || b.cancelPending) && (
+        <p className="my-1 border-2 border-black px-2 text-center font-cond text-[16pt] font-bold">
+          {cs.cancelBooking.paper}
+        </p>
+      )}
       <p className="font-cond text-[13pt] font-bold">{title}</p>
       <p className="text-[9pt]">{dates.join(' · ')}</p>
       <p className="text-[9pt]">

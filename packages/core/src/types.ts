@@ -241,8 +241,10 @@ export interface BookingLine {
 /** The warehouse asks the Chief to cancel after the event has begun. */
 export interface CancelRequest {
   id: Id;
-  /** The delivery to cancel; without it, the packing. */
+  /** The delivery to cancel; without it, the packing (or the booking, see `booking`). */
   shipmentId?: Id;
+  /** The PM asks to cancel the whole booking. */
+  booking?: true;
   by: Id;
   on: IsoDate;
   reason: string;
@@ -282,6 +284,11 @@ export interface Booking {
   /** Why it is packed early although a confirmed order needs the gear in the meantime. */
   earlyPacking?: { by: Id; on: IsoDate; reason: string };
   cancelRequests?: CancelRequest[];
+  /** Cancelled, but the warehouse has not confirmed yet that everything is unpacked. */
+  cancelPending?: { by: Id; on: IsoDate; reason: string };
+  /** Stage in which it expired. */
+  expiredFrom?: BookingStatus;
+  cancelled?: { by: Id; on: IsoDate; reason: string; from: BookingStatus };
   closedOn?: IsoDate;
 }
 
@@ -533,7 +540,12 @@ export type NotificationType =
   | 'shipping_cancelled'
   | 'cancel_requested'
   | 'cancel_decided'
-  | 'reservation_affected';
+  | 'reservation_affected'
+  | 'booking_cancelled'
+  | 'booking_reopened'
+  | 'cancel_unpack'
+  | 'gear_released'
+  | 'transfer_lost';
 
 export type Params = Record<string, string | number>;
 
@@ -567,6 +579,9 @@ export type SystemEventType =
   | 'cancel_requested'
   | 'cancel_declined'
   | 'cancel_withdrawn'
+  | 'cancel_started'
+  | 'cancelled'
+  | 'reopened'
   | 'shipped_without'
   | 'promised_arrived'
   | 'promised_closed'

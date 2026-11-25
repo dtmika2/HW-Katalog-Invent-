@@ -590,6 +590,16 @@ export const BOOKINGS: BookingSpec[] = [
     stage: 'planned',
     lines: [I('par-rgbw', 20)],
   },
+  {
+    id: 'bk-zahradni',
+    name: 'Zahradní slavnost Horizont',
+    pm: U.petr,
+    client: 'cl-horizont',
+    purpose: 'Odpolední program v zahradě',
+    periods: [['2027-05-15', '2027-05-15']],
+    stage: 'cancelled',
+    lines: [I('qsc-k12', 2), I('sm58', 4)],
+  },
 ];
 
 /** Small items used by the PRNG filler bookings (no LEDBeams, cases or AX9 so scenarios stay exact). */

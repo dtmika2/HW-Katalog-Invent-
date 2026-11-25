@@ -17,7 +17,9 @@ describe('Vysvětlivky', () => {
   it('lists every stage once, with its meaning, what comes next and what it holds', () => {
     const box = open();
     const all = Object.keys(cs.status) as BookingStatus[];
-    expect(within(box).getAllByTestId(/^stage-(?!back|notes|tiers)/)).toHaveLength(all.length);
+    expect(within(box).getAllByTestId(/^stage-(?!back|notes|tiers|cancel$)/)).toHaveLength(
+      all.length,
+    );
     for (const st of all) {
       const row = within(box).getByTestId(`stage-${st}`);
       expect(row).toHaveTextContent(cs.status[st]);

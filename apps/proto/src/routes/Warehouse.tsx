@@ -31,6 +31,7 @@ export function WarehouseDashboard() {
     .filter(
       (b) =>
         b.type === 'order' &&
+        !b.cancelPending &&
         (b.status === 'confirmed' || (b.status === 'packing' && orderProgress(s, b).toPack > 0)),
     )
     .sort((a, b) => (firstBookedFrom(a) < firstBookedFrom(b) ? -1 : 1));
@@ -38,9 +39,13 @@ export function WarehouseDashboard() {
   const [active, setActive] = useState<Set<string>>(new Set());
   const ready = s.bookings
     .filter(
-      (b) => ['packing', 'packed', 'shipped'].includes(b.status) && orderProgress(s, b).ready > 0,
+      (b) =>
+        ['packing', 'packed', 'shipped'].includes(b.status) &&
+        !b.cancelPending &&
+        orderProgress(s, b).ready > 0,
     )
     .sort((a, b) => (firstBookedFrom(a) < firstBookedFrom(b) ? -1 : 1));
+  const unpack = s.bookings.filter((b) => b.cancelPending);
   const returns = s.bookings
     .filter(
       (b) =>
@@ -54,6 +59,25 @@ export function WarehouseDashboard() {
   const places = casePlaces(s);
   return (
     <div className="grid gap-4 lg:grid-cols-2">
+      {unpack.length > 0 && (
+        <div className="lg:col-span-2">
+          <Section title={`${cs.cancelBooking.toUnpack} (${unpack.length})`}>
+            <ul data-testid="to-unpack" className="divide-y divide-alu-line text-sm">
+              {unpack.map((b) => (
+                <li key={b.id} className="flex flex-wrap items-center justify-between gap-2 py-2">
+                  <span>
+                    <span className="font-cond font-semibold">{b.eventName}</span>
+                    <span className="block text-xs text-muted">{b.cancelPending?.reason}</span>
+                  </span>
+                  <Link to={`/packing/${b.id}`} className="btn btn-sm btn-danger">
+                    {cs.packing.unpack}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </Section>
+        </div>
+      )}
       <Section title={cs.warehouseUi.packingSoon}>
         <ul data-testid="packing-soon" className="divide-y divide-alu-line text-sm">
           {soon.length === 0 && <li className="text-muted">{cs.warehouseUi.none}</li>}

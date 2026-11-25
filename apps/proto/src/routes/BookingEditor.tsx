@@ -59,6 +59,7 @@ import {
 } from '@quix/core';
 import { CategoryLabel } from '../components/Category';
 import { CollidingLink, SameDaySection, TierChip, TierSection } from '../components/Conflicts';
+import { CancelBooking, CancelledNote, CancelPendingNote } from '../components/CancelBooking';
 import { ClientPicker } from '../components/Clients';
 import { CancelRequests, promisedRow } from '../components/Delivery';
 import { BookingPrint } from '../components/BookingPrint';
@@ -100,7 +101,8 @@ function Editor({ stored }: { stored: Booking }) {
     if (!dirty) setDraft(stored);
   }, [stored, dirty]);
 
-  const editable = can(user, 'edit_booking', stored) && EDITABLE.includes(stored.status);
+  const editable =
+    can(user, 'edit_booking', stored) && EDITABLE.includes(stored.status) && !stored.cancelPending;
   const update = (b: Booking) => {
     setDraft(b);
     setDirty(true);
@@ -181,6 +183,7 @@ function Editor({ stored }: { stored: Booking }) {
       <div className="space-y-4 print:hidden">
         <Header stored={stored} draft={booking} editable={editable} update={update} today={today} />
         {!editable && <p className="text-sm text-muted">{cs.editor.actions.readonly}</p>}
+        <CancelPendingNote b={stored} link />
         {openIssues(s).some((i) => i.bookingId === stored.id) && (
           <Section title={cs.issues.onBooking}>
             <IssuesList bookingId={stored.id} />
@@ -499,6 +502,7 @@ function Editor({ stored }: { stored: Booking }) {
               {cs.editor.actions.close}
             </button>
           )}
+          <CancelBooking b={stored} onDone={() => setDirty(false)} />
         </div>
       </div>
     </DragProvider>
@@ -530,6 +534,7 @@ function Header({
   };
   return (
     <div className="panel p-4">
+      <CancelledNote b={stored} />
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <span className="text-xs font-medium text-muted">{cs.bookingType[stored.type]}</span>
         {free && editable ? (
