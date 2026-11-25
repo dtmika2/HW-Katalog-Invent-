@@ -18,6 +18,8 @@ import { chiefIds, notify, postEvent, warehouseIds } from '../notifications';
 import {
   acceptedConflicts,
   applyCaseChecks,
+  backItems,
+  cancelGuard,
   casePlaces,
   deferrableQty,
   lineProgress,
@@ -27,6 +29,8 @@ import {
   promisedText,
   statusAfter,
   validatePickedLines,
+  type BackItem,
+  type CancelInput,
   type CasePlace,
   type LineProgress,
 } from '../packing';
@@ -433,6 +437,13 @@ export function packAndShip(
   });
 }
 
+/** What "Zrušit odvoz" has to confirm: every case and loose line of the delivery. */
+export function shipmentBackItems(state: AppState, shipmentId: Id): BackItem[] {
+  const s = state.shipments.find((x) => x.id === shipmentId);
+  const b = s && state.bookings.find((x) => x.id === s.bookingId);
+  return s && b ? backItems(state, b, s.lines) : [];
+}
+
 /** True while a delivery can be taken back: it is the order's own and no vratka was recorded. */
 export function canCancelShipment(state: AppState, shipmentId: Id): boolean {
   const s = state.shipments.find((x) => x.id === shipmentId);
@@ -447,7 +458,8 @@ export function canCancelShipment(state: AppState, shipmentId: Id): boolean {
 }
 
 /**
- * Cancel a delivery recorded by mistake: its gear is packed in the warehouse again, promised gear
+ * Cancel a delivery recorded by mistake, after confirming that every piece and case of it is back
+ * (anything missing has to go through the vratka). Its gear is packed again, promised gear
  * is open again and consumables are back in the stock. PM and Chief, who heard that it left, are
  * told.
  */
@@ -456,15 +468,22 @@ export function cancelShipment(
   user: User,
   today: IsoDate,
   shipmentId: Id,
-  reason = '',
+  input: CancelInput,
 ): Result<AppState> {
   const shipment = state.shipments.find((x) => x.id === shipmentId);
   if (!shipment) return err('not_found', `Shipment ${shipmentId} not found`);
-  const g = guard(state, user, 'ship', shipment.bookingId);
+  const g = cancelGuard(
+    state,
+    user,
+    today,
+    shipment.bookingId,
+    shipmentBackItems(state, shipmentId),
+    input,
+  );
   if (!g.ok) return g;
   if (!canCancelShipment(state, shipmentId))
     return err('invalid_state', 'The delivery can no longer be cancelled');
-  const why = reason.trim();
+  const why = input.reason?.trim() ?? '';
   const next = produce(state, (d) => {
     const booking = d.bookings.find((x) => x.id === shipment.bookingId) as Booking;
     d.shipments = d.shipments.filter((x) => x.id !== shipmentId);

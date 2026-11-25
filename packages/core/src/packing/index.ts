@@ -4,7 +4,7 @@
  * Promised gear (rented, or short because of an accepted conflict) may be left for the shipping.
  */
 import { addDays, diffDays, type IsoDate } from '../dates';
-import { firstBookedFrom, isOpenLoan, packedEntries } from '../availability';
+import { firstBookedFrom, firstEventDay, isOpenLoan, packedEntries } from '../availability';
 import {
   caseContentQty,
   contentsMatchStandard,
@@ -715,6 +715,94 @@ export function packLines(
   return ok(recomputeConflictRecords(next, today));
 }
 
+// ---------------------------------------------------------------------------
+// Taking packing back
+
+/** One thing that has to be confirmed as back before packing or a delivery is cancelled. */
+export interface BackItem {
+  /** Case id, or line id of loose pieces. */
+  key: Id;
+  qty: number;
+  name: string;
+  caseId?: Id;
+}
+
+/** What a cancel has to confirm, one entry per case and per loose line. */
+export function backItems(
+  state: AppState,
+  b: Booking,
+  lines: readonly Pick<ShipmentLine, 'lineId' | 'qty' | 'caseIds'>[],
+): BackItem[] {
+  const out = new Map<Id, BackItem>();
+  for (const l of lines) {
+    const line = b.lines.find((x) => x.id === l.lineId);
+    const name = line ? nameOf(state, line) : l.lineId;
+    for (const caseId of l.caseIds ?? []) out.set(caseId, { key: caseId, qty: 1, name, caseId });
+    if (l.caseIds) continue;
+    const same = out.get(l.lineId);
+    if (same) same.qty += l.qty;
+    else out.set(l.lineId, { key: l.lineId, qty: l.qty, name });
+  }
+  return [...out.values()];
+}
+
+/** What "Zrušit balení" has to confirm: everything still packed in the warehouse. */
+export function packingBackItems(state: AppState, b: Booking): BackItem[] {
+  return backItems(
+    state,
+    b,
+    b.lines.flatMap((l) => packedInHouse(state, b.id, l.id)),
+  );
+}
+
+/** Once the event has begun, gear comes back through the vratka; only the Chief may cancel. */
+export function cancelLocked(b: Pick<Booking, 'periods'>, today: IsoDate): boolean {
+  return today >= firstEventDay(b);
+}
+
+export interface CancelInput {
+  /** Keys of `BackItem`s confirmed one by one as back. */
+  confirmed: readonly Id[];
+  /** Required once the event has begun. */
+  reason?: string;
+}
+
+/**
+ * Shared rules of cancelling, so that it cannot replace the vratka: everything is confirmed as
+ * back, and once the event has begun only the Chief cancels, with a reason.
+ */
+export function cancelGuard(
+  state: AppState,
+  user: User,
+  today: IsoDate,
+  bookingId: Id,
+  items: readonly BackItem[],
+  input: CancelInput,
+): Result<Booking> {
+  const b = state.bookings.find((x) => x.id === bookingId);
+  if (!b) return err('not_found', `Booking ${bookingId} not found`);
+  if (!can(user, 'cancel_delivery', b)) return err('forbidden', 'Not allowed to cancel');
+  if (!IN_HOUSE.has(b.status))
+    return err('invalid_state', `Cannot cancel a booking in state ${b.status}`);
+  if (cancelLocked(b, today)) {
+    if (!can(user, 'cancel_after_start', b))
+      return err('forbidden', 'The event has begun, only the Chief may cancel', {
+        field: 'started',
+      });
+    if (!input.reason?.trim())
+      return err('validation', 'A reason is required once the event has begun', {
+        field: 'reason',
+      });
+  }
+  const missing = items.filter((i) => !input.confirmed.includes(i.key)).map((i) => i.key);
+  if (missing.length > 0)
+    return err('validation', 'Everything has to be confirmed as back', {
+      field: 'confirmed',
+      missing,
+    });
+  return ok(b);
+}
+
 /**
  * Undo packing of a line that still stands in the warehouse: all of it, or some pieces / one
  * case. With `deferred`, take back "comes with the shipping".
@@ -727,8 +815,13 @@ export function unpackLine(
   lineId: Id,
   what: { qty?: number; caseId?: Id; deferred?: boolean } = {},
 ): Result<AppState> {
-  const g = guard(state, user, 'pack', bookingId);
+  // the Chief may unpack too, and is the only one once the event has begun
+  const g = can(user, 'cancel_after_start')
+    ? cancelGuard(state, user, today, bookingId, [], { confirmed: [], reason: 'unpack' })
+    : guard(state, user, 'pack', bookingId);
   if (!g.ok) return g;
+  if (!what.deferred && cancelLocked(g.value, today) && !can(user, 'cancel_after_start'))
+    return err('forbidden', 'The event has begun, only the Chief may unpack', { field: 'started' });
   const line = g.value.lines.find((l) => l.id === lineId);
   if (!line) return err('not_found', `Line ${lineId} not found`);
   const p = lineProgress(state, g.value, line);
@@ -798,8 +891,8 @@ function putBack(
 }
 
 /**
- * Cancel packing: everything still in the house is unpacked and free again, nothing is promised
- * for the shipping. When nothing has left, the order is back at "Potvrzená" and can be packed
+ * Cancel packing: everything still in the house is confirmed as back on its place, unpacked and
+ * free again, nothing is promised for the shipping. When nothing has left, the order is back at "Potvrzená" and can be packed
  * again later. What was found missing in a case stays reported, it is a fact.
  */
 export function cancelPacking(
@@ -807,11 +900,14 @@ export function cancelPacking(
   user: User,
   today: IsoDate,
   bookingId: Id,
-  reason = '',
+  input: CancelInput,
 ): Result<AppState> {
-  const g = guard(state, user, 'pack', bookingId);
+  const found = state.bookings.find((x) => x.id === bookingId);
+  const items = found ? packingBackItems(state, found) : [];
+  const g = cancelGuard(state, user, today, bookingId, items, input);
   if (!g.ok) return g;
   const b = g.value;
+  const reason = input.reason ?? '';
   const gone = state.shipments.some((s) => s.bookingId === bookingId && !s.transferFromBookingId);
   const here = b.lines.map((line) => {
     const inHouse = packedInHouse(state, bookingId, line.id);

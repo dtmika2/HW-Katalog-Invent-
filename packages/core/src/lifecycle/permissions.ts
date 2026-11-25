@@ -13,6 +13,8 @@ export type Action =
   | 'start_packing'
   | 'pack'
   | 'ship'
+  | 'cancel_delivery'
+  | 'cancel_after_start'
   | 'mark_line'
   | 'add_lines_after_shipping'
   | 'record_return'
@@ -60,6 +62,9 @@ export function can(user: User, action: Action, booking?: Booking): boolean {
       return user.role === 'warehouse';
     case 'add_lines_after_shipping':
     case 'resolve_issue':
+    case 'cancel_delivery':
+      return isChief(user) || user.role === 'warehouse';
+    case 'cancel_after_start':
     case 'mark_line':
     case 'remove_auto_line':
     case 'dismiss_check':

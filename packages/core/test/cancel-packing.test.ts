@@ -4,6 +4,7 @@ import {
   cancelPacking,
   cancelShipment,
   canCancelShipment,
+  cancelLocked,
   casePlaces,
   createLoan,
   detectConflicts,
@@ -13,11 +14,14 @@ import {
   looseHere,
   openPromises,
   packAndShip,
+  packingBackItems,
   packLines,
   recordReturnSession,
   shipBatch,
+  shipmentBackItems,
   standardCaseChecks,
   startPacking,
+  unpackLine,
   unwrap,
   type AppState,
   type BookingLine,
@@ -40,6 +44,28 @@ import {
 const get = (s: AppState, id = 'o1') => s.bookings.find((b) => b.id === id)!;
 const events = (s: AppState, id = 'o1') =>
   s.messages.filter((m) => m.bookingId === id && m.event).map((m) => m.event!.type);
+/** Confirm everything as back, one by one. */
+const cancelP = (
+  s: AppState,
+  user = U.martin as Parameters<typeof cancelPacking>[1],
+  reason?: string,
+  today = T,
+) =>
+  cancelPacking(s, user, today, 'o1', {
+    confirmed: packingBackItems(s, get(s)).map((i) => i.key),
+    ...(reason ? { reason } : {}),
+  });
+const cancelS = (
+  s: AppState,
+  id: string,
+  user = U.martin as Parameters<typeof cancelPacking>[1],
+  reason?: string,
+  today = T,
+) =>
+  cancelShipment(s, user, today, id, {
+    confirmed: shipmentBackItems(s, id).map((i) => i.key),
+    ...(reason ? { reason } : {}),
+  });
 const needsReason = { error: { code: 'validation', details: { field: 'earlyReason' } } };
 
 // June order (confirmed second) and an order in May (confirmed first), both want LEDBeams (12).
@@ -168,7 +194,7 @@ describe('cancelling packing', () => {
     const s = packed();
     const before = structuredClone(s);
     expect(looseHere(s, 'ax9', W.brod, T)).toBe(3);
-    const c = unwrap(cancelPacking(s, U.martin, T, 'o1', 'Moc brzy'));
+    const c = unwrap(cancelP(s, U.martin, 'Moc brzy'));
     expect(s).toEqual(before);
     expect(get(c).status).toBe('confirmed');
     expect(c.packings).toEqual([]);
@@ -191,17 +217,17 @@ describe('cancelling packing', () => {
       baseState(),
       order({ id: 'o1', status: 'packing', lines: [ln('l1', item('hazer'), 1)] }),
     );
-    expect(get(unwrap(cancelPacking(s, U.martin, T, 'o1'))).status).toBe('confirmed');
-    expect(cancelPacking(s, U.petr, T, 'o1')).toMatchObject({ error: { code: 'forbidden' } });
+    expect(get(unwrap(cancelP(s))).status).toBe('confirmed');
+    expect(cancelP(s, U.petr)).toMatchObject({ error: { code: 'forbidden' } });
     const c = withBookings(baseState(), order({ id: 'o1', lines: [] }));
-    expect(cancelPacking(c, U.martin, T, 'o1')).toMatchObject({ error: { code: 'invalid_state' } });
+    expect(cancelP(c)).toMatchObject({ error: { code: 'invalid_state' } });
   });
 
   it('when part has left, only what is still here is unpacked', () => {
     const s = unwrap(
       shipBatch(packed(), U.martin, T, 'o1', { label: 'a', lines: [{ lineId: 'l1', qty: 2 }] }),
     );
-    const c = unwrap(cancelPacking(s, U.martin, T, 'o1'));
+    const c = unwrap(cancelP(s));
     expect(get(c).status).toBe('packing');
     expect(lineProgress(c, get(c), get(c).lines[0]!)).toMatchObject({
       shipped: 2,
@@ -209,14 +235,14 @@ describe('cancelling packing', () => {
       readyPacked: 0,
     });
     expect(casePlaces(c).size).toBe(0);
-    expect(cancelPacking(c, U.martin, T, 'o1')).toMatchObject({ error: { code: 'invalid_state' } });
+    expect(cancelP(c)).toMatchObject({ error: { code: 'invalid_state' } });
   });
 
   it('a conflict caused by packing early resolves, and the early reason is forgotten', () => {
     let s = unwrap(startPacking(withBookings(baseState(), may, june()), U.martin, T, 'o1', 'x'));
     s = unwrap(packLines(s, U.martin, T, 'o1', [{ lineId: 'l1', qty: 10 }]));
     expect(s.conflicts[0]?.status).toBe('new');
-    const c = unwrap(cancelPacking(s, U.martin, T, 'o1'));
+    const c = unwrap(cancelP(s));
     expect(c.conflicts[0]).toMatchObject({ status: 'resolved', resolution: 'auto' });
     expect(get(c)).not.toHaveProperty('earlyPacking');
     expect(startPacking(c, U.martin, T, 'o1')).toMatchObject(needsReason);
@@ -267,10 +293,10 @@ describe('cancelling a delivery', () => {
     const s = shipped();
     expect(get(s).status).toBe('shipped');
     const [first, second] = s.shipments;
-    let c = unwrap(cancelShipment(s, U.martin, T, second!.id, 'Auto nejelo'));
+    let c = unwrap(cancelS(s, second!.id, U.martin, 'Auto nejelo'));
     expect(get(c).status).toBe('packed');
     expect(openPromises(c, get(c)).map((p) => p.qty)).toEqual([2]);
-    c = unwrap(cancelShipment(c, U.martin, T, first!.id));
+    c = unwrap(cancelS(c, first!.id));
     expect(c.shipments).toEqual([]);
     expect(lineProgress(c, get(c), get(c).lines[0]!)).toMatchObject({ readyPacked: 4, shipped: 0 });
     expect([tape(s), tape(c)]).toEqual([17, 20]);
@@ -279,7 +305,7 @@ describe('cancelling a delivery', () => {
     expect([...new Set(told.map((n) => n.userId))].sort()).toEqual([U.jana.id, U.tomas.id].sort());
     expect(told[0]?.params).toMatchObject({ label: 'Dodávka 2', reason: 'Auto nejelo' });
     // then packing too: back to the beginning
-    expect(get(unwrap(cancelPacking(c, U.martin, T, 'o1'))).status).toBe('confirmed');
+    expect(get(unwrap(cancelP(c))).status).toBe('confirmed');
     // shipping it again tells the story again
     const again = unwrap(
       shipBatch(c, U.martin, T, 'o1', { label: 'x', lines: [{ lineId: 'l1', qty: 4 }] }),
@@ -287,12 +313,12 @@ describe('cancelling a delivery', () => {
     expect(events(again).at(-1)).toBe('shipped_without');
   });
 
-  it('not after a vratka, not a handover, only the warehouse', () => {
+  it('not after a vratka, not a handover, only the warehouse and the Chief', () => {
     const s = shipped();
     const id = s.shipments[0]!.id;
     expect(canCancelShipment(s, id)).toBe(true);
-    expect(cancelShipment(s, U.tomas, T, id)).toMatchObject({ error: { code: 'forbidden' } });
-    expect(cancelShipment(s, U.martin, T, 'nope')).toMatchObject({ error: { code: 'not_found' } });
+    expect(cancelS(s, id, U.petr)).toMatchObject({ error: { code: 'forbidden' } });
+    expect(cancelS(s, 'nope')).toMatchObject({ error: { code: 'not_found' } });
     const back = unwrap(
       recordReturnSession(s, U.martin, '2027-04-26', 'o1', {
         lines: [
@@ -307,15 +333,113 @@ describe('cancelling a delivery', () => {
       }),
     );
     expect(canCancelShipment(back, id)).toBe(false);
-    expect(cancelShipment(back, U.martin, T, id)).toMatchObject({
+    expect(cancelS(back, id)).toMatchObject({
       error: { code: 'invalid_state' },
     });
     const handover = {
       ...s,
       shipments: s.shipments.map((x) => ({ ...x, transferFromBookingId: 'a' })),
     };
-    expect(cancelShipment(handover, U.martin, T, id)).toMatchObject({
+    expect(cancelS(handover, id)).toMatchObject({
       error: { code: 'invalid_state' },
     });
+  });
+});
+
+describe('cancelling cannot replace the vratka', () => {
+  const START = '2027-04-23';
+  const s0 = () => {
+    const s = withBookings(
+      baseState(),
+      order({
+        id: 'o1',
+        status: 'packing',
+        lines: [ln('l1', item('ax9'), 4), ln('l2', caseT('ct-ax9'), 2), ln('l3', item('hazer'), 1)],
+      }),
+    );
+    return unwrap(
+      packLines(s, U.martin, T, 'o1', [
+        { lineId: 'l1', qty: 1 },
+        { lineId: 'l1', qty: 3, fromCaseId: 'case-2' },
+        { lineId: 'l3', qty: 1 },
+      ]),
+    );
+  };
+  const withCase = () => {
+    const s = unwrap(
+      packLines(s0(), U.martin, T, 'o1', [
+        {
+          lineId: 'l2',
+          qty: 1,
+          caseIds: ['case-1'],
+          caseChecks: standardCaseChecks(baseState(), ['case-1']),
+        },
+      ]),
+    );
+    return s;
+  };
+  const gone = () =>
+    unwrap(
+      shipBatch(withCase(), U.martin, T, 'o1', {
+        label: 'Dodávka 1',
+        lines: [
+          { lineId: 'l1', qty: 4 },
+          { lineId: 'l2', qty: 1, caseIds: ['case-1'] },
+        ],
+      }),
+    );
+
+  it('every case and every loose line has to be confirmed as back', () => {
+    const s = gone();
+    const id = s.shipments[0]!.id;
+    expect(shipmentBackItems(s, id)).toEqual([
+      { key: 'l1', qty: 4, name: 'Astera AX9 PowerPAR' },
+      { key: 'case-1', qty: 1, name: 'AX9 case', caseId: 'case-1' },
+    ]);
+    expect(cancelShipment(s, U.martin, T, id, { confirmed: ['l1'] })).toMatchObject({
+      error: { code: 'validation', details: { field: 'confirmed', missing: ['case-1'] } },
+    });
+    expect(cancelShipment(s, U.martin, T, id, { confirmed: ['l1', 'case-1'] }).ok).toBe(true);
+    // what is still packed here is confirmed separately
+    expect(packingBackItems(s, get(s)).map((i) => i.key)).toEqual(['l3']);
+    expect(cancelPacking(s, U.martin, T, 'o1', { confirmed: [] })).toMatchObject({
+      error: { code: 'validation', details: { missing: ['l3'] } },
+    });
+  });
+
+  it('once the event has begun only the Chief cancels, and only with a reason', () => {
+    const s = gone();
+    const id = s.shipments[0]!.id;
+    expect([cancelLocked(get(s), '2027-04-22'), cancelLocked(get(s), START)]).toEqual([
+      false,
+      true,
+    ]);
+    const forbidden = { error: { code: 'forbidden', details: { field: 'started' } } };
+    expect(cancelS(s, id, U.martin, 'x', '2027-04-22').ok).toBe(true);
+    expect(cancelS(s, id, U.martin, 'x', START)).toMatchObject(forbidden);
+    expect(cancelP(s, U.martin, 'x', START)).toMatchObject(forbidden);
+    expect(cancelS(s, id, U.tomas, undefined, START)).toMatchObject({
+      error: { code: 'validation', details: { field: 'reason' } },
+    });
+    expect(cancelS(s, id, U.tomas, 'Akce zrušena', START).ok).toBe(true);
+    expect(cancelP(s, U.tomas, 'Akce zrušena', START).ok).toBe(true);
+    // the Chief also before the start, without a reason; a PM never
+    expect(cancelS(s, id, U.tomas).ok).toBe(true);
+    expect(cancelS(s, id, U.jana)).toMatchObject({ error: { code: 'forbidden' } });
+  });
+
+  it('unpacking line by line is no way around it', () => {
+    const s = withCase();
+    expect(unpackLine(s, U.martin, T, 'o1', 'l3').ok).toBe(true);
+    expect(unpackLine(s, U.martin, START, 'o1', 'l3')).toMatchObject({
+      error: { code: 'forbidden', details: { field: 'started' } },
+    });
+    expect(unpackLine(s, U.tomas, START, 'o1', 'l3').ok).toBe(true);
+    expect(unpackLine(s, U.petr, T, 'o1', 'l3')).toMatchObject({ error: { code: 'forbidden' } });
+  });
+
+  it('a show on several weekends is locked from its first day', () => {
+    const b = { periods: [P('2027-05-08', '2027-05-09'), P('2027-05-22', '2027-05-23')] };
+    expect([cancelLocked(b, '2027-05-07'), cancelLocked(b, '2027-05-15')]).toEqual([false, true]);
   });
 });

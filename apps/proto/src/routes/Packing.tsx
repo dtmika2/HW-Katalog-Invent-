@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import {
   can,
+  cancelLocked,
   caseContentQty,
   casePlaces,
   diffDays,
@@ -129,6 +130,11 @@ export function Packing() {
   const pl = packingList(s, id);
   if (!pl) return <Empty>{cs.errors.not_found}</Empty>;
   const canPack = can(user, 'pack') && ['packing', 'packed', 'shipped'].includes(b.status);
+  // taking packed gear back: the Chief always, the warehouse until the event begins
+  const canUnpack =
+    ['packing', 'packed', 'shipped'].includes(b.status) &&
+    can(user, 'cancel_delivery') &&
+    (!cancelLocked(b, today) || can(user, 'cancel_after_start'));
   const progress = orderProgress(s, b);
 
   const pick = (l: PackLine): Pick =>
@@ -290,7 +296,7 @@ export function Packing() {
                 {casesHere.map((c) => (
                   <li key={c} className="flex items-center gap-2 text-sm">
                     <CaseLabel>{caseNumber(s, c)}</CaseLabel> {cs.packing.packed.toLowerCase()}
-                    {canPack && (
+                    {canUnpack && (
                       <button
                         type="button"
                         className="text-xs underline"
@@ -356,9 +362,9 @@ export function Packing() {
             )}
           </div>
         )}
-        {canPack && (
+        {(canPack || canUnpack) && (
           <div className="mt-2 flex flex-wrap gap-3 pl-9 text-sm">
-            {l.deferrable > 0 && (
+            {canPack && l.deferrable > 0 && (
               <button
                 type="button"
                 className="btn btn-sm"
@@ -376,7 +382,7 @@ export function Packing() {
                 {cs.packing.defer(l.deferrable)}
               </button>
             )}
-            {g.readyDeferred > 0 && (
+            {canPack && g.readyDeferred > 0 && (
               <button
                 type="button"
                 className="text-xs underline"
@@ -387,7 +393,7 @@ export function Packing() {
                 {cs.packing.undoDefer}
               </button>
             )}
-            {l.kind !== 'case' && here.length > 0 && (
+            {canUnpack && l.kind !== 'case' && here.length > 0 && (
               <button
                 type="button"
                 className="text-xs underline"

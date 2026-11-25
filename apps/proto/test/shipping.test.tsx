@@ -287,6 +287,19 @@ describe('packing ahead of time', () => {
 });
 
 describe('cancelling', () => {
+  /** Confirm everything in the open dialog as back, one by one. */
+  const confirmBack = (yes: string) => {
+    const ask = within(screen.getByRole('alertdialog'));
+    const go = () => ask.getByRole('button', { name: yes });
+    const boxes = ask.getAllByRole('checkbox');
+    for (const x of boxes) {
+      expect(go()).toBeDisabled();
+      fireEvent.click(x);
+    }
+    fireEvent.click(go());
+    return boxes.length;
+  };
+
   it('a delivery goes back to packed, then packing is cancelled and the gear is free', () => {
     renderApp('/shipping/bk-tiskovka', { scenario: 'base', user: 'u-martin' });
     click(/^Odvézt \(\d+ ks\)/);
@@ -298,7 +311,12 @@ describe('cancelling', () => {
     fireEvent.change(within(ask).getByLabelText('Důvod (nepovinné)'), {
       target: { value: 'Auto nejelo' },
     });
-    fireEvent.click(within(ask).getByRole('button', { name: 'Ano, zrušit odvoz' }));
+    expect(within(ask).getByLabelText('Zpátky: 4× Vysílačka Motorola')).not.toBeChecked();
+    expect(within(ask).getByRole('link', { name: /zapište vratku/ })).toHaveAttribute(
+      'href',
+      '/vratka/bk-tiskovka',
+    );
+    expect(confirmBack('Ano, zrušit odvoz')).toBe(5);
     expect(shipments('bk-tiskovka')).toEqual([]);
     expect(screen.getByTestId('packed')).toHaveTextContent('Řečnický pult');
 
@@ -309,7 +327,7 @@ describe('cancelling', () => {
     click('Nechat být');
     expect(booking('bk-tiskovka')!.status).toBe('packed');
     click('Zrušit balení');
-    click('Ano, zrušit balení');
+    expect(confirmBack('Ano, zrušit balení')).toBe(5);
     expect(booking('bk-tiskovka')!.status).toBe('confirmed');
 
     page('u-petr', '/items/lectern?loan=1');
@@ -329,10 +347,34 @@ describe('cancelling', () => {
     expect(screen.getByRole('button', { name: 'Začít balit' })).toBeEnabled();
   });
 
-  it('only the warehouse cancels; not once a vratka was recorded', () => {
-    renderApp('/packing/bk-tiskovka', { scenario: 'base', user: 'u-tomas' });
+  it('once the event has begun only the Chief cancels, with a reason; the warehouse gets the vratka', () => {
+    renderApp('/shipping/bk-tiskovka', { scenario: 'base', user: 'u-martin' });
+    click(/^Odvézt \(\d+ ks\)/);
+    click(/^Potvrdit odvoz/);
+    expect(screen.getByRole('button', { name: 'Zrušit odvoz: Dodávka 1' })).toBeInTheDocument();
+    // the event is on 22.04.
+    fireEvent.change(screen.getByLabelText('Simulované dnes'), { target: { value: '22.04.2027' } });
+    expect(screen.queryByRole('button', { name: /^Zrušit/ })).toBeNull();
+    const batches = screen.getByTestId('batches');
+    expect(batches).toHaveTextContent('Akce už začala. Zrušit může jen šéf techniky');
+    expect(within(batches).getByRole('link', { name: 'Otevřít vratku' })).toBeInTheDocument();
+    page('u-martin', '/packing/bk-tiskovka');
+    expect(screen.queryByRole('button', { name: /^Vybalit/ })).toBeNull();
+
+    page('u-tomas', '/shipping/bk-tiskovka');
+    click('Zrušit odvoz: Dodávka 1');
+    const ask = within(screen.getByRole('alertdialog'));
+    for (const x of ask.getAllByRole('checkbox')) fireEvent.click(x);
+    expect(ask.getByRole('button', { name: 'Ano, zrušit odvoz' })).toBeDisabled();
+    fireEvent.change(ask.getByLabelText('Důvod (povinné)'), { target: { value: 'Akce zrušena' } });
+    fireEvent.click(ask.getByRole('button', { name: 'Ano, zrušit odvoz' }));
+    expect(shipments('bk-tiskovka')).toEqual([]);
+  });
+
+  it('a PM cannot cancel; nobody can once a vratka was recorded', () => {
+    renderApp('/packing/bk-tiskovka', { scenario: 'base', user: 'u-petr' });
     expect(screen.queryByRole('button', { name: 'Zrušit balení' })).toBeNull();
-    page('u-martin', '/shipping/bk-autosalon');
+    page('u-tomas', '/shipping/bk-autosalon');
     expect(screen.getByTestId('batches')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /^Zrušit odvoz/ })).toBeNull();
   });
