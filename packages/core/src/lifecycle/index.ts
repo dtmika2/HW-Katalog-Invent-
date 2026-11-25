@@ -7,6 +7,7 @@ import { evaluateBooking, firstEventDay } from '../availability';
 import { checkBookingClient } from '../clients';
 import { addConflictRecord, detectConflicts, recomputeConflictRecords } from '../conflicts';
 import { chiefIds, notify, postEvent, warehouseIds } from '../notifications';
+import { statusAfter } from '../packing';
 import type { AppState, Booking, BookingPeriod, BookingStatus, Id, User } from '../types';
 import { SYSTEM_USER_ID } from '../types';
 import { err, isExternal, nextId, ok, produce, type Result } from '../util';
@@ -23,6 +24,7 @@ export type LifecycleAction =
   | 'returnToPm'
   | 'confirm'
   | 'startPacking'
+  | 'pack'
   | 'ship'
   | 'addLinesAfterShipping'
   | 'recordReturnSession'
@@ -39,11 +41,12 @@ export const TRANSITIONS: Record<
   returnToPm: { from: ['submitted'], to: 'draft' },
   confirm: { from: ['draft', 'submitted'], to: 'confirmed' },
   startPacking: { from: ['confirmed'], to: 'packing' },
-  ship: { from: ['packing', 'shipped'], to: 'shipped' },
+  pack: { from: ['packing', 'packed', 'shipped'], to: 'computed' },
+  ship: { from: ['packing', 'packed', 'shipped'], to: 'computed' },
   addLinesAfterShipping: { from: ['shipped', 'returning'], to: 'packing' },
   // 'packing' too: part of the order may already be out (batches) and come back
   recordReturnSession: {
-    from: ['packing', 'shipped', 'returning', 'returned_with_issues'],
+    from: ['packing', 'packed', 'shipped', 'returning', 'returned_with_issues'],
     to: 'computed',
   },
   resolveIssue: {
@@ -59,6 +62,7 @@ const PERMISSION_OF: Record<LifecycleAction, Action> = {
   returnToPm: 'return_to_pm',
   confirm: 'confirm',
   startPacking: 'start_packing',
+  pack: 'pack',
   ship: 'ship',
   addLinesAfterShipping: 'add_lines_after_shipping',
   recordReturnSession: 'record_return',
@@ -154,7 +158,7 @@ export function createBooking(
   return ok({ state: next, bookingId: id });
 }
 
-const EDITABLE: BookingStatus[] = ['draft', 'submitted', 'confirmed', 'packing'];
+const EDITABLE: BookingStatus[] = ['draft', 'submitted', 'confirmed', 'packing', 'packed'];
 
 /**
  * Store an edited booking (header fields and lines). PMs edit their own pre-bookings; the Chief
@@ -223,7 +227,11 @@ export function saveBooking(
       postEvent(d, current.id, user.id, today, 'override', { lineId: c.lineId, reason });
     }
     // regrouping the list changes nothing for the packer
-    if (current.status === 'packing' && !sameExceptOrganisation(current, recalced)) {
+    const inPacking = current.status === 'packing' || current.status === 'packed';
+    // more or less to pack than before
+    if (inPacking && d.packings.some((p) => p.bookingId === current.id))
+      (d.bookings[i] as Booking).status = statusAfter(d, recalced);
+    if (inPacking && !sameExceptOrganisation(current, recalced)) {
       notify(
         d,
         warehouseIds(d),

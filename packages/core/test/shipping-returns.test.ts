@@ -12,7 +12,7 @@ import {
   refillTasks,
   remainingToShip,
   returnSheet,
-  shipBatch,
+  packAndShip,
   standardCaseChecks,
   stockQty,
   transferTargets,
@@ -48,7 +48,7 @@ function shippedAll(
   lines: { lineId: string; qty: number; caseIds?: string[]; fromCaseId?: string }[],
 ) {
   return unwrap(
-    shipBatch(s, U.martin, T, 'o1', {
+    packAndShip(s, U.martin, T, 'o1', {
       label: 'Dodávka 1',
       lines: lines.map((l) =>
         l.caseIds ? { ...l, caseChecks: standardCaseChecks(s, l.caseIds) } : l,
@@ -79,7 +79,7 @@ describe('packing and shipping', () => {
     const s1 = shippedAll(s0, [{ lineId: 'l1', qty: 6 }]);
     expect(remainingToShip(s1, 'o1')).toBe(5);
     const s2 = unwrap(
-      shipBatch(s1, U.martin, T, 'o1', {
+      packAndShip(s1, U.martin, T, 'o1', {
         label: 'Dodávka 2',
         lines: [
           { lineId: 'l1', qty: 4 },
@@ -103,7 +103,7 @@ describe('packing and shipping', () => {
       [U.tomas.id, 5],
     ]);
     const s2 = unwrap(
-      shipBatch(s1, U.martin, '2027-04-23', 'o1', {
+      packAndShip(s1, U.martin, '2027-04-23', 'o1', {
         label: 'Dodávka 2',
         lines: [
           { lineId: 'l1', qty: 4 },
@@ -123,16 +123,16 @@ describe('packing and shipping', () => {
   it('rejects over-shipping, missing case numbers and wrong roles', () => {
     const s = packing([ln('l1', item('ledbeam'), 2), ln('l2', caseT('ct-ax9'), 1)]);
     expect(
-      shipBatch(s, U.martin, T, 'o1', { label: 'x', lines: [{ lineId: 'l1', qty: 3 }] }),
+      packAndShip(s, U.martin, T, 'o1', { label: 'x', lines: [{ lineId: 'l1', qty: 3 }] }),
     ).toMatchObject({ ok: false, error: { code: 'validation' } });
     expect(
-      shipBatch(s, U.martin, T, 'o1', { label: 'x', lines: [{ lineId: 'l2', qty: 1 }] }),
+      packAndShip(s, U.martin, T, 'o1', { label: 'x', lines: [{ lineId: 'l2', qty: 1 }] }),
     ).toMatchObject({ ok: false, error: { code: 'validation' } });
     expect(
-      shipBatch(s, U.tomas, T, 'o1', { label: 'x', lines: [{ lineId: 'l1', qty: 1 }] }),
+      packAndShip(s, U.tomas, T, 'o1', { label: 'x', lines: [{ lineId: 'l1', qty: 1 }] }),
     ).toMatchObject({ ok: false, error: { code: 'forbidden' } });
     expect(
-      shipBatch(s, U.martin, T, 'o1', { label: ' ', lines: [{ lineId: 'l1', qty: 1 }] }),
+      packAndShip(s, U.martin, T, 'o1', { label: ' ', lines: [{ lineId: 'l1', qty: 1 }] }),
     ).toMatchObject({ ok: false, error: { code: 'validation' } });
   });
 
@@ -143,7 +143,7 @@ describe('packing and shipping', () => {
       order({ id: 'o1', status: 'packing', lines: [ln('l1', caseT('ct-ax9'), 1)] }, 2),
     );
     s = unwrap(
-      shipBatch(s, U.martin, T, 'o0', {
+      packAndShip(s, U.martin, T, 'o0', {
         label: 'a',
         lines: [
           {
@@ -156,7 +156,7 @@ describe('packing and shipping', () => {
       }),
     );
     expect(
-      shipBatch(s, U.martin, T, 'o1', {
+      packAndShip(s, U.martin, T, 'o1', {
         label: 'b',
         lines: [
           {

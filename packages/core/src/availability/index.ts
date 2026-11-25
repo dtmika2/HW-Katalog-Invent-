@@ -19,7 +19,7 @@ import {
   standardQty,
   stockQty,
 } from '../catalog';
-import type { AppState, Booking, BookingLine, Case, Id, Loan, Target } from '../types';
+import type { AppState, Booking, BookingLine, Case, Id, Loan, PackedLine, Target } from '../types';
 import {
   effectiveQty,
   isActiveLine,
@@ -53,6 +53,7 @@ const FAR_FUTURE = '9999-12-31';
 export const HARD_STATUSES = new Set([
   'confirmed',
   'packing',
+  'packed',
   'shipped',
   'returning',
   'returned',
@@ -99,6 +100,17 @@ export function shippedQty(state: Pick<AppState, 'shipments'>, bookingId: Id, li
   return n;
 }
 
+/** Packing entries of a line, oldest first. */
+export function packedEntries(
+  state: Pick<AppState, 'packings'>,
+  bookingId: Id,
+  lineId: Id,
+): PackedLine[] {
+  return state.packings
+    .filter((p) => p.bookingId === bookingId)
+    .flatMap((p) => p.lines.filter((l) => l.lineId === lineId));
+}
+
 /** True when any return session recorded something for this line. */
 export function isLineTouched(state: Pick<AppState, 'returnSessions'>, bookingId: Id, lineId: Id) {
   return state.returnSessions.some(
@@ -129,6 +141,7 @@ type HoldState = Pick<
   | 'stock'
   | 'warehouses'
   | 'shipments'
+  | 'packings'
   | 'returnSessions'
   | 'issues'
 >;
@@ -152,7 +165,7 @@ function pushTargetHolds(
   }
 }
 
-/** Cases of a line that left and were not reported in vratka yet. */
+/** Cases of a line that were packed or left and were not reported in vratka yet. */
 function casesOutOnLine(state: HoldState, bookingId: Id, lineId: Id): Case[] {
   const reported = new Set<Id>();
   for (const s of state.returnSessions) {
@@ -165,6 +178,8 @@ function casesOutOnLine(state: HoldState, bookingId: Id, lineId: Id): Case[] {
     for (const l of sh.lines)
       if (l.lineId === lineId) for (const c of l.caseIds ?? []) if (!reported.has(c)) ids.add(c);
   }
+  for (const e of packedEntries(state, bookingId, lineId))
+    for (const c of e.caseIds ?? []) if (!reported.has(c)) ids.add(c);
   return state.cases.filter((c) => ids.has(c.id));
 }
 
@@ -189,6 +204,26 @@ function reduceByShortCases(out: Hold[], state: HoldState, bookingId: Id, line: 
   }
 }
 
+/** Days before the booked period on which packed pieces are already taken. */
+function earlyPacking(
+  state: HoldState,
+  booking: Booking,
+  line: BookingLine,
+): { from: IsoDate; to: IsoDate; qty: number } | undefined {
+  const first = firstBookedFrom(booking);
+  let from: IsoDate | undefined;
+  let qty = 0;
+  for (const p of state.packings) {
+    if (p.bookingId !== booking.id || p.on >= first) continue;
+    for (const l of p.lines)
+      if (l.lineId === line.id && !l.deferred) {
+        qty += l.qty;
+        if (!from || p.on < from) from = p.on;
+      }
+  }
+  return from && qty > 0 ? { from, to: addDays(first, -1), qty } : undefined;
+}
+
 /**
  * Holds a booking creates in its current state.
  * With `asDemand`, the booking is treated as if it were confirmed now (used for the booking
@@ -203,7 +238,7 @@ export function bookingHolds(state: HoldState, booking: Booking, asDemand = fals
   else return out;
 
   const postShip = !asDemand && POST_SHIP.has(booking.status);
-  const shippedStatus = !asDemand && (booking.status === 'shipped' || booking.status === 'packing');
+  const shippedStatus = !asDemand && ['packing', 'packed', 'shipped'].includes(booking.status);
 
   for (const line of booking.lines) {
     if (!isActiveLine(line) || isExternal(line.target)) continue;
@@ -236,6 +271,23 @@ export function bookingHolds(state: HoldState, booking: Booking, asDemand = fals
         qty,
       );
     }
+    // Packed gear is taken from the day it was packed, also before the booked days.
+    const early = shippedStatus ? earlyPacking(state, booking, line) : undefined;
+    if (early)
+      pushTargetHolds(
+        out,
+        state,
+        {
+          bookingId: booking.id,
+          lineId: line.id,
+          kind,
+          warehouseId: w,
+          from: early.from,
+          to: early.to,
+        },
+        line.target,
+        early.qty,
+      );
     reduceByShortCases(out, state, booking.id, line);
   }
 

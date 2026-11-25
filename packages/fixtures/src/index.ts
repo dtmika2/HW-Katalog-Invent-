@@ -1,5 +1,5 @@
 /** Deterministic demo data (seed 2027, today 2027-04-20) and scenarios for the prototypes. */
-import { emptyState, type AppState } from '@quix/core';
+import { emptyState, packingsFromShipments, type AppState } from '@quix/core';
 import { CATEGORY_COLOR } from './catalog-data';
 import { generateState } from './generate';
 import { caseBreaking } from './scenarios/case-breaking';
@@ -40,11 +40,16 @@ export function migrateSavedState(s: AppState): AppState {
 
 /**
  * Fill in collections and settings that did not exist when the state was saved, so the app never
- * meets an undefined list. Nothing the user sees is added or changed.
+ * meets an undefined list. Gear shipped before packing was recorded counts as packed.
  */
 export function completeSavedState(s: AppState): AppState {
   const empty = emptyState();
-  return { ...empty, ...s, settings: { ...empty.settings, ...s.settings } };
+  return {
+    ...empty,
+    ...s,
+    packings: s.packings ?? packingsFromShipments(s.shipments),
+    settings: { ...empty.settings, ...s.settings },
+  };
 }
 
 export type ScenarioId = 'base' | 'galaDinner' | 'conflictChain' | 'transfer' | 'caseBreaking';

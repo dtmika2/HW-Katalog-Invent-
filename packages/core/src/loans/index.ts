@@ -20,13 +20,14 @@ import {
   getItem,
   isOpenService,
   looseStock,
+  resolveSourceWarehouse,
   standardQty,
   stockQty,
 } from '../catalog';
 import { recomputeConflictRecords } from '../conflicts';
 import { can } from '../lifecycle/permissions';
 import { returnSheet } from '../returns';
-import { casesOut } from '../shipping';
+import { casesOut, packedInHouse } from '../packing';
 import type { AppState, Booking, Id, Loan, Target, User } from '../types';
 import {
   err,
@@ -116,6 +117,17 @@ export function looseHere(state: AppState, itemId: Id, warehouseId: Id, today: I
     )
       n -= i.qty;
   for (const l of loansOut(state, itemId, warehouseId, today)) n -= l.qty;
+  // packed pieces are ready for an order, nobody else can take them
+  for (const b of state.bookings) {
+    if (!['packing', 'packed', 'shipped'].includes(b.status)) continue;
+    for (const l of b.lines)
+      if (
+        isItemTarget(l.target) &&
+        l.target.itemId === itemId &&
+        resolveSourceWarehouse(state, b, l) === warehouseId
+      )
+        n -= packedInHouse(state, b.id, l.id).reduce((x, e) => x + e.qty, 0);
+  }
   for (const b of state.bookings) {
     if (b.type !== 'order' || !state.shipments.some((s) => s.bookingId === b.id)) continue;
     for (const line of returnSheet(state, b.id))
@@ -192,7 +204,7 @@ function newShortages(
   const out: LoanHit[] = [];
   for (const b of after.bookings) {
     const level =
-      b.type === 'order' && (b.status === 'confirmed' || b.status === 'packing')
+      b.type === 'order' && ['confirmed', 'packing', 'packed'].includes(b.status)
         ? 'order'
         : b.type === 'prebooking' && b.status === 'submitted'
           ? 'prebooking'

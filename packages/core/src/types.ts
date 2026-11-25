@@ -156,6 +156,7 @@ export type BookingStatus =
   | 'submitted'
   | 'confirmed'
   | 'packing'
+  | 'packed'
   | 'shipped'
   | 'returning'
   | 'returned'
@@ -279,6 +280,20 @@ export interface ShipmentLine {
   caseChecks?: CaseCheck[];
   /** Loose pieces taken out of this case. */
   fromCaseId?: Id;
+  /** Was promised and confirmed as part of this delivery, not packed in the warehouse. */
+  deferred?: boolean;
+}
+
+/** Packed pieces, or promised ones (`deferred`) that come with the shipping. */
+export type PackedLine = ShipmentLine;
+
+/** One packing action; what it packed stands in the warehouse until it is shipped. */
+export interface PackingRecord {
+  id: Id;
+  bookingId: Id;
+  on: IsoDate;
+  userId: Id;
+  lines: PackedLine[];
 }
 
 export interface Shipment {
@@ -484,7 +499,9 @@ export type NotificationType =
   | 'external_not_returned'
   | 'conflict_unresolved'
   | 'case_shipped_short'
-  | 'loan_overdue';
+  | 'loan_overdue'
+  | 'order_packed'
+  | 'promised_missing';
 
 export type Params = Record<string, string | number>;
 
@@ -509,7 +526,12 @@ export type SystemEventType =
   | 'confirmed'
   | 'override'
   | 'packing_started'
+  | 'packed'
+  | 'unpacked'
   | 'batch_shipped'
+  | 'shipped_without'
+  | 'promised_arrived'
+  | 'promised_closed'
   | 'lines_added_after_shipping'
   | 'edited'
   | 'return_session'
@@ -583,6 +605,7 @@ export interface AppState {
   connections: Connection[];
   clients: Client[];
   bookings: Booking[];
+  packings: PackingRecord[];
   shipments: Shipment[];
   returnSessions: ReturnSession[];
   conflicts: ConflictRecord[];

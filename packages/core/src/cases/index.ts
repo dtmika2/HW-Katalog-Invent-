@@ -5,7 +5,7 @@
 import { diffDays, type IsoDate } from '../dates';
 import { caseMissing, contentsMatchStandard, refillTasks } from '../catalog';
 import { can } from '../lifecycle/permissions';
-import { casesOut, looseInHouse } from '../shipping';
+import { casesOut, looseInHouse } from '../packing';
 import type { AppState, Id, QtyLine, RefillTask, User } from '../types';
 import { err, ok, produce, type Result } from '../util';
 
@@ -37,7 +37,8 @@ export function refillCase(
     return err('forbidden', 'Not allowed');
   const c = state.cases.find((x) => x.id === caseId);
   if (!c) return err('not_found', `Case ${caseId} not found`);
-  if (casesOut(state).has(caseId)) return err('invalid_state', 'The case is out on an order');
+  if (casesOut(state).has(caseId))
+    return err('invalid_state', 'The case is packed or out on an order');
   const missing = caseMissing(state, c);
   const wanted = lines ?? missing;
   const moves: QtyLine[] = [];

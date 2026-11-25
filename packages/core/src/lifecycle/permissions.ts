@@ -11,7 +11,9 @@ export type Action =
   | 'return_to_pm'
   | 'confirm'
   | 'start_packing'
+  | 'pack'
   | 'ship'
+  | 'mark_line'
   | 'add_lines_after_shipping'
   | 'record_return'
   | 'resolve_issue'
@@ -51,12 +53,14 @@ export function can(user: User, action: Action, booking?: Booking): boolean {
     case 'override_conflict':
       return isChief(user) || (user.role === 'pm' && own && user.perms.canConfirmOwnOrders);
     case 'start_packing':
+    case 'pack':
     case 'ship':
     case 'record_return':
     case 'refill_case':
       return user.role === 'warehouse';
     case 'add_lines_after_shipping':
     case 'resolve_issue':
+    case 'mark_line':
     case 'remove_auto_line':
     case 'dismiss_check':
     case 'manage_conflicts':

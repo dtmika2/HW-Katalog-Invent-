@@ -23,7 +23,7 @@ import {
   saveBooking,
   setLineSource,
   setOverrideReason,
-  shipBatch,
+  packAndShip,
   standardCaseChecks,
   startPacking,
   submitPrebooking,
@@ -251,11 +251,11 @@ export class Builder {
       else batch1.push(entry);
     }
     this.state = unwrap(
-      shipBatch(this.state, wh, this.at(first), spec.id, { label: 'Dodávka 1', lines: batch1 }),
+      packAndShip(this.state, wh, this.at(first), spec.id, { label: 'Dodávka 1', lines: batch1 }),
     );
     if (batch2.length > 0) {
       this.state = unwrap(
-        shipBatch(this.state, wh, this.at(addDays(first, 1)), spec.id, {
+        packAndShip(this.state, wh, this.at(addDays(first, 1)), spec.id, {
           label: 'Dodávka 2',
           lines: batch2,
         }),

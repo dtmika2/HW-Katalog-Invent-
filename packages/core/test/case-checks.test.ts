@@ -14,7 +14,7 @@ import {
   refillCase,
   resolveIssue,
   returnSheet,
-  shipBatch,
+  packAndShip,
   standardCaseChecks,
   unwrap,
   type AppState,
@@ -42,7 +42,7 @@ const count = (c: CaseCheck, itemId: string, qty: number): CaseCheck => ({
   counts: c.counts.map((l) => (l.itemId === itemId ? { ...l, qty } : l)),
 });
 const ship = (s: AppState, checks: CaseCheck[], caseIds = checks.map((c) => c.caseId)) =>
-  shipBatch(s, U.martin, T, 'o1', {
+  packAndShip(s, U.martin, T, 'o1', {
     label: 'Dodávka 1',
     lines: [{ lineId: 'l1', qty: caseIds.length, caseIds, caseChecks: checks }],
   });

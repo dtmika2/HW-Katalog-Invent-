@@ -13,6 +13,7 @@
  * - `availability` — holds, per-day item/case availability, line badges, calendars.
  * - `conflicts` — detection, conflict records (override / detected), resolution.
  * - `lifecycle` — booking state machine, permissions, pure booking edits for the editor.
+ * - `packing` — packed but still in the warehouse, promised gear, case checks.
  * - `shipping` — packing list, batches, lines added after shipping.
  * - `returns` — vratka sheet and sessions: outcomes, transfers, cases, unexpected items.
  * - `cases` — refill ("Doplnit case") tasks.
@@ -36,6 +37,7 @@ export * from './availability';
 export * from './conflicts';
 export * from './lifecycle';
 export * from './clients';
+export * from './packing';
 export * from './shipping';
 export * from './returns';
 export * from './cases';
@@ -59,6 +61,7 @@ export function emptyState(): AppState {
     connections: [],
     clients: [],
     bookings: [],
+    packings: [],
     shipments: [],
     returnSessions: [],
     conflicts: [],

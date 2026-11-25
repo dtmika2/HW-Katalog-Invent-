@@ -17,7 +17,7 @@ import {
   returnSheet,
   saveBooking,
   setServiceStatus,
-  shipBatch,
+  packAndShip,
   standardCaseChecks,
   startPacking,
   submitPrebooking,
@@ -98,7 +98,7 @@ export const GALA_STEPS = {
     const ax9 = caseLine(b, 'ct-ax9');
     const sb = caseLine(b, 'ct-stagebox');
     next = unwrap(
-      shipBatch(next, martin, '2027-04-20', GALA_ID, {
+      packAndShip(next, martin, '2027-04-20', GALA_ID, {
         label: 'Dodávka 1',
         lines: [
           ...(
@@ -117,7 +117,7 @@ export const GALA_STEPS = {
     );
     const rest = b.lines.filter((l) => l.id !== ax9.id && l.id !== sb.id && l.status === 'ok');
     return unwrap(
-      shipBatch(next, martin, '2027-04-20', GALA_ID, {
+      packAndShip(next, martin, '2027-04-20', GALA_ID, {
         label: 'Dodávka 2',
         lines: rest.map((l) => ({ lineId: l.id, qty: l.overriddenQty ?? l.qty })),
       }),

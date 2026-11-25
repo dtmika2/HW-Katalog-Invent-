@@ -449,6 +449,7 @@ describe('lifecycle — editing and transitions', () => {
       returnToPm: U.tomas,
       confirm: U.tomas,
       startPacking: U.martin,
+      pack: U.martin,
       ship: U.martin,
       addLinesAfterShipping: U.tomas,
       recordReturnSession: U.martin,

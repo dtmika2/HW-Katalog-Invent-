@@ -23,7 +23,7 @@ import {
   runDailyJobs,
   saveBooking,
   setServiceStatus,
-  shipBatch,
+  packAndShip,
   standardCaseChecks,
   startPacking,
   submitPrebooking,
@@ -212,7 +212,7 @@ describe('scenario: Gala Dinner, 24 Apr 2027', () => {
     const sbLine = lineOf((t) => 'caseTypeId' in t && t.caseTypeId === 'ct-stagebox');
     // Van 1 the day before: the AX9 case and the stagebox case.
     s = unwrap(
-      shipBatch(s, U.martin, '2027-04-23', 'gala', {
+      packAndShip(s, U.martin, '2027-04-23', 'gala', {
         label: 'Dodávka 1',
         lines: [
           {
@@ -236,7 +236,7 @@ describe('scenario: Gala Dinner, 24 Apr 2027', () => {
     // Van 2 on the morning of the event: everything else.
     const rest = get(s, 'gala').lines.filter((l) => l.id !== ax9Line.id && l.id !== sbLine.id);
     s = unwrap(
-      shipBatch(s, U.martin, '2027-04-24', 'gala', {
+      packAndShip(s, U.martin, '2027-04-24', 'gala', {
         label: 'Dodávka 2',
         lines: rest.map((l) => ({ lineId: l.id, qty: l.qty })),
       }),

@@ -17,7 +17,7 @@ import { recomputeConflictRecords } from '../conflicts';
 import { guard } from '../lifecycle';
 import { chiefIds, notify, postEvent } from '../notifications';
 import { openServiceInDraft } from '../service';
-import { checkedContents } from '../shipping';
+import { checkedContents } from '../packing';
 import type {
   AppState,
   Booking,
@@ -221,7 +221,7 @@ export interface ReturnSessionInput {
   unexpected?: UnexpectedItem[];
 }
 
-const TRANSFER_TARGET = new Set(['confirmed', 'packing', 'shipped', 'returning']);
+const TRANSFER_TARGET = new Set(['confirmed', 'packing', 'packed', 'shipped', 'returning']);
 
 /**
  * Orders that gear from `from` can be handed over to: other active orders, except those that

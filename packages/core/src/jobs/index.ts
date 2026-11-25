@@ -9,7 +9,7 @@ import { recomputeConflictRecords } from '../conflicts';
 import { isLoanOverdue } from '../loans';
 import { chiefIds, notify, postEvent, warehouseIds } from '../notifications';
 import { returnSheet } from '../returns';
-import { casesOut } from '../shipping';
+import { casesOut } from '../packing';
 import type { AppState, Notification } from '../types';
 import { SYSTEM_USER_ID } from '../types';
 import { produce } from '../util';
@@ -27,7 +27,7 @@ function casesWithPiecesOut(state: AppState): Set<string> {
   const out = new Set<string>();
   for (const sh of state.shipments) {
     const b = state.bookings.find((x) => x.id === sh.bookingId);
-    if (!b || !['shipped', 'returning'].includes(b.status)) continue;
+    if (!b || !['packing', 'packed', 'shipped', 'returning'].includes(b.status)) continue;
     for (const l of sh.lines) if (l.fromCaseId) out.add(l.fromCaseId);
   }
   return out;
@@ -108,7 +108,7 @@ export function runDailyJobs(state: AppState, today: IsoDate): DailyJobResult {
         continue;
       }
       if (b.type !== 'order') continue;
-      if (b.status === 'confirmed' || b.status === 'packing') {
+      if (['confirmed', 'packing', 'packed'].includes(b.status)) {
         for (const p of b.periods) {
           if (today > p.bookedFrom) continue;
           if (due(`loading:${b.id}:${p.bookedFrom}`, addDays(p.bookedFrom, -r.loadingBefore))) {
@@ -126,7 +126,10 @@ export function runDailyJobs(state: AppState, today: IsoDate): DailyJobResult {
           }
         }
       }
-      if (b.status === 'shipped' || b.status === 'returning') {
+      const partlyOut =
+        (b.status === 'packing' || b.status === 'packed') &&
+        d.shipments.some((x) => x.bookingId === b.id);
+      if (b.status === 'shipped' || b.status === 'returning' || partlyOut) {
         if (due(`overdue:${b.id}`, addDays(lastBookedUntil(b), 1), r.overdueReturnEvery)) {
           notify(
             d,

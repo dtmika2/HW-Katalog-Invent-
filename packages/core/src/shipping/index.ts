@@ -1,29 +1,41 @@
 /**
- * Packing and shipping in batches. The packing list is flat per warehouse, grouped by storage
+ * The packing list and shipping in batches. The packing list is flat per warehouse, grouped by storage
  * location; cases are one line with their contents.
  */
 import type { IsoDate } from '../dates';
-import { isOpenLoan, shippedQty } from '../availability';
+import { shippedQty } from '../availability';
 import {
-  caseContentQty,
   getCaseType,
   getItem,
   homeLocationId,
   isCaseComplete,
-  contentsMatchStandard,
-  looseStock,
   resolveSourceWarehouse,
 } from '../catalog';
 import { recomputeConflictRecords } from '../conflicts';
 import { groupOfLine, guard, recalcBooking } from '../lifecycle';
 import { can } from '../lifecycle/permissions';
 import { chiefIds, notify, postEvent, warehouseIds } from '../notifications';
+import {
+  acceptedConflicts,
+  applyCaseChecks,
+  casePlaces,
+  deferrableQty,
+  lineProgress,
+  openPromises,
+  packedInHouse,
+  packLines,
+  promisedText,
+  statusAfter,
+  validatePickedLines,
+  type CasePlace,
+  type LineProgress,
+} from '../packing';
+import { recordReturnSession, returnSheet } from '../returns';
 import type {
   AppState,
   Booking,
   BookingGroup,
   BookingLine,
-  CaseCheck,
   Id,
   QtyLine,
   ShipmentLine,
@@ -47,8 +59,9 @@ export interface CandidateCase {
   number: string;
   locationId: Id;
   complete: boolean;
-  /** Already out on an active order (this one included). */
+  /** Taken by an order (this one included): packed or out. */
   busy: boolean;
+  place?: CasePlace;
 }
 
 export interface PackLine {
@@ -71,6 +84,13 @@ export interface PackLine {
   fromBookingId?: Id;
   /** The PM's own group the line is shown in. */
   group?: BookingGroup;
+  progress: LineProgress;
+  /** Pieces that may be left for the shipping. */
+  deferrable: number;
+  /** Why own pieces are short: accepted conflicts with reasons. */
+  conflicts: { short: number; reason: string; colliding: string[] }[];
+  /** Last time something of it was packed. */
+  packedBy?: { userId: Id; on: IsoDate };
 }
 
 export interface PackingGroup {
@@ -86,24 +106,6 @@ export interface PackingList {
   transfers: PackLine[];
 }
 
-// 'packing' too: part of the order may already have left
-const ACTIVE_OUT = new Set(['packing', 'shipped', 'returning', 'returned_with_issues']);
-
-/** Case ids currently out on an active order (shipped and not yet returned). */
-export function casesOut(state: AppState): Set<Id> {
-  const out = new Set<Id>();
-  const returned = new Set<string>();
-  for (const s of state.returnSessions)
-    for (const l of s.lines) if (l.caseId) returned.add(`${s.bookingId}|${l.caseId}`);
-  for (const sh of state.shipments) {
-    const b = state.bookings.find((x) => x.id === sh.bookingId);
-    if (!b || !ACTIVE_OUT.has(b.status)) continue;
-    for (const l of sh.lines)
-      for (const c of l.caseIds ?? []) if (!returned.has(`${sh.bookingId}|${c}`)) out.add(c);
-  }
-  return out;
-}
-
 function lineName(state: AppState, line: BookingLine): string {
   if (isExternal(line.target)) return line.target.external.name;
   if (isItemTarget(line.target))
@@ -115,7 +117,7 @@ function lineName(state: AppState, line: BookingLine): string {
 export function packingList(state: AppState, bookingId: Id): PackingList | undefined {
   const b = state.bookings.find((x) => x.id === bookingId);
   if (!b) return undefined;
-  const busy = casesOut(state);
+  const places = casePlaces(state);
   const groups = new Map<Id, Map<string, PackLine[]>>();
   const external: PackLine[] = [];
   const transfers: PackLine[] = [];
@@ -138,7 +140,22 @@ export function packingList(state: AppState, bookingId: Id): PackingList | undef
       consumable:
         isItemTarget(line.target) && getItem(state, line.target.itemId)?.returnable === false,
       addedAfterShipping: !!line.addedAfterShipping,
+      progress: lineProgress(state, b, line),
+      deferrable: deferrableQty(state, b, line),
+      conflicts: acceptedConflicts(state, b.id, line.id).map((r) => ({
+        short: r.shortQty,
+        reason: r.overrideReason || r.resolution || '',
+        colliding: r.collidingBookingIds.map(
+          (id) => state.bookings.find((x) => x.id === id)?.eventName ?? id,
+        ),
+      })),
     };
+    const last = state.packings
+      .filter(
+        (p) => p.bookingId === b.id && p.lines.some((l) => l.lineId === line.id && !l.deferred),
+      )
+      .at(-1);
+    if (last) base.packedBy = { userId: last.userId, on: last.on };
     const group = groupOfLine(b, line.id);
     if (group) base.group = group;
     if (isExternal(line.target)) {
@@ -163,7 +180,8 @@ export function packingList(state: AppState, bookingId: Id): PackingList | undef
           number: c.number,
           locationId: c.locationId,
           complete: isCaseComplete(state, c),
-          busy: busy.has(c.id),
+          busy: places.has(c.id),
+          ...(places.has(c.id) ? { place: places.get(c.id) as CasePlace } : {}),
         }));
       const firstFree =
         base.candidateCases.find((c) => c.complete && !c.busy) ?? base.candidateCases[0];
@@ -193,179 +211,44 @@ export function packingList(state: AppState, bookingId: Id): PackingList | undef
   };
 }
 
-/** Pieces of an item lying loose in a warehouse, without those missing or lent. */
-export function looseInHouse(state: AppState, itemId: Id, warehouseId: Id): number {
-  const missing = state.issues
-    .filter(
-      (i) =>
-        i.type === 'missing' &&
-        !i.archivedOn &&
-        i.itemId === itemId &&
-        i.warehouseId === warehouseId,
-    )
-    .reduce((n, i) => n + i.qty, 0);
-  const lent = state.loans
-    .filter((l) => l.itemId === itemId && l.warehouseId === warehouseId && isOpenLoan(l))
-    .reduce((n, l) => n + l.qty, 0);
-  return Math.max(0, looseStock(state, itemId, warehouseId) - missing - lent);
-}
-
-const qtyOf = (list: readonly QtyLine[] | undefined, itemId: Id): number =>
-  (list ?? []).filter((l) => l.itemId === itemId).reduce((n, l) => n + l.qty, 0);
-
-/** Contents a checked case leaves with: counted plus refilled pieces. */
-export function checkedContents(check: CaseCheck): QtyLine[] {
-  const ids = [...new Set([...check.counts, ...(check.refilled ?? [])].map((l) => l.itemId))];
-  return ids.map((itemId) => ({
-    itemId,
-    qty: qtyOf(check.counts, itemId) + qtyOf(check.refilled, itemId),
-  }));
-}
-
-/** What a checked case lacks compared with its standard contents. */
-export function checkShort(state: Pick<AppState, 'cases' | 'caseTypes'>, check: CaseCheck) {
-  const c = state.cases.find((x) => x.id === check.caseId);
-  const t = c ? getCaseType(state, c.caseTypeId) : undefined;
-  const have = checkedContents(check);
-  return (t?.contents ?? [])
-    .map((std) => ({ itemId: std.itemId, qty: std.qty - qtyOf(have, std.itemId) }))
-    .filter((l) => l.qty > 0);
-}
-
-/** Checks saying every case holds exactly its standard contents. */
-export function standardCaseChecks(
-  state: Pick<AppState, 'cases' | 'caseTypes'>,
-  caseIds: readonly Id[],
-): CaseCheck[] {
-  return caseIds.map((caseId) => {
-    const c = state.cases.find((x) => x.id === caseId);
-    const t = c ? getCaseType(state, c.caseTypeId) : undefined;
-    return { caseId, counts: (t?.contents ?? []).map((l) => ({ ...l })) };
-  });
-}
-
-/** Every case is counted line by line; a case that leaves short needs a written reason. */
-function validateCaseChecks(state: AppState, lines: ShipmentLine[]): Result<true> {
-  const refilled = new Map<string, number>();
-  for (const sl of lines) {
-    for (const caseId of sl.caseIds ?? []) {
-      const c = state.cases.find((x) => x.id === caseId);
-      const t = c ? getCaseType(state, c.caseTypeId) : undefined;
-      const checks = (sl.caseChecks ?? []).filter((x) => x.caseId === caseId);
-      const check = checks[0];
-      if (!c || !t || !check || checks.length !== 1)
-        return err('validation', `Contents of case ${c?.number ?? caseId} were not checked`, {
-          caseId,
-          field: 'caseChecks',
-        });
-      for (const std of t.contents) {
-        const counted = check.counts.filter((l) => l.itemId === std.itemId);
-        const added = qtyOf(check.refilled, std.itemId);
-        const n = counted[0]?.qty ?? -1;
-        if (
-          counted.length !== 1 ||
-          !Number.isInteger(n) ||
-          !Number.isInteger(added) ||
-          n < 0 ||
-          added < 0 ||
-          n + added > std.qty
-        )
-          return err('validation', `Invalid count in case ${c.number}`, { caseId });
-        if (added > 0) {
-          const key = `${std.itemId}@${c.warehouseId}`;
-          const sum = (refilled.get(key) ?? 0) + added;
-          refilled.set(key, sum);
-          if (sum > looseInHouse(state, std.itemId, c.warehouseId))
-            return err('validation', 'Not enough loose pieces to refill', { caseId });
-        }
-      }
-      const known = new Set(t.contents.map((l) => l.itemId));
-      if ([...check.counts, ...(check.refilled ?? [])].some((l) => !known.has(l.itemId)))
-        return err('validation', `Case ${c.number} does not hold that item`, { caseId });
-      if (checkShort(state, check).length > 0 && !check.reason?.trim())
-        return err('validation', `A reason is required, case ${c.number} is short`, {
-          caseId,
-          field: 'reason',
-        });
-    }
-  }
-  return ok(true);
-}
-
-/**
- * Take over what the packer counted: the case gets its real contents, pieces that should have
- * been there become a missing issue, PM and Chief hear about cases that left short.
- */
-function applyCaseChecks(
-  d: AppState,
-  userId: Id,
-  today: IsoDate,
-  booking: Booking,
-  sl: ShipmentLine,
-): boolean {
-  let changed = false;
-  for (const check of sl.caseChecks ?? []) {
-    const c = d.cases.find((x) => x.id === check.caseId);
-    if (!c || !sl.caseIds?.includes(c.id)) continue;
-    const contents = checkedContents(check).filter((l) => l.qty > 0);
-    for (const l of check.counts) {
-      const lost = caseContentQty(c, l.itemId) - l.qty;
-      if (lost <= 0) continue;
-      changed = true;
-      d.issues.push({
-        id: nextId(d, 'iss'),
-        type: 'missing',
-        bookingId: booking.id,
-        lineId: sl.lineId,
-        caseId: c.id,
-        itemId: l.itemId,
-        qty: lost,
-        warehouseId: c.warehouseId,
-        note: check.reason?.trim() ?? '',
-        reportedBy: userId,
-        reportedOn: today,
-      });
-    }
-    const before = contentsMatchStandard(d, c);
-    c.contents = contents;
-    if (contentsMatchStandard(d, c)) delete c.incompleteSince;
-    else c.incompleteSince = c.incompleteSince ?? today;
-    if (before !== contentsMatchStandard(d, c)) changed = true;
-    const short = checkShort(d, check);
-    if (short.length > 0) {
-      const what = short
-        .map((l) => `${l.qty}× ${getItem(d, l.itemId)?.name ?? l.itemId}`)
-        .join(', ');
-      notify(
-        d,
-        [booking.pmId, ...chiefIds(d)],
-        {
-          type: 'case_shipped_short',
-          text: `${booking.eventName}: case ${c.number} left without ${what}`,
-          params: {
-            event: booking.eventName,
-            number: c.number,
-            what,
-            reason: check.reason?.trim() ?? '',
-          },
-          bookingId: booking.id,
-        },
-        today,
-      );
-    }
-  }
-  return changed;
-}
-
 export interface ShipBatchInput {
   label: string;
   lines: ShipmentLine[];
+  /** Why promised gear is not on board ("dorazí rovnou na místo"). */
+  note?: string;
+}
+
+/** The oldest packed pieces of a line, with the cases they came out of. */
+function takePacked(state: AppState, bookingId: Id, sl: ShipmentLine): ShipmentLine[] {
+  const inHouse = packedInHouse(state, bookingId, sl.lineId);
+  if (sl.caseIds) {
+    const ids = sl.caseIds;
+    const checks = inHouse.flatMap((e) => e.caseChecks ?? []).filter((c) => ids.includes(c.caseId));
+    return [
+      {
+        lineId: sl.lineId,
+        qty: sl.qty,
+        caseIds: ids,
+        ...(checks.length > 0 ? { caseChecks: checks } : {}),
+      },
+    ];
+  }
+  let left = sl.qty;
+  const out: ShipmentLine[] = [];
+  for (const e of inHouse) {
+    const n = Math.min(left, e.qty);
+    if (n <= 0) continue;
+    left -= n;
+    out.push({ lineId: sl.lineId, qty: n, ...(e.fromCaseId ? { fromCaseId: e.fromCaseId } : {}) });
+  }
+  return out;
 }
 
 /**
- * Ship a batch ("Dodávka 1"). Every case is checked against its contents first. Records what
- * left the house, takes loose pieces out of cases when
- * `fromCaseId` is given, reduces consumable stock, notifies PM and Chief.
+ * Ship a batch ("Dodávka 1"): packed gear, and promised gear confirmed as part of the delivery
+ * (`deferred`). The van leaves even when something promised has not come; that is written into
+ * the conversation, and it stays open for a later batch. Consumables leave the stock, PM and
+ * Chief are notified.
  */
 export function shipBatch(
   state: AppState,
@@ -379,67 +262,56 @@ export function shipBatch(
   const b = g.value;
   if (!input.label.trim()) return err('validation', 'Batch label is required');
   if (input.lines.length === 0) return err('validation', 'Nothing to ship');
-  const busy = casesOut(state);
-  const usedCases = new Set<Id>();
   for (const sl of input.lines) {
     const line = b.lines.find((l) => l.id === sl.lineId);
     if (!line || !isActiveLine(line)) return err('validation', `Unknown line ${sl.lineId}`);
-    const remaining = effectiveQty(line) - shippedQty(state, b.id, line.id);
-    if (!Number.isInteger(sl.qty) || sl.qty <= 0 || sl.qty > remaining) {
+    const p = lineProgress(state, b, line);
+    const limit = sl.deferred ? p.readyDeferred : p.readyPacked;
+    if (!Number.isInteger(sl.qty) || sl.qty <= 0 || sl.qty > limit)
       return err('validation', `Invalid quantity for line ${sl.lineId}`, {
         lineId: sl.lineId,
-        remaining,
+        remaining: limit,
       });
-    }
-    if (isCaseTarget(line.target)) {
+    if (!sl.deferred && isCaseTarget(line.target)) {
+      const here = packedInHouse(state, bookingId, line.id).flatMap((e) => e.caseIds ?? []);
       const ids = sl.caseIds ?? [];
-      if (ids.length !== sl.qty)
-        return err('validation', 'Pick one case number per case', { lineId: sl.lineId });
-      for (const cid of ids) {
-        const c = state.cases.find((x) => x.id === cid);
-        if (!c || c.caseTypeId !== line.target.caseTypeId)
-          return err('validation', `Case ${cid} does not match`);
-        if (busy.has(cid) || usedCases.has(cid))
-          return err('validation', `Case ${c.number} is already out`);
-        usedCases.add(cid);
-      }
-    }
-    if (sl.fromCaseId) {
-      const c = state.cases.find((x) => x.id === sl.fromCaseId);
-      if (!c || !isItemTarget(line.target)) return err('validation', 'Invalid source case');
-      if (caseContentQty(c, line.target.itemId) < sl.qty) {
-        return err('validation', `Case ${c.number} does not hold ${sl.qty} pieces`);
-      }
+      if (
+        ids.length !== sl.qty ||
+        new Set(ids).size !== ids.length ||
+        ids.some((c) => !here.includes(c))
+      )
+        return err('validation', 'Ship the cases that were packed', { lineId: sl.lineId });
     }
   }
-  const checks = validateCaseChecks(state, input.lines);
-  if (!checks.ok) return checks;
+  const keys = input.lines.map((l) => `${l.lineId}|${l.deferred ? 'd' : ''}`);
+  if (new Set(keys).size !== keys.length) return err('validation', 'A line is listed twice');
+  const arriving = input.lines.filter((l) => l.deferred);
+  const v = validatePickedLines(
+    state,
+    b,
+    arriving,
+    (line) => lineProgress(state, b, line).readyDeferred,
+  );
+  if (!v.ok) return v;
 
   const { state: next, result: casesChanged } = produce(state, (d) => {
     let casesChanged = false;
-    const shipmentId = nextId(d, 'shp');
+    const booking = d.bookings.find((x) => x.id === bookingId) as Booking;
+    for (const sl of arriving)
+      if (applyCaseChecks(d, user.id, today, booking, sl)) casesChanged = true;
+    const lines = input.lines.flatMap((sl) =>
+      sl.deferred ? [{ ...sl }] : takePacked(state, bookingId, sl),
+    );
     d.shipments.push({
-      id: shipmentId,
+      id: nextId(d, 'shp'),
       bookingId,
       label: input.label.trim(),
       shippedOn: today,
       userId: user.id,
-      lines: input.lines,
+      lines,
     });
-    const booking = d.bookings.find((x) => x.id === bookingId) as Booking;
-    for (const sl of input.lines) {
+    for (const sl of lines) {
       const line = booking.lines.find((l) => l.id === sl.lineId) as BookingLine;
-      if (applyCaseChecks(d, user.id, today, booking, sl)) casesChanged = true;
-      if (sl.fromCaseId && isItemTarget(line.target)) {
-        const c = d.cases.find((x) => x.id === sl.fromCaseId);
-        const itemId = line.target.itemId;
-        const entry = c?.contents.find((x) => x.itemId === itemId);
-        if (c && entry) {
-          entry.qty -= sl.qty;
-          c.contents = c.contents.filter((x) => x.qty > 0);
-          if (!contentsMatchStandard(d, c) && !c.incompleteSince) c.incompleteSince = today;
-        }
-      }
       if (isItemTarget(line.target) && getItem(d, line.target.itemId)?.returnable === false) {
         const w = resolveSourceWarehouse(d, booking, line);
         const itemId = line.target.itemId;
@@ -447,12 +319,12 @@ export function shipBatch(
         if (st) st.qty = Math.max(0, st.qty - sl.qty);
       }
     }
-    // The order stays "Balí se" until everything has left; only then it is "Odvezeno".
-    booking.status = remainingToShip(d, bookingId) === 0 ? 'shipped' : 'packing';
+    // "Odvezeno" only when everything has left.
+    booking.status = statusAfter(d, booking);
     const remaining = booking.lines
       .filter((l) => isActiveLine(l) && !l.fromBookingId)
       .reduce((n, l) => n + Math.max(0, effectiveQty(l) - shippedQty(d, booking.id, l.id)), 0);
-    const shippedCount = input.lines.reduce((n, l) => n + l.qty, 0);
+    const shippedCount = lines.reduce((n, l) => n + l.qty, 0);
     postEvent(d, bookingId, user.id, today, 'batch_shipped', {
       label: input.label.trim(),
       shipped: shippedCount,
@@ -474,9 +346,140 @@ export function shipBatch(
       },
       today,
     );
+    trackPromises(d, user, today, booking, arriving, input.note?.trim() ?? '');
     return casesChanged;
   });
   return ok(casesChanged ? recomputeConflictRecords(next, today) : next);
+}
+
+/** Write into the conversation what was promised and is not on board, and what came late. */
+function trackPromises(
+  d: AppState,
+  user: User,
+  today: IsoDate,
+  booking: Booking,
+  arriving: ShipmentLine[],
+  note: string,
+): void {
+  const events = d.messages.filter((m) => m.bookingId === booking.id && m.event);
+  const earlier = events.filter((m) => m.event?.type === 'shipped_without');
+  if (arriving.length > 0 && earlier.length > 0) {
+    const came = arriving.map((sl) => {
+      const line = booking.lines.find((l) => l.id === sl.lineId) as BookingLine;
+      return {
+        qty: sl.qty,
+        name: lineName(d, line),
+        from: isExternal(line.target) ? line.target.external.supplier : '',
+      };
+    });
+    postEvent(d, booking.id, user.id, today, 'promised_arrived', { what: promisedText(came) });
+  }
+  const open = openPromises(d, booking);
+  const what = promisedText(open);
+  // the same gap is not repeated with every van
+  if (!what || (!note && earlier.at(-1)?.event?.params.what === what)) return;
+  postEvent(d, booking.id, user.id, today, 'shipped_without', { what, note });
+  // gear coming straight from another event was never meant to be on this van
+  const missing = promisedText(open.filter((p) => p.kind !== 'transfer'));
+  if (!missing) return;
+  notify(
+    d,
+    [booking.pmId, ...chiefIds(d)],
+    {
+      type: 'promised_missing',
+      text: `${booking.eventName}: shipped without ${missing}`,
+      params: { event: booking.eventName, what: missing, reason: note },
+      bookingId: booking.id,
+    },
+    today,
+  );
+}
+
+/** Pack and ship the same lines in one go. */
+export function packAndShip(
+  state: AppState,
+  user: User,
+  today: IsoDate,
+  bookingId: Id,
+  input: ShipBatchInput,
+): Result<AppState> {
+  if (!input.label.trim()) return err('validation', 'Batch label is required');
+  const packed = packLines(state, user, today, bookingId, input.lines, true);
+  if (!packed.ok) return packed;
+  const lines = new Map<Id, ShipmentLine>();
+  for (const l of input.lines) {
+    const same = lines.get(l.lineId);
+    if (!same)
+      lines.set(l.lineId, {
+        lineId: l.lineId,
+        qty: l.qty,
+        ...(l.caseIds ? { caseIds: l.caseIds } : {}),
+      });
+    else {
+      same.qty += l.qty;
+      if (l.caseIds) same.caseIds = [...(same.caseIds ?? []), ...l.caseIds];
+    }
+  }
+  return shipBatch(packed.value, user, today, bookingId, {
+    ...input,
+    lines: [...lines.values()],
+  });
+}
+
+/**
+ * Confirm a planned handover from the receiving order: recorded in the vratka of the event the
+ * gear comes from. Only when everything outstanding there is handed over; a partial handover is
+ * recorded in that vratka, where the rest is counted too.
+ */
+export function confirmHandover(
+  state: AppState,
+  user: User,
+  today: IsoDate,
+  bookingId: Id,
+  lineId: Id,
+): Result<AppState> {
+  const b = state.bookings.find((x) => x.id === bookingId);
+  const line = b?.lines.find((l) => l.id === lineId);
+  if (!b || !line?.fromBookingId || !isItemTarget(line.target))
+    return err('not_found', 'No planned handover on that line');
+  const h = handoverOf(state, b, line);
+  if (!h) return err('invalid_state', 'The gear has not been shipped on the other event yet');
+  if (!h.whole)
+    return err('validation', 'A partial handover is recorded in the other vratka', {
+      field: 'partial',
+    });
+  return recordReturnSession(state, user, today, line.fromBookingId, {
+    lines: [
+      {
+        lineId: h.sourceLineId,
+        returnedQty: 0,
+        condition: 'ok',
+        confirmed: true,
+        transferredToBookingId: b.id,
+        transferredQty: h.outstanding,
+      },
+    ],
+  });
+}
+
+/** Source line of a planned handover and whether all of it can go over at once. */
+export function handoverOf(
+  state: AppState,
+  b: Booking,
+  line: BookingLine,
+): { sourceLineId: Id; outstanding: number; whole: boolean } | undefined {
+  if (!line.fromBookingId || !isItemTarget(line.target)) return undefined;
+  const itemId = line.target.itemId;
+  const open = Math.max(0, effectiveQty(line) - shippedQty(state, b.id, line.id));
+  const src = returnSheet(state, line.fromBookingId).find(
+    (l) => l.itemId === itemId && l.outstanding > 0,
+  );
+  if (!src || open <= 0) return undefined;
+  return {
+    sourceLineId: src.lineId,
+    outstanding: src.outstanding,
+    whole: src.outstanding <= open,
+  };
 }
 
 /**
@@ -527,7 +530,8 @@ export function addLinesAfterShipping(
  */
 export function remainingToShip(state: AppState, bookingId: Id): number {
   const b = state.bookings.find((x) => x.id === bookingId);
-  if (!b || b.type !== 'order' || !['confirmed', 'packing', 'shipped'].includes(b.status)) return 0;
+  if (!b || b.type !== 'order' || !['confirmed', 'packing', 'packed', 'shipped'].includes(b.status))
+    return 0;
   let n = 0;
   for (const l of b.lines) {
     if (!isActiveLine(l) || l.fromBookingId) continue;

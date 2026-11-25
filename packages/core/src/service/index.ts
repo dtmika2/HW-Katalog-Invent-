@@ -85,7 +85,7 @@ function affectedOrders(state: AppState, itemId: Id, warehouseId: Id, today: Iso
   for (const b of state.bookings) {
     if (
       b.type !== 'order' ||
-      !['confirmed', 'packing'].includes(b.status) ||
+      !['confirmed', 'packing', 'packed'].includes(b.status) ||
       lastBookedUntil(b) < today
     )
       continue;

@@ -120,8 +120,15 @@ export function addConflictRecord(
   return rec;
 }
 
-const DETECT_STATUSES = new Set(['confirmed', 'packing']);
-const HOLDING = new Set(['confirmed', 'packing', 'shipped', 'returning', 'returned_with_issues']);
+const DETECT_STATUSES = new Set(['confirmed', 'packing', 'packed']);
+const HOLDING = new Set([
+  'confirmed',
+  'packing',
+  'packed',
+  'shipped',
+  'returning',
+  'returned_with_issues',
+]);
 
 /**
  * Run after every state change: unresolved records resolve automatically when their line is no

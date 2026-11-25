@@ -21,7 +21,7 @@ import {
   refillCase,
   returnLoan,
   runDailyJobs,
-  shipBatch,
+  packAndShip,
   standardCaseChecks,
   unwrap,
   type AppState,
@@ -259,7 +259,9 @@ describe('only what is really in the house', () => {
         lines: [ln('l1', item('ledbeam'), 5)],
       }),
     );
-    s = unwrap(shipBatch(s, U.martin, T, 'o1', { label: 'a', lines: [{ lineId: 'l1', qty: 5 }] }));
+    s = unwrap(
+      packAndShip(s, U.martin, T, 'o1', { label: 'a', lines: [{ lineId: 'l1', qty: 5 }] }),
+    );
     expect(looseHere(s, 'ledbeam', W.brod, T)).toBe(4);
     expect(take(s, lb({ qty: 5 }))).toMatchObject(invalid('qty'));
     expect(take(s, lb({ qty: 4 })).ok).toBe(true);
@@ -334,7 +336,7 @@ describe('only what is really in the house', () => {
       reason: 'Půjčený kus',
     };
     const out = unwrap(
-      shipBatch(lent, U.martin, T, 'o1', {
+      packAndShip(lent, U.martin, T, 'o1', {
         label: 'a',
         lines: [{ lineId: 'l1', qty: 1, caseIds: ['case-1'], caseChecks: [check] }],
       }),

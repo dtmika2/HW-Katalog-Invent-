@@ -36,6 +36,7 @@ describe('notification importance', () => {
       'returned_with_issues',
       'case_shipped_short',
       'loan_overdue',
+      'promised_missing',
       'prebooking_returned',
       'prebooking_expiring',
       'prebooking_expired',
@@ -47,6 +48,7 @@ describe('notification importance', () => {
     for (const t of [
       'order_confirmed',
       'batch_shipped',
+      'order_packed',
       'prebooking_submitted',
       'service_opened',
       'service_fixed',
