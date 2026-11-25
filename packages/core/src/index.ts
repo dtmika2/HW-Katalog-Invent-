@@ -16,6 +16,7 @@
  * - `packing` — packed but still in the warehouse, promised gear, case checks.
  * - `shipping` — packing list, batches, lines added after shipping.
  * - `cancel` — asking the Chief to cancel packing or a delivery.
+ * - `late` — items taken to an event at the last minute.
  * - `returns` — vratka sheet and sessions: outcomes, transfers, cases, unexpected items.
  * - `cases` — refill ("Doplnit case") tasks.
  * - `service` — service cases and their status flow.
@@ -46,6 +47,7 @@ export * from './cases';
 export * from './service';
 export * from './issues';
 export * from './loans';
+export * from './late';
 export * from './jobs';
 export * from './notifications';
 

@@ -39,6 +39,7 @@ import {
   ShipConfirm,
 } from '../components/Delivery';
 import { CancelPendingNote } from '../components/CancelBooking';
+import { LateItem, LateTag } from '../components/LateItem';
 import { Hits, loanLine } from '../components/Loans';
 import { PackingPrint } from '../components/PackingPrint';
 import { PrintButton } from '../components/print';
@@ -234,6 +235,7 @@ export function Packing() {
             <span className="flex flex-wrap items-center gap-2">
               <span className="font-cond text-lg font-bold leading-tight">{l.name}</span>
               {l.kind === 'case' && <CaseLabel>{cs.editor.caseTag}</CaseLabel>}
+              {l.late && <LateTag />}
               {l.consumable && <span className="text-xs text-warn">{cs.packing.consumable}</span>}
               {l.addedAfterShipping && !done && (
                 <span className="rounded bg-bad px-1.5 text-xs text-white">
@@ -598,6 +600,7 @@ export function Packing() {
             </Link>
           </div>
         )}
+        <LateItem b={b} />
         <CancelPacking id={id} />
         <Batches s={s} id={id} />
       </div>

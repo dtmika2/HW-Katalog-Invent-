@@ -31,7 +31,7 @@ import {
   type OrChoiceInfo,
   type User,
 } from '@quix/core';
-import { cs } from '../../i18n/cs';
+import { cs, fmtDate } from '../../i18n/cs';
 import {
   caseTypeName,
   isCaseLine,
@@ -39,8 +39,10 @@ import {
   lineCategoryId,
   lineName,
   targetName,
+  userName,
 } from '../../lib/names';
 import { CategoryLabel } from '../Category';
+import { LateTag } from '../LateItem';
 import { AvailabilityBadge, CaseLabel } from '../ui';
 import { DragHandle, useDragState } from './drag';
 
@@ -123,6 +125,7 @@ export function LineRow({
         {isCaseLine(line) && <CaseLabel>{cs.editor.caseTag}</CaseLabel>}
         {/* not a link: a click would leave the editor and lose unsaved changes */}
         {categoryId && <CategoryLabel s={s} categoryId={categoryId} link={false} />}
+        {line.late && <LateTag />}
         {isAuto && (
           <span className="rounded bg-alu px-1.5 text-[11px] font-medium text-muted">
             {cs.editor.autoTag}
@@ -195,6 +198,14 @@ export function LineRow({
           )}
           {line.note && <span>{line.note}</span>}
         </div>
+      )}
+      {line.late && (
+        <p className="mt-0.5 text-xs text-muted">
+          {cs.late.by(userName(s, line.late.by), fmtDate(line.late.on))}
+          {line.late.note && `. ${line.late.note}`}
+          {line.late.reason && `. ${cs.common.reason}: ${line.late.reason}`}
+          {!line.late.charged && `. ${cs.late.notCharged}`}
+        </p>
       )}
       {groups.map((g) => (
         <div

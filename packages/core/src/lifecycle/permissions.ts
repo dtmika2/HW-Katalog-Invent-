@@ -27,6 +27,7 @@ export type Action =
   | 'override_conflict'
   | 'propose_override'
   | 'cover_external'
+  | 'add_late_item'
   | 'edit_catalogue'
   | 'open_service'
   | 'manage_service'
@@ -88,6 +89,8 @@ export function can(user: User, action: Action, booking?: Booking): boolean {
     case 'resolve_issue':
     case 'cancel_delivery':
       return isChief(user) || user.role === 'warehouse';
+    case 'add_late_item':
+      return user.role === 'warehouse' || isChief(user) || (user.role === 'pm' && own);
     case 'cancel_after_start':
     case 'mark_line':
     case 'remove_auto_line':

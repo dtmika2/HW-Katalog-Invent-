@@ -14,6 +14,7 @@ import {
 import { PrintButton } from '../components/print';
 import { VratkaPrint } from '../components/VratkaPrint';
 import { CaseLabel, Empty, StatusChip } from '../components/ui';
+import { LateTag } from '../components/LateItem';
 import { cs } from '../i18n/cs';
 import { caseNumber, itemName } from '../lib/names';
 import { useAppState, useProto, useToday, useUser } from '../store';
@@ -273,7 +274,14 @@ export function Vratka() {
             )}
           </div>
           <div className="min-w-0">
-            <p className="font-cond text-lg font-bold leading-tight">{l.name}</p>
+            <p className="font-cond text-lg font-bold leading-tight">
+              {l.name}
+              {l.late && (
+                <span className="ml-2">
+                  <LateTag />
+                </span>
+              )}
+            </p>
             <p className="text-xs text-muted">
               {cs.vratka.shipped(l.shipped)} · {cs.vratka.outstanding(l.outstanding)}
               {l.kind === 'external' && ` · ${cs.editor.externalTag}`}

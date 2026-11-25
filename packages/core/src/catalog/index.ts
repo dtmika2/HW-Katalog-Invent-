@@ -160,7 +160,8 @@ export function bookingPriceTotal(
   booking: Pick<Booking, 'periods' | 'lines'>,
 ): number {
   let perDay = 0;
-  for (const l of booking.lines) if (l.status === 'ok') perDay += linePriceDay(state, l);
+  for (const l of booking.lines)
+    if (l.status === 'ok' && (!l.late || l.late.charged)) perDay += linePriceDay(state, l);
   return perDay * eventDays(booking);
 }
 

@@ -44,6 +44,7 @@ export type LifecycleAction =
   | 'pack'
   | 'ship'
   | 'addLinesAfterShipping'
+  | 'addLateItem'
   | 'recordReturnSession'
   | 'resolveIssue'
   | 'close'
@@ -65,6 +66,8 @@ export const TRANSITIONS: Record<
   pack: { from: ['packing', 'packed', 'shipped'], to: 'computed' },
   ship: { from: ['packing', 'packed', 'shipped'], to: 'computed' },
   addLinesAfterShipping: { from: ['shipped', 'returning'], to: 'packing' },
+  // the status stays as it is
+  addLateItem: { from: ['packing', 'packed', 'shipped', 'returning'], to: 'computed' },
   // 'packing' too: part of the order may already be out (batches) and come back
   recordReturnSession: {
     from: ['packing', 'packed', 'shipped', 'returning', 'returned_with_issues'],
@@ -90,6 +93,7 @@ const PERMISSION_OF: Record<LifecycleAction, Action> = {
   pack: 'pack',
   ship: 'ship',
   addLinesAfterShipping: 'add_lines_after_shipping',
+  addLateItem: 'add_late_item',
   recordReturnSession: 'record_return',
   resolveIssue: 'resolve_issue',
   close: 'close',
@@ -219,7 +223,12 @@ export function saveBooking(
     return err('invalid_state', 'The booking is being cancelled', { field: 'cancelPending' });
   const client = checkBookingClient(state, edited.clientId, current.clientId);
   if (!client.ok) return client;
-  const { clientId, ...rest } = settleOverrides(user, current, edited);
+  const { clientId, ...settled } = settleOverrides(user, current, edited);
+  // what was taken at the last minute is a fact, editing the list does not change it
+  const rest = {
+    ...settled,
+    lines: [...settled.lines.filter((l) => !l.late), ...current.lines.filter((l) => l.late)],
+  };
   const { booking: calculated, expansion } = recalcBooking(state, {
     ...rest,
     ...(clientId ? { clientId } : {}),

@@ -567,7 +567,12 @@ export function validatePickedLines(
 }
 
 /** Loose pieces packed out of a case: the case is short until it is refilled. */
-function takeOutOfCase(d: AppState, line: BookingLine, pl: PackedLine, today: IsoDate): void {
+export function takeOutOfCase(
+  d: AppState,
+  line: BookingLine,
+  pl: PackedLine,
+  today: IsoDate,
+): void {
   if (!pl.fromCaseId || !isItemTarget(line.target)) return;
   const itemId = line.target.itemId;
   const c = d.cases.find((x) => x.id === pl.fromCaseId);
@@ -854,7 +859,7 @@ export function unpackLine(
 }
 
 /** Take pieces of a line out of its packing records; loose ones go back into their case. */
-function putBack(
+export function putBack(
   d: AppState,
   booking: Booking,
   line: BookingLine,

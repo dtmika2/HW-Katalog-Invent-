@@ -111,6 +111,7 @@ export function PackingPrint({
     ) : (
       <Row key={l.lineId} qty={`${l.qty}×`} done={l.progress.toPack === 0}>
         <span className="font-semibold">{l.name}</span>
+        {l.late && ` (${cs.late.tag.toLowerCase()})`}
         <Hints s={s} l={l} byGroup={byGroup} />
       </Row>
     );

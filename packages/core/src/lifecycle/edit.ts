@@ -63,7 +63,10 @@ export function nextLineId(booking: Pick<Booking, 'id' | 'lines'>): Id {
  */
 function followChecks(state: AppState, lines: BookingLine[]): BookingLine[] | undefined {
   if (!lines.some((l) => l.followsCheck && !l.followsCheck.byHand)) return undefined;
-  const totals = itemTotals(lines, state);
+  const totals = itemTotals(
+    lines.filter((l) => !l.late),
+    state,
+  );
   let changed = false;
   const next = lines.map((l) => {
     const f = l.followsCheck;
@@ -104,15 +107,18 @@ function expandBooking(
   state: AppState,
   booking: Booking,
 ): { booking: Booking; expansion: ExpandResult } {
-  const expansion = expand(booking.lines, state, {
-    previous: booking.lines,
+  // what was taken at the last minute brings nothing with it and counts for nothing on the list
+  const listed = booking.lines.filter((l) => !l.late);
+  const late = booking.lines.filter((l) => l.late);
+  const expansion = expand(listed, state, {
+    previous: listed,
     orChoices: booking.orChoices,
     suppressed: booking.suppressedAuto,
     dismissedRecommendations: booking.dismissedRecommendations,
     dismissedChecks: booking.dismissedChecks,
     isAvailable: availabilityOracle(state, booking),
   });
-  return { booking: { ...booking, lines: expansion.lines }, expansion };
+  return { booking: { ...booking, lines: [...expansion.lines, ...late] }, expansion };
 }
 
 function mapLine(b: Booking, lineId: Id, fn: (l: BookingLine) => BookingLine): Booking {
@@ -135,6 +141,7 @@ export function addLine(
   const existing = b.lines.find(
     (l) =>
       l.origin !== 'auto' &&
+      !l.late &&
       l.status === 'ok' &&
       !l.fromBookingId &&
       l.nestedUnder === nestedUnder &&

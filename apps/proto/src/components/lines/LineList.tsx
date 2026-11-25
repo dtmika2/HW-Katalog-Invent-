@@ -309,7 +309,13 @@ export function LineList(props: Props) {
 
   const render = (n: LineNode): ReactNode => (
     <li key={n.line.id}>
-      <LineRow {...props} line={n.line} depth={n.depth} name={names.get(n.line.id) ?? ''} />
+      <LineRow
+        {...props}
+        editable={props.editable && !n.line.late}
+        line={n.line}
+        depth={n.depth}
+        name={names.get(n.line.id) ?? ''}
+      />
       {n.children.length > 0 && <ul>{n.children.map(render)}</ul>}
     </li>
   );

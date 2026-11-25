@@ -294,6 +294,8 @@ export function bookingHolds(state: HoldState, booking: Booking, asDemand = fals
           warehouseId: w,
           from: win.from,
           to: win.to,
+          // physically taken, whoever confirmed first
+          ...(line.late ? { early: true } : {}),
         },
         line.target,
         qty,
@@ -655,7 +657,8 @@ export function evaluateBooking(
       collidingBookingIds: [],
       collidingLoanIds: [],
     };
-    if (!isActiveLine(line) || isExternal(line.target) || archived) {
+    // what was taken at the last minute is there, it cannot be short
+    if (!isActiveLine(line) || isExternal(line.target) || archived || line.late) {
       out.set(line.id, none);
       continue;
     }

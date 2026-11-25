@@ -27,6 +27,7 @@ import {
   packedInHouse,
   packLines,
   promisedText,
+  putBack,
   statusAfter,
   validatePickedLines,
   type BackItem,
@@ -85,6 +86,8 @@ export interface PackLine {
   forHint: { name: string; qty: number }[];
   consumable: boolean;
   addedAfterShipping: boolean;
+  /** Taken at the last minute. */
+  late: boolean;
   fromBookingId?: Id;
   /** The PM's own group the line is shown in. */
   group?: BookingGroup;
@@ -144,6 +147,7 @@ export function packingList(state: AppState, bookingId: Id): PackingList | undef
       consumable:
         isItemTarget(line.target) && getItem(state, line.target.itemId)?.returnable === false,
       addedAfterShipping: !!line.addedAfterShipping,
+      late: !!line.late,
       progress: lineProgress(state, b, line),
       deferrable: deferrableQty(state, b, line),
       conflicts: acceptedConflicts(state, b.id, line.id).map((r) => ({
@@ -497,6 +501,13 @@ export function cancelShipment(
       const itemId = line.target.itemId;
       const st = d.stock.find((s) => s.itemId === itemId && s.warehouseId === w);
       if (st) st.qty += sl.qty;
+    }
+    // an item taken at the last minute was never on the list, so it goes altogether
+    for (const sl of shipment.lines) {
+      const line = booking.lines.find((l) => l.id === sl.lineId);
+      if (!line?.late) continue;
+      putBack(d, booking, line, sl.qty, { caseIds: [] });
+      booking.lines = booking.lines.filter((l) => l.id !== line.id);
     }
     booking.status = statusAfter(d, booking);
     const count = shipment.lines.reduce((n, l) => n + l.qty, 0);

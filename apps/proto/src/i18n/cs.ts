@@ -317,6 +317,16 @@ export const cs = {
           'U Balí se, Zabaleno a Odvezeno: sklad (nebo PM celou akci) požádal o zrušení a čeká na šéfa techniky.',
       },
       {
+        name: 'Navíc',
+        means:
+          'U položky: přibraná na poslední chvíli od Balí se do konce vratky (sklad, šéf techniky nebo PM té akce). Platí hned jako odvezená a vratka ji čeká zpátky. Omyl se zruší přes Zrušit odvoz.',
+      },
+      {
+        name: 'Návrh PM',
+        means:
+          'U konfliktu: PM navrhuje schválit i přesto a čeká se, jestli to šéf techniky přijme.',
+      },
+      {
         name: 'Akce je zrušená, čeká na vybalení',
         means:
           'U Balí se a Zabaleno: sklad ještě nepotvrdil, že je vše zpátky na místě. Do té doby techniku drží a nejde ji balit, odvézt ani upravit.',
@@ -615,6 +625,8 @@ export const cs = {
     returned_to_pm: (p: Params) => `Vráceno PM: ${p.reason ?? ''}`,
     confirmed: () => 'Schváleno jako objednávka',
     override: (p: Params) => `Schváleno přes konflikt: ${p.reason ?? ''}`,
+    late_item: (p: Params) =>
+      `Přibráno na poslední chvíli: ${p.qty ?? 0}× ${p.item ?? ''}${p.note ? `. ${p.note}` : ''}${p.reason ? `. Důvod: ${p.reason}` : ''}`,
     shortage_solved: (p: Params) =>
       `Konflikt vyřešen: ${p.qty ?? 0}× ${p.what ?? ''} ${p.kind === 'external' ? 'externě od' : 'ze skladu'} ${p.from ?? ''}`,
     packing_started: (p: Params) =>
@@ -706,6 +718,8 @@ export const cs = {
       cancel_unpack: (p: Params) => `${p.event}: akce zrušena, vybalte ji. Důvod: ${p.reason}`,
       gear_released: (p: Params) =>
         `${p.event}: uvolnila se technika, akce ${p.other} byla zrušena`,
+      late_item: (p: Params) =>
+        `${p.event}: ${p.who} přibral(a) na poslední chvíli ${p.qty}× ${p.item}${p.note ? ` (${p.note})` : ''}${p.reason ? `, důvod: ${p.reason}` : ''}`,
       shortage_solved: (p: Params) =>
         `${p.event}: ${p.who} vyřešil(a) konflikt, ${p.qty}× ${p.what} ${p.kind === 'external' ? 'externě od' : 'ze skladu'} ${p.from}`,
       transfer_lost: (p: Params) =>
@@ -1143,6 +1157,27 @@ export const cs = {
   print: {
     button: 'Tisk / uložit PDF',
     buttonHint: 'V okně tisku zvolte jako tiskárnu „Uložit jako PDF“.',
+  },
+  late: {
+    tag: 'Navíc',
+    button: 'Přibrat na poslední chvíli',
+    hint: 'Technika, kterou berete na akci a není na schváleném seznamu.',
+    search: 'Hledat položku…',
+    none: 'Nic takového skladem není.',
+    title: (item: string) => `Přibrat: ${item}`,
+    delivery: 'Na poslední chvíli',
+    note: 'Poznámka (nepovinné)',
+    noteHint: 'Např. náhradní světlo',
+    charged: 'Započítat do ceny',
+    notCharged: 'neúčtuje se',
+    tooMany: (n: number) =>
+      n === 0 ? 'Teď tu není žádný volný kus.' : `Teď jde vzít nejvýš ${n} ks.`,
+    take: 'Vzít na akci',
+    takeAnyway: 'Přesto vzít na akci',
+    other: 'Jiná položka',
+    done: 'Zapsáno jako odvezené, čeká se na vrácení ve vratce.',
+    doneConsumable: 'Zapsáno a odepsáno ze skladu.',
+    by: (who: string, on: string) => `Přibral(a) ${who}, ${on}`,
   },
   cancelBooking: {
     button: 'Zrušit akci',

@@ -71,6 +71,7 @@ import { CancelBooking, CancelledNote, CancelPendingNote } from '../components/C
 import { ClientPicker } from '../components/Clients';
 import { CancelRequests, promisedRow } from '../components/Delivery';
 import { BookingPrint } from '../components/BookingPrint';
+import { LateItem } from '../components/LateItem';
 import { LoanNames } from '../components/Loans';
 import { PrintButton } from '../components/print';
 import { CaseLabel, Empty, Field, PartlyShipped, Section, StatusChip } from '../components/ui';
@@ -163,7 +164,8 @@ function Editor({ stored }: { stored: Booking }) {
 
   const canDrop = (p: DragPayload, key: string) => {
     const [kind, id] = [key.slice(0, key.indexOf(':')), key.slice(key.indexOf(':') + 1)];
-    if (p.kind === 'new') return kind === 'group' || booking.lines.some((l) => l.id === id);
+    if (p.kind === 'new')
+      return kind === 'group' || booking.lines.some((l) => l.id === id && !l.late);
     if (kind === 'line') return canNest(booking, p.id, id) && parentMap(booking).get(p.id) !== id;
     const line = booking.lines.find((l) => l.id === p.id);
     if (!line || !canLeave(line)) return false;
@@ -307,6 +309,7 @@ function Editor({ stored }: { stored: Booking }) {
                 </span>
               </div>
             </Section>
+            <LateItem b={stored} disabled={dirty} />
             <ThreadPanel s={s} bookingId={stored.id} user={user} today={today} />
           </div>
 

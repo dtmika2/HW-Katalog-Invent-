@@ -56,6 +56,8 @@ export interface ReturnSheetLine {
   outstanding: number;
   outcome: LineOutcome;
   consumable: boolean;
+  /** Taken at the last minute. */
+  late: boolean;
   sourceWarehouseId?: Id;
   expectedReturnWarehouseId?: Id;
   suggestedLocationId?: Id;
@@ -171,6 +173,7 @@ export function returnSheet(state: AppState, bookingId: Id): ReturnSheetLine[] {
       outstanding,
       outcome,
       consumable,
+      late: !!line.late,
       shippedCaseIds: caseIds,
       pendingCaseIds,
       shippedContents: Object.fromEntries(

@@ -118,7 +118,10 @@ export function BookingPrint({
   const all = tree.flatMap((g) => flattenNodes(g.roots));
   const grouped = tree.some((g) => g.group);
   const listed = ({ line }: { line: BookingLine }) =>
-    line.status === 'ok' && effectiveQty(line) > 0;
+    line.status === 'ok' &&
+    effectiveQty(line) > 0 &&
+    // the client's list names only what is charged
+    (!line.late || line.late.charged || internal);
   const rows = all.filter(listed);
   const refused = all.filter(({ line }) => line.status !== 'ok');
   const cell = 'border-b border-neutral-300 py-1 align-top';
@@ -199,6 +202,7 @@ export function BookingPrint({
                         {lineName(s, line)}
                       </span>
                       {'external' in t && ` (${cs.editor.externalTag})`}
+                      {internal && line.late && ` (${cs.late.tag.toLowerCase()})`}
                       {contents.length > 0 && (
                         <span className="block text-[8.5pt] text-neutral-600">
                           {contents.map((c) => `${c.qty}× ${itemName(s, c.itemId)}`).join(', ')}
@@ -215,9 +219,9 @@ export function BookingPrint({
                       )}
                     </td>
                     {prices &&
-                      ('external' in t ? (
+                      ('external' in t || (line.late && !line.late.charged) ? (
                         <td className={`${cell} px-1 text-right text-[9pt]`} colSpan={2}>
-                          {cs.editor.print.externalPrice}
+                          {line.late ? cs.late.notCharged : cs.editor.print.externalPrice}
                         </td>
                       ) : (
                         <>

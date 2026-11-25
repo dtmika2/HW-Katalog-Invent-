@@ -169,7 +169,8 @@ function takeInDraft(d: AppState, loan: Loan, today: IsoDate): void {
   if (!contentsMatchStandard(d, c)) c.incompleteSince = c.incompleteSince ?? today;
 }
 
-function uses(state: AppState, b: Booking, itemId: Id): boolean {
+/** True when a booking lists the item, on its own or inside a case. */
+export function usesItem(state: AppState, b: Booking, itemId: Id): boolean {
   return b.lines.some((l) => {
     if (!isActiveLine(l) || isExternal(l.target)) return false;
     if (isItemTarget(l.target)) return l.target.itemId === itemId;
@@ -201,7 +202,7 @@ export function loanPreview(state: AppState, today: IsoDate, input: LoanInput): 
   return {
     from,
     to,
-    hits: newShortages(state, after, from, to, (b) => uses(after, b, input.itemId)),
+    hits: newShortages(state, after, from, to, (b) => usesItem(after, b, input.itemId)),
     minFree: minFree === Infinity ? 0 : minFree,
   };
 }
@@ -328,7 +329,7 @@ export function extendPreview(
   return {
     from,
     to: until,
-    hits: newShortages(state, after, from, until, (b) => uses(after, b, l.itemId)),
+    hits: newShortages(state, after, from, until, (b) => usesItem(after, b, l.itemId)),
     minFree: 0,
   };
 }

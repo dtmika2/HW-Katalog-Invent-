@@ -120,13 +120,14 @@ export function descendants(b: Pick<Booking, 'lines'>, lineId: Id): BookingLine[
 /** True when a line may be nested under another one. */
 export function canNest(b: Pick<Booking, 'lines'>, lineId: Id, parentId: Id): boolean {
   const line = b.lines.find((l) => l.id === lineId);
-  if (!line || lineId === parentId || !b.lines.some((l) => l.id === parentId)) return false;
+  const parent = b.lines.find((l) => l.id === parentId);
+  if (!line || lineId === parentId || !parent || line.late || parent.late) return false;
   if (line.origin === 'auto' && !line.parentLineIds.includes(parentId)) return false;
   return !descendants(b, lineId).some((l) => l.id === parentId);
 }
 
-/** Required lines stay with the line that needs them. */
-export const canLeave = (line: BookingLine): boolean => line.origin !== 'auto';
+/** Required lines stay with the line that needs them, last-minute ones are not arranged. */
+export const canLeave = (line: BookingLine): boolean => line.origin !== 'auto' && !line.late;
 
 /** True when a line is the item or brings it (a case that holds it). */
 export function bringsItem(

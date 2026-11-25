@@ -120,6 +120,7 @@ const LEVEL_OF_TYPE: Record<NotificationType, NotificationLevel> = {
   gear_released: 'info',
   transfer_lost: 'attention',
   shortage_solved: 'info',
+  late_item: 'attention',
   order_packed: 'info',
   prebooking_returned: 'attention',
   prebooking_expiring: 'attention',

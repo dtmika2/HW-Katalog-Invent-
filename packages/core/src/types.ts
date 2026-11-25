@@ -231,6 +231,8 @@ export interface BookingLine {
   /** Reason for missing / substituted, or other remark shown to the PM. */
   note?: string;
   addedAfterShipping?: boolean;
+  /** Taken to the event at the last minute, without approval. */
+  late?: { by: Id; on: IsoDate; note?: string; reason?: string; charged?: boolean };
   /** Day pieces actually arrived from `fromBookingId`. */
   transferredOn?: IsoDate;
   /** Shown under this line (for auto lines: which of `parentLineIds`). */
@@ -552,7 +554,8 @@ export type NotificationType =
   | 'cancel_unpack'
   | 'gear_released'
   | 'transfer_lost'
-  | 'shortage_solved';
+  | 'shortage_solved'
+  | 'late_item';
 
 export type Params = Record<string, string | number>;
 
@@ -578,6 +581,7 @@ export type SystemEventType =
   | 'confirmed'
   | 'override'
   | 'shortage_solved'
+  | 'late_item'
   | 'packing_started'
   | 'packed'
   | 'unpacked'

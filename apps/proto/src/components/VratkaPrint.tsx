@@ -221,6 +221,7 @@ export function VratkaPrint({
                     <td className={`${cell} w-14 text-right font-bold`}>{l.outstanding}×</td>
                     <td className={cell}>
                       <span className="font-semibold">{l.name}</span>
+                      {l.late && ` (${cs.late.tag.toLowerCase()})`}
                       {ext && (
                         <span className="block text-[8.5pt] text-neutral-600">
                           {cs.vratka.print.supplier(ext.supplier, fmtDate(ext.returnDate))}

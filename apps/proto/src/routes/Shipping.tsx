@@ -36,6 +36,7 @@ import {
   ShipConfirm,
 } from '../components/Delivery';
 import { CancelPendingNote } from '../components/CancelBooking';
+import { LateItem } from '../components/LateItem';
 import { CaseLabel, Empty, StatusChip } from '../components/ui';
 import { cs, fmtDate } from '../i18n/cs';
 import { caseNumber, packByGroup, warehouseName } from '../lib/names';
@@ -458,6 +459,7 @@ export function Shipping() {
           )}
         </div>
       )}
+      <LateItem b={b} />
       <CancelPacking id={id} />
       <Batches s={s} id={id} />
     </div>
