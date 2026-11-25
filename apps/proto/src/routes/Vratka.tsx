@@ -14,6 +14,7 @@ import {
 import { PrintButton } from '../components/print';
 import { VratkaPrint } from '../components/VratkaPrint';
 import { CaseLabel, Empty, StatusChip } from '../components/ui';
+import { Attachments } from '../components/Attachments';
 import { LateTag } from '../components/LateItem';
 import { cs } from '../i18n/cs';
 import { caseNumber, itemName } from '../lib/names';
@@ -503,6 +504,7 @@ export function Vratka() {
             <StatusChip status={b.status} /> {cs.vratka.intro}
           </p>
         </div>
+        <Attachments id={id} readOnly />
         {result && (
           <section data-testid="vratka-result" className="panel border-tape p-3 text-sm">
             <h2>{cs.vratka.result}</h2>

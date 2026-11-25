@@ -625,6 +625,8 @@ export const cs = {
     returned_to_pm: (p: Params) => `Vráceno PM: ${p.reason ?? ''}`,
     confirmed: () => 'Schváleno jako objednávka',
     override: (p: Params) => `Schváleno přes konflikt: ${p.reason ?? ''}`,
+    attachment_added: (p: Params) => (p.name ? `Přidána příloha: ${p.name}` : 'Přidána poznámka'),
+    attachment_removed: (p: Params) => (p.name ? `Smazána příloha: ${p.name}` : 'Smazána poznámka'),
     late_item: (p: Params) =>
       `Přibráno na poslední chvíli: ${p.qty ?? 0}× ${p.item ?? ''}${p.note ? `. ${p.note}` : ''}${p.reason ? `. Důvod: ${p.reason}` : ''}`,
     shortage_solved: (p: Params) =>
@@ -1157,6 +1159,36 @@ export const cs = {
   print: {
     button: 'Tisk / uložit PDF',
     buttonHint: 'V okně tisku zvolte jako tiskárnu „Uložit jako PDF“.',
+  },
+  attachments: {
+    title: 'Poznámky a přílohy',
+    note: 'Poznámka',
+    noteHint: 'Např. vjezd ze dvora, kód 1234, kontakt na správce sálu',
+    addNote: 'Přidat poznámku',
+    addFiles: 'Přidat fotky nebo soubory',
+    adding: 'Ukládám…',
+    limits: (used: string, total: string, one: string) =>
+      `Obsazeno ${used} z ${total}, jeden soubor nejvýš ${one}. Fotky nad 1 MB se zmenší.`,
+    onlyHere:
+      'Prototyp ukládá soubory jen v tomto prohlížeči, kolegové na jiném počítači je neuvidí.',
+    kb: (n: number) => `${n} kB`,
+    mb: (n: number) => `${n.toLocaleString('cs-CZ', { maximumFractionDigits: 1 })} MB`,
+    missing: 'Soubor je jen v prohlížeči, kde byl přidán.',
+    notStored: (name: string) => `${name}: prohlížeč soubor neuložil, asi nemá dost místa.`,
+    problem: {
+      type: (name: string) =>
+        `${name}: tento typ souboru nejde přidat. Jdou fotky, PDF, Word, Excel, PowerPoint, text a výkresy.`,
+      empty: (name: string) => `${name}: soubor je prázdný.`,
+      size: (name: string) => `${name}: soubor je větší než 10 MB.`,
+      total: (name: string) => `${name}: rezervace už by měla přes 50 MB příloh.`,
+      count: (name: string) => `${name}: rezervace už má 30 souborů.`,
+    },
+    enlarge: (name: string) => `Zvětšit: ${name}`,
+    download: 'Stáhnout',
+    remove: 'Smazat',
+    removeLabel: (name: string) => `Smazat: ${name}`,
+    removeYes: 'Opravdu smazat',
+    removed: 'Smazáno.',
   },
   late: {
     tag: 'Navíc',

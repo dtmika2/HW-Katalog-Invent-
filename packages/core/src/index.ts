@@ -16,6 +16,7 @@
  * - `packing` — packed but still in the warehouse, promised gear, case checks.
  * - `shipping` — packing list, batches, lines added after shipping.
  * - `cancel` — asking the Chief to cancel packing or a delivery.
+ * - `attachments` — notes and files of a booking: rules and records, not the contents.
  * - `late` — items taken to an event at the last minute.
  * - `returns` — vratka sheet and sessions: outcomes, transfers, cases, unexpected items.
  * - `cases` — refill ("Doplnit case") tasks.
@@ -47,6 +48,7 @@ export * from './cases';
 export * from './service';
 export * from './issues';
 export * from './loans';
+export * from './attachments';
 export * from './late';
 export * from './jobs';
 export * from './notifications';
@@ -75,6 +77,7 @@ export function emptyState(): AppState {
     loans: [],
     notifications: [],
     messages: [],
+    attachments: [],
     settings: structuredClone(DEFAULT_SETTINGS),
     counters: {},
     jobLog: {},

@@ -582,6 +582,8 @@ export type SystemEventType =
   | 'override'
   | 'shortage_solved'
   | 'late_item'
+  | 'attachment_added'
+  | 'attachment_removed'
   | 'packing_started'
   | 'packed'
   | 'unpacked'
@@ -606,6 +608,17 @@ export type SystemEventType =
   | 'closed'
   | 'expired'
   | 'line_marked';
+
+/** A note or a file added to a booking. */
+export interface Attachment {
+  id: Id;
+  bookingId: Id;
+  by: Id;
+  on: IsoDate;
+  text?: string;
+  /** The contents are stored by the app under `key`. */
+  file?: { name: string; size: number; key: string };
+}
 
 export interface Message {
   id: Id;
@@ -683,6 +696,7 @@ export interface AppState {
   loans: Loan[];
   notifications: Notification[];
   messages: Message[];
+  attachments: Attachment[];
   settings: Settings;
   /** Per-prefix counters for deterministic IDs. */
   counters: Record<string, number>;

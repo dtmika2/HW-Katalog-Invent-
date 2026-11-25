@@ -35,6 +35,7 @@ import {
   PromiseReasons,
   ShipConfirm,
 } from '../components/Delivery';
+import { Attachments } from '../components/Attachments';
 import { CancelPendingNote } from '../components/CancelBooking';
 import { LateItem } from '../components/LateItem';
 import { CaseLabel, Empty, StatusChip } from '../components/ui';
@@ -252,6 +253,7 @@ export function Shipping() {
         </p>
         <DeliveryTabs id={id} ready={progress.ready} />
       </div>
+      <Attachments id={id} readOnly />
       <CancelPendingNote b={b} />
       <CancelRequests id={id} />
       {progress.toPack > 0 && (

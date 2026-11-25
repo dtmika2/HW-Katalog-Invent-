@@ -20,6 +20,7 @@ import {
   type ScenarioId,
 } from '@quix/fixtures';
 import { cs } from '../i18n/cs';
+import { clearFiles, dropOrphans } from './files';
 
 const STORAGE_KEY = 'quix-hw-proto-v1';
 
@@ -113,6 +114,8 @@ export const useProto = create<ProtoState>()((set, get) => ({
     const sc = SCENARIOS.find((s) => s.id === id) ?? SCENARIOS[0];
     if (!sc) return;
     const state = sc.build();
+    // attached files belong to the data that is thrown away
+    void clearFiles();
     const userId = sc.focus?.userId ?? get().userId;
     set({ state, scenarioId: sc.id, today: DEMO_TODAY, userId, staleData: false });
   },
@@ -121,6 +124,7 @@ export const useProto = create<ProtoState>()((set, get) => ({
     if (get().state) return;
     const p = readPersisted();
     if (p) {
+      void dropOrphans((p.state.attachments ?? []).flatMap((a) => (a.file ? [a.file.key] : [])));
       const old = p.dataVersion !== DATA_VERSION;
       set({
         state: completeSavedState(old ? migrateSavedState(p.state) : p.state),

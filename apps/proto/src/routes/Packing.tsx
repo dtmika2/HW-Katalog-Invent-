@@ -38,6 +38,7 @@ import {
   PromiseReasons,
   ShipConfirm,
 } from '../components/Delivery';
+import { Attachments } from '../components/Attachments';
 import { CancelPendingNote } from '../components/CancelBooking';
 import { LateItem, LateTag } from '../components/LateItem';
 import { Hits, loanLine } from '../components/Loans';
@@ -460,6 +461,7 @@ export function Packing() {
             </div>
           )}
         </div>
+        <Attachments id={id} readOnly />
         <CancelPendingNote b={b} />
         <CancelRequests id={id} />
         {b.editedAfterShipping && newLinesPending && (

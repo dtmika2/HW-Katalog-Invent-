@@ -65,6 +65,7 @@ import {
   type Target,
   type User,
 } from '@quix/core';
+import { Attachments } from '../components/Attachments';
 import { CategoryLabel } from '../components/Category';
 import { CollidingLink, SameDaySection, TierChip, TierSection } from '../components/Conflicts';
 import { CancelBooking, CancelledNote, CancelPendingNote } from '../components/CancelBooking';
@@ -310,6 +311,7 @@ function Editor({ stored }: { stored: Booking }) {
               </div>
             </Section>
             <LateItem b={stored} disabled={dirty} />
+            <Attachments id={stored.id} />
             <ThreadPanel s={s} bookingId={stored.id} user={user} today={today} />
           </div>
 
