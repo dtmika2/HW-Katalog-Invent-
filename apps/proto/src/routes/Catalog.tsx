@@ -1,10 +1,17 @@
 import { useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { caseMissing, categoryPath, itemsInCategory, topCategoryId, totalStock } from '@quix/core';
+import {
+  can,
+  caseMissing,
+  categoryPath,
+  itemsInCategory,
+  topCategoryId,
+  totalStock,
+} from '@quix/core';
 import { CategoryIcon, CategoryLabel, colorOf, Swatch, tint } from '../components/Category';
 import { CaseLabel, Empty } from '../components/ui';
 import { cs } from '../i18n/cs';
-import { useAppState } from '../store';
+import { useAppState, useUser } from '../store';
 
 /**
  * Category view of the catalogue: a two-level tree with counts on the left, breadcrumb and
@@ -13,6 +20,7 @@ import { useAppState } from '../store';
  */
 export function CatalogBrowse() {
   const s = useAppState();
+  const user = useUser();
   const [params, setParams] = useSearchParams();
   const cat = params.get('cat') ?? '';
   const [q, setQ] = useState('');
@@ -180,7 +188,18 @@ export function CatalogBrowse() {
                     {cs.common.pcs(totalStock(s, i.id))} ·{' '}
                     {cs.catalog.perDay(cs.common.czk(i.priceDay))}
                   </p>
-                  <CategoryLabel s={s} categoryId={i.categoryId} />
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                    <CategoryLabel s={s} categoryId={i.categoryId} />
+                    {can(user, 'borrow') && i.returnable && (
+                      <Link
+                        to={`/items/${i.id}?loan=1`}
+                        className="text-xs text-tape underline"
+                        aria-label={`${cs.loans.button}: ${i.name}`}
+                      >
+                        {cs.loans.button}
+                      </Link>
+                    )}
+                  </div>
                 </div>
               </li>
             ))}

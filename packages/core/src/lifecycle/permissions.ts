@@ -25,6 +25,8 @@ export type Action =
   | 'manage_conflicts'
   | 'refill_case'
   | 'create_client'
+  | 'borrow'
+  | 'borrow_for_other'
   | 'manage_clients'
   | 'admin';
 
@@ -63,6 +65,9 @@ export function can(user: User, action: Action, booking?: Booking): boolean {
       return isChief(user) || user.role === 'warehouse';
     case 'edit_catalogue':
       return isChief(user) || user.role === 'admin' || user.perms.canEditCatalogue;
+    case 'borrow_for_other':
+      return isChief(user) || user.role === 'warehouse';
+    case 'borrow':
     case 'open_service':
       return true;
     case 'manage_service':

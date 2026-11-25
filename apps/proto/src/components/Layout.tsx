@@ -168,6 +168,7 @@ export function Layout({ children }: { children: ReactNode }) {
     ['/catalog', cs.nav.catalog, true],
     ['/warehouse', cs.nav.warehouse, user.role === 'warehouse' || user.role === 'chief'],
     ['/service', cs.nav.service, true],
+    ['/loans', cs.nav.loans, true],
     ['/clients', cs.nav.clients, can(user, 'manage_clients')],
   ];
   return (

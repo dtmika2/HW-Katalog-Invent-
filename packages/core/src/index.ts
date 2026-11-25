@@ -19,6 +19,7 @@
  * - `service` — service cases and their status flow.
  * - `issues` — pending issues list and resolution.
  * - `jobs` — `runDailyJobs(state, today)`: expiries and reminders.
+ * - `loans` — quick loans outside reservations.
  * - `clients` — light client records: add, edit, archive, look-alike names.
  * - `notifications` — in-app notifications and the booking thread.
  */
@@ -40,6 +41,7 @@ export * from './returns';
 export * from './cases';
 export * from './service';
 export * from './issues';
+export * from './loans';
 export * from './jobs';
 export * from './notifications';
 
@@ -63,6 +65,7 @@ export function emptyState(): AppState {
     serviceCases: [],
     issues: [],
     transfers: [],
+    loans: [],
     notifications: [],
     messages: [],
     settings: structuredClone(DEFAULT_SETTINGS),

@@ -34,6 +34,8 @@ export interface LineConflict {
   worstDay: IsoDate;
   days: IsoDate[];
   colliding: CollidingBooking[];
+  /** Quick loans that are out on the short days. */
+  loanIds: Id[];
 }
 
 function describe(state: Pick<AppState, 'bookings'>, ids: Id[]): CollidingBooking[] {
@@ -73,6 +75,7 @@ export function detectConflicts(
       worstDay: a.worstDay ?? a.shortDays[0] ?? firstBookedFrom(booking),
       days: a.shortDays,
       colliding: describe(state, a.collidingBookingIds),
+      loanIds: a.collidingLoanIds,
     });
   }
   return out;

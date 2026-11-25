@@ -3,9 +3,9 @@
  * refilling moves pieces from loose stock into the case.
  */
 import { diffDays, type IsoDate } from '../dates';
-import { caseMissing, contentsMatchStandard, looseStock, refillTasks } from '../catalog';
+import { caseMissing, contentsMatchStandard, refillTasks } from '../catalog';
 import { can } from '../lifecycle/permissions';
-import { casesOut } from '../shipping';
+import { casesOut, looseInHouse } from '../shipping';
 import type { AppState, Id, QtyLine, RefillTask, User } from '../types';
 import { err, ok, produce, type Result } from '../util';
 
@@ -43,7 +43,7 @@ export function refillCase(
   const moves: QtyLine[] = [];
   for (const w of wanted) {
     const need = missing.find((m) => m.itemId === w.itemId)?.qty ?? 0;
-    const qty = Math.min(w.qty, need, Math.max(0, looseStock(state, w.itemId, c.warehouseId)));
+    const qty = Math.min(w.qty, need, looseInHouse(state, w.itemId, c.warehouseId));
     if (qty > 0) moves.push({ itemId: w.itemId, qty });
   }
   if (moves.length === 0) return err('validation', 'No loose pieces available to refill this case');

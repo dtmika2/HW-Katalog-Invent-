@@ -4,6 +4,7 @@ import {
   can,
   caseContentQty,
   firstBookedFrom,
+  loansOut,
   packingList,
   shipBatch,
   startPacking,
@@ -17,6 +18,7 @@ import {
   toCheck,
   type CaseDraft,
 } from '../components/CaseChecklist';
+import { loanLine } from '../components/Loans';
 import { PackingPrint } from '../components/PackingPrint';
 import { CaseLabel, Empty, StatusChip } from '../components/ui';
 import { cs, fmtDate } from '../i18n/cs';
@@ -100,6 +102,7 @@ export function Packing() {
   const card = (l: PackLine) => {
     const p = pick(l);
     const done = l.remaining === 0;
+    const lent = l.itemId && l.warehouseId ? loansOut(s, l.itemId, l.warehouseId, today) : [];
     const sourceCases =
       l.kind === 'item' && l.itemId
         ? s.cases.filter(
@@ -155,6 +158,11 @@ export function Packing() {
                     : ''}
               </span>
             </span>
+            {!done && lent.length > 0 && (
+              <span className="block text-xs font-medium text-warn">
+                {cs.loans.packingHint(lent.map((x) => loanLine(s, x)).join('; '))}
+              </span>
+            )}
             {l.forHint.length > 0 && (
               <span className="block text-xs text-muted">
                 {cs.editor.forHint(l.forHint.map((h) => `${h.name} ×${h.qty}`).join(', '))}

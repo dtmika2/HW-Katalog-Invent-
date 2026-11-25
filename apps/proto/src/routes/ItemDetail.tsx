@@ -7,7 +7,9 @@ import {
   caseTypesContaining,
   isCaseComplete,
   isOpenService,
+  loansOut,
   looseStock,
+  openLoans,
   openServiceCase,
   usedBy,
   type AppState,
@@ -15,6 +17,7 @@ import {
 } from '@quix/core';
 import { AvailabilityCalendar } from '../components/AvailabilityCalendar';
 import { CategoryLabel } from '../components/Category';
+import { byReturn, LoanForm, LoanList } from '../components/Loans';
 import { CaseLabel, Empty, Field, Section } from '../components/ui';
 import { cs, fmtDate } from '../i18n/cs';
 import { itemName, locationPath, targetName, userName } from '../lib/names';
@@ -180,6 +183,7 @@ function FaultForm({ itemId }: { itemId: string }) {
 export function ItemDetail() {
   const { id = '' } = useParams();
   const [params] = useSearchParams();
+  const [lending, setLending] = useState(params.get('loan') === '1');
   const s = useAppState();
   const today = useToday();
   const user = useUser();
@@ -188,6 +192,11 @@ export function ItemDetail() {
   const stock = s.stock.filter((x) => x.itemId === id);
   const services = s.serviceCases.filter((sc) => sc.itemId === id);
   const types = caseTypesContaining(s, id);
+  const loans = openLoans(s)
+    .filter((l) => l.itemId === id)
+    .sort(byReturn);
+  const canLend =
+    can(user, 'borrow') && item.returnable && !item.archived && stock.some((x) => x.qty > 0);
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-start gap-4">
@@ -213,8 +222,24 @@ export function ItemDetail() {
           </p>
           {item.notes && <p className="mt-1 text-sm text-muted">{item.notes}</p>}
         </div>
-        <FaultForm itemId={id} />
+        <div className="flex flex-wrap items-start gap-2">
+          {canLend && !lending && (
+            <button type="button" className="btn btn-primary" onClick={() => setLending(true)}>
+              {cs.loans.button}
+            </button>
+          )}
+          <FaultForm itemId={id} />
+        </div>
       </div>
+
+      {canLend && lending && (
+        <LoanForm key={user.id} itemId={id} onClose={() => setLending(false)} />
+      )}
+      {loans.length > 0 && (
+        <Section title={cs.loans.whoHas}>
+          <LoanList loans={loans} showItem={false} />
+        </Section>
+      )}
 
       <div className="grid gap-4 lg:grid-cols-3">
         <Section title={cs.catalog.stock}>
@@ -224,6 +249,7 @@ export function ItemDetail() {
                 .filter((sc) => sc.warehouseId === st.warehouseId && isOpenService(sc))
                 .reduce((n, sc) => n + sc.qty, 0);
               const loose = looseStock(s, id, st.warehouseId);
+              const lent = loansOut(s, id, st.warehouseId, today).reduce((n, l) => n + l.qty, 0);
               return (
                 <li key={st.warehouseId}>
                   <span className="font-semibold">
@@ -234,6 +260,9 @@ export function ItemDetail() {
                   </span>
                   {oos > 0 && (
                     <span className="ml-2 text-xs text-bad">{cs.catalog.inService(oos)}</span>
+                  )}
+                  {lent > 0 && (
+                    <span className="ml-2 text-xs text-warn">{cs.loans.onItem(lent)}</span>
                   )}
                   <span className="block text-xs text-muted">
                     {locationPath(s, st.homeLocationId)}

@@ -48,6 +48,7 @@ import {
 } from '@quix/core';
 import { CategoryLabel } from '../components/Category';
 import { ClientPicker } from '../components/Clients';
+import { LoanNames } from '../components/Loans';
 import {
   AvailabilityBadge,
   CaseLabel,
@@ -1016,7 +1017,10 @@ function ConflictPanel({
               <p className="font-semibold">
                 {cs.conflict.lineShort(lineName(s, line), shortText, fmtDate(c.worstDay))}
               </p>
-              <p className="mt-1 text-xs text-muted">{cs.conflict.heldBy}</p>
+              <LoanNames s={s} ids={c.loanIds} />
+              {c.colliding.length > 0 && (
+                <p className="mt-1 text-xs text-muted">{cs.conflict.heldBy}</p>
+              )}
               <ul className="ml-3 list-disc text-xs">
                 {c.colliding.map((b) => (
                   <li key={b.id} data-testid="colliding">

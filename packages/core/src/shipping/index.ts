@@ -3,7 +3,7 @@
  * location; cases are one line with their contents.
  */
 import type { IsoDate } from '../dates';
-import { shippedQty } from '../availability';
+import { isOpenLoan, shippedQty } from '../availability';
 import {
   caseContentQty,
   getCaseType,
@@ -188,7 +188,7 @@ export function packingList(state: AppState, bookingId: Id): PackingList | undef
   };
 }
 
-/** Pieces of an item lying loose in a warehouse, without those known to be missing. */
+/** Pieces of an item lying loose in a warehouse, without those missing or lent. */
 export function looseInHouse(state: AppState, itemId: Id, warehouseId: Id): number {
   const missing = state.issues
     .filter(
@@ -199,7 +199,10 @@ export function looseInHouse(state: AppState, itemId: Id, warehouseId: Id): numb
         i.warehouseId === warehouseId,
     )
     .reduce((n, i) => n + i.qty, 0);
-  return Math.max(0, looseStock(state, itemId, warehouseId) - missing);
+  const lent = state.loans
+    .filter((l) => l.itemId === itemId && l.warehouseId === warehouseId && isOpenLoan(l))
+    .reduce((n, l) => n + l.qty, 0);
+  return Math.max(0, looseStock(state, itemId, warehouseId) - missing - lent);
 }
 
 const qtyOf = (list: readonly QtyLine[] | undefined, itemId: Id): number =>

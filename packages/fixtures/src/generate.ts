@@ -4,6 +4,7 @@
 import {
   addDays,
   emptyState,
+  createLoan,
   openServiceCase,
   runDailyJobs,
   setServiceStatus,
@@ -705,6 +706,34 @@ function addServiceCases(b: Builder): void {
   status(sp, '2027-04-18', 'back_to_check', 'Vyměněn driver, otestovat');
 }
 
+/** Quick loans: one running, one overdue, one for somebody outside without a return date. */
+function addLoans(b: Builder): void {
+  const take = (userId: string, day: IsoDate, input: Parameters<typeof createLoan>[3]) => {
+    b.state = unwrap(createLoan(b.state, b.user(userId), day, input)).state;
+  };
+  take(U.lucie, '2027-04-12', {
+    itemId: 'monitor-24',
+    warehouseId: WH.karlak,
+    qty: 1,
+    until: '2027-04-16',
+    note: 'Náhradní monitor do kanceláře',
+  });
+  take(U.karel, '2027-04-17', {
+    itemId: 'lectern',
+    warehouseId: WH.karlak,
+    qty: 1,
+    borrowerName: 'Základní škola Brod',
+    note: 'Školní akademie',
+  });
+  take(U.petr, '2027-04-19', {
+    itemId: 'walkie',
+    warehouseId: WH.brod,
+    qty: 2,
+    until: '2027-04-22',
+    note: 'Obhlídka v terénu',
+  });
+}
+
 /** The full demo state (deterministic). */
 export function generateState(today: IsoDate = DEMO_TODAY): AppState {
   const rand = mulberry32(SEED);
@@ -723,6 +752,7 @@ export function generateState(today: IsoDate = DEMO_TODAY): AppState {
     b.book(spec);
   }
   if (!serviceDone) addServiceCases(b);
+  addLoans(b);
 
   // Tonight's job for the demo bell; older notifications count as read.
   const jobbed = runDailyJobs(b.state, today).state;

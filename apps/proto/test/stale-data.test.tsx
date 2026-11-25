@@ -60,6 +60,30 @@ describe('older saved demo data', () => {
     expect(JSON.parse(localStorage.getItem(KEY) ?? '{}').dataVersion).toBe(DATA_VERSION);
   });
 
+  it('current data saved before loans existed still works, without a banner', async () => {
+    await new Promise((r) => setTimeout(r, 400));
+    const { loans: _loans, ...rest } = generateState();
+    const { loanHorizonDays: _days, ...settings } = rest.settings;
+    localStorage.setItem(
+      KEY,
+      JSON.stringify({
+        state: { ...rest, settings },
+        scenarioId: 'base',
+        today: '2027-04-20',
+        userId: 'u-petr',
+        dataVersion: DATA_VERSION,
+      }),
+    );
+    useProto.setState({ state: null, staleData: false });
+    renderAt('/items/walkie');
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Vzít si / půjčit' }, { timeout: 5000 }),
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Vzít si' }));
+    expect(useProto.getState().state?.loans).toHaveLength(1);
+    expect(screen.queryByTestId('stale-data')).not.toBeInTheDocument();
+  });
+
   it('current saved data shows no banner', async () => {
     const s = generateState();
     localStorage.setItem(

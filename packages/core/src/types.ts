@@ -402,6 +402,33 @@ export interface Issue {
   archivedOn?: IsoDate;
 }
 
+/** An item taken without a reservation. */
+export interface Loan {
+  id: Id;
+  itemId: Id;
+  warehouseId: Id;
+  qty: number;
+  /** A user, or `borrowerName` for somebody without an account. */
+  borrowerId?: Id;
+  borrowerName?: string;
+  recordedBy: Id;
+  createdOn: IsoDate;
+  from: IsoDate;
+  /** Expected return, when given. */
+  until?: IsoDate;
+  /** Last day the pieces count as out; the nightly job moves it while the loan is undated or overdue. */
+  heldUntil: IsoDate;
+  /** The flight case the pieces were taken out of. */
+  fromCaseId?: Id;
+  note?: string;
+  /** Why it was taken although an order needs it. */
+  reason?: string;
+  returnedOn?: IsoDate;
+  returnedBy?: Id;
+  /** Given up before it started. */
+  cancelledOn?: IsoDate;
+}
+
 /** Derived, not stored: a case that must be brought back to full. */
 export interface RefillTask {
   caseId: Id;
@@ -443,7 +470,8 @@ export type NotificationType =
   | 'prebooking_expired'
   | 'external_not_returned'
   | 'conflict_unresolved'
-  | 'case_shipped_short';
+  | 'case_shipped_short'
+  | 'loan_overdue';
 
 export type Params = Record<string, string | number>;
 
@@ -507,12 +535,15 @@ export interface ReminderSettings {
 export interface Settings {
   bufferBeforeDays: number;
   bufferAfterDays: number;
+  /** How many days ahead an undated or overdue loan counts as out. */
+  loanHorizonDays: number;
   reminders: ReminderSettings;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
   bufferBeforeDays: 1,
   bufferAfterDays: 1,
+  loanHorizonDays: 7,
   reminders: {
     validationWaitingAfter: 2,
     validationWaitingEvery: 2,
@@ -545,6 +576,7 @@ export interface AppState {
   serviceCases: ServiceCase[];
   issues: Issue[];
   transfers: StockTransfer[];
+  loans: Loan[];
   notifications: Notification[];
   messages: Message[];
   settings: Settings;

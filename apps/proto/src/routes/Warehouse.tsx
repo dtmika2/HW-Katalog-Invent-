@@ -6,10 +6,12 @@ import {
   isOpenService,
   isServiceOverdue,
   lastBookedUntil,
+  openLoans,
   refillCase,
   refillTasksWithAge,
   remainingToShip,
 } from '@quix/core';
+import { byReturn, LoanList } from '../components/Loans';
 import { CaseLabel, PartlyShipped, Section, StatusChip } from '../components/ui';
 import { cs, fmtDate } from '../i18n/cs';
 import { caseNumber, itemName, userName } from '../lib/names';
@@ -150,6 +152,12 @@ export function WarehouseDashboard() {
             </li>
           ))}
         </ul>
+      </Section>
+      <Section title={cs.loans.out}>
+        <LoanList
+          loans={openLoans(s).sort(byReturn)}
+          empty={<p className="text-sm text-muted">{cs.warehouseUi.none}</p>}
+        />
       </Section>
       <Section title={cs.dashboard.pendingIssues}>
         <IssuesList />

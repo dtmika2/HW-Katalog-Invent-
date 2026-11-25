@@ -7,6 +7,7 @@
 import { addDays, eachDay, maxDate, type IsoDate } from '../dates';
 import {
   caseContentQty,
+  caseMissing,
   caseTypesContaining,
   contentsMatchStandard,
   getCaseType,
@@ -18,7 +19,7 @@ import {
   standardQty,
   stockQty,
 } from '../catalog';
-import type { AppState, Booking, BookingLine, Case, Id, Target } from '../types';
+import type { AppState, Booking, BookingLine, Case, Id, Loan, Target } from '../types';
 import {
   effectiveQty,
   isActiveLine,
@@ -307,6 +308,8 @@ function holdsOn(idx: HoldIndex, res: string, w: Id, d: IsoDate): Hold[] {
 export interface ItemDay {
   total: number;
   outOfService: number;
+  /** Out on quick loans. */
+  loaned: number;
   hardHeld: number;
   softHeld: number;
   /** Hard held by loose-item lines only. */
@@ -314,7 +317,26 @@ export interface ItemDay {
   free: number;
 }
 
-type AvState = HoldState & Pick<AppState, 'serviceCases'>;
+type AvState = HoldState & Pick<AppState, 'serviceCases' | 'loans'>;
+
+export function isOpenLoan(l: Loan): boolean {
+  return !l.returnedOn && !l.cancelledOn;
+}
+
+/** Open loans of an item that count as out on a day. */
+export function loansOn(state: Pick<AppState, 'loans'>, itemId: Id, w: Id, d: IsoDate): Loan[] {
+  return state.loans.filter(
+    (l) =>
+      l.itemId === itemId &&
+      l.warehouseId === w &&
+      isOpenLoan(l) &&
+      d >= l.from &&
+      d <= l.heldUntil,
+  );
+}
+
+const loanedOn = (state: Pick<AppState, 'loans'>, itemId: Id, w: Id, d: IsoDate): number =>
+  loansOn(state, itemId, w, d).reduce((n, l) => n + l.qty, 0);
 
 /** Pieces of an item out of service in a warehouse on a day (open cases block until closed). */
 export function outOfService(state: Pick<AppState, 'serviceCases'>, itemId: Id, w: Id, d: IsoDate) {
@@ -329,6 +351,7 @@ export function outOfService(state: Pick<AppState, 'serviceCases'>, itemId: Id, 
 export function itemDay(state: AvState, idx: HoldIndex, itemId: Id, w: Id, d: IsoDate): ItemDay {
   const total = stockQty(state, itemId, w);
   const oos = outOfService(state, itemId, w, d);
+  const loaned = loanedOn(state, itemId, w, d);
   let hard = 0;
   let soft = 0;
   let looseHard = 0;
@@ -341,10 +364,11 @@ export function itemDay(state: AvState, idx: HoldIndex, itemId: Id, w: Id, d: Is
   return {
     total,
     outOfService: oos,
+    loaned,
     hardHeld: hard,
     softHeld: soft,
     looseHardHeld: looseHard,
-    free: total - oos - hard,
+    free: total - oos - loaned - hard,
   };
 }
 
@@ -353,6 +377,7 @@ export function itemDayTotal(state: AvState, idx: HoldIndex, itemId: Id, d: IsoD
   const acc: ItemDay = {
     total: 0,
     outOfService: 0,
+    loaned: 0,
     hardHeld: 0,
     softHeld: 0,
     looseHardHeld: 0,
@@ -362,6 +387,7 @@ export function itemDayTotal(state: AvState, idx: HoldIndex, itemId: Id, d: IsoD
     const x = itemDay(state, idx, itemId, w.id, d);
     acc.total += x.total;
     acc.outOfService += x.outOfService;
+    acc.loaned += x.loaned;
     acc.hardHeld += x.hardHeld;
     acc.softHeld += x.softHeld;
     acc.looseHardHeld += x.looseHardHeld;
@@ -378,10 +404,26 @@ export interface CaseDay {
   free: number;
 }
 
-/** Complete, non-archived cases of a type in a warehouse. */
-export function completeCases(state: AvState, caseTypeId: Id, w: Id): number {
+/** True when all a case lacks is out on loans that are back before day `d`. */
+function completeAgainOn(state: AvState, c: Case, d: IsoDate): boolean {
+  if (c.archived) return false;
+  const back = state.loans.filter((l) => l.fromCaseId === c.id && isOpenLoan(l) && l.heldUntil < d);
+  if (back.length === 0) return false;
+  const qtyBack = (itemId: Id) =>
+    back.filter((l) => l.itemId === itemId).reduce((n, l) => n + l.qty, 0);
+  return caseMissing(state, c).every((m) => qtyBack(m.itemId) >= m.qty);
+}
+
+/**
+ * Complete, non-archived cases of a type in a warehouse. With a day, a case that is only short
+ * because of a loan counts again once that loan is over.
+ */
+export function completeCases(state: AvState, caseTypeId: Id, w: Id, d?: IsoDate): number {
   return state.cases.filter(
-    (c) => c.caseTypeId === caseTypeId && c.warehouseId === w && isCaseComplete(state, c),
+    (c) =>
+      c.caseTypeId === caseTypeId &&
+      c.warehouseId === w &&
+      (isCaseComplete(state, c) || (d !== undefined && completeAgainOn(state, c, d))),
   ).length;
 }
 
@@ -398,7 +440,7 @@ export function caseDay(
   extraLooseDemand?: Map<Id, number>,
 ): CaseDay {
   const t = getCaseType(state, caseTypeId);
-  const complete = completeCases(state, caseTypeId, w);
+  const complete = completeCases(state, caseTypeId, w, d);
   let held = 0;
   let soft = 0;
   for (const h of holdsOn(idx, `case:${caseTypeId}`, w, d)) {
@@ -408,7 +450,7 @@ export function caseDay(
   let broken = 0;
   for (const c of t?.contents ?? []) {
     if (c.qty <= 0) continue;
-    let looseDemand = extraLooseDemand?.get(c.itemId) ?? 0;
+    let looseDemand = (extraLooseDemand?.get(c.itemId) ?? 0) + loanedOn(state, c.itemId, w, d);
     for (const h of holdsOn(idx, `item:${c.itemId}`, w, d))
       if (h.kind === 'hard' && h.loose) looseDemand += h.qty;
     const overflow = Math.max(0, looseDemand - looseStock(state, c.itemId, w));
@@ -442,6 +484,8 @@ export interface LineAvailability {
   breaksCase?: { caseTypeId: Id; bookingIds: Id[] };
   /** Bookings holding the resource on short days. */
   collidingBookingIds: Id[];
+  /** Loans that are out on short days. */
+  collidingLoanIds: Id[];
   /** Pre-bookings that make the line amber. */
   softBookingIds: Id[];
 }
@@ -497,6 +541,7 @@ export function evaluateBooking(
       shortDays: [],
       minFree: 0,
       collidingBookingIds: [],
+      collidingLoanIds: [],
       softBookingIds: [],
     };
     if (!isActiveLine(line) || isExternal(line.target)) {
@@ -517,6 +562,7 @@ export function evaluateBooking(
     const shortDays: IsoDate[] = [];
     const colliding = new Set<Id>();
     const softIds = new Set<Id>();
+    const loanIds = new Set<Id>();
     let breaksCase: LineAvailability['breaksCase'];
 
     for (const d of [...days].sort()) {
@@ -548,6 +594,10 @@ export function evaluateBooking(
       if (dayBadge === 'red') {
         shortDays.push(d);
         for (const h of holdsOn(index, res, w, d)) colliding.add(h.bookingId);
+        const items = isCaseTarget(line.target)
+          ? (getCaseType(state, line.target.caseTypeId)?.contents ?? []).map((c) => c.itemId)
+          : [(line.target as { itemId: Id }).itemId];
+        for (const itemId of items) for (const l of loansOn(state, itemId, w, d)) loanIds.add(l.id);
         if (isCaseTarget(line.target)) {
           for (const c of getCaseType(state, line.target.caseTypeId)?.contents ?? []) {
             for (const h of holdsOn(index, `item:${c.itemId}`, w, d))
@@ -600,6 +650,7 @@ export function evaluateBooking(
       warehouseId: w,
       minFree: minFree === Infinity ? 0 : minFree,
       collidingBookingIds: [...colliding],
+      collidingLoanIds: [...loanIds],
       softBookingIds: [...softIds],
     };
     if (worstDay) la.worstDay = worstDay;
@@ -665,6 +716,9 @@ export interface CalendarDay {
   hardHeld: number;
   softHeld: number;
   outOfService: number;
+  loaned: number;
+  /** Loans out that day. */
+  loanIds: Id[];
   /** Bookings holding the resource that day. */
   holders: { bookingId: Id; qty: number; kind: HoldKind }[];
   /** Open service cases blocking that day. */
@@ -690,6 +744,8 @@ export function itemCalendar(
       hardHeld: 0,
       softHeld: 0,
       outOfService: 0,
+      loaned: 0,
+      loanIds: [],
       holders: [],
       serviceCaseIds: [],
     };
@@ -701,6 +757,8 @@ export function itemCalendar(
       acc.hardHeld += x.hardHeld;
       acc.softHeld += x.softHeld;
       acc.outOfService += x.outOfService;
+      acc.loaned += x.loaned;
+      for (const l of loansOn(state, itemId, w, d)) acc.loanIds.push(l.id);
       for (const h of holdsOn(index, `item:${itemId}`, w, d)) {
         const k = `${h.bookingId}|${h.kind}`;
         const e = holders.get(k);
@@ -725,6 +783,8 @@ export interface CaseCalendarDay {
   caseHeld: number;
   softHeld: number;
   broken: number;
+  /** Loans of pieces this case type holds. */
+  loanIds: Id[];
   holders: { bookingId: Id; qty: number; kind: HoldKind }[];
 }
 
@@ -748,10 +808,13 @@ export function caseCalendar(
       caseHeld: 0,
       softHeld: 0,
       broken: 0,
+      loanIds: [],
       holders: [],
     };
     for (const w of ws) {
       const x = caseDay(state, index, caseTypeId, w, d);
+      for (const c of getCaseType(state, caseTypeId)?.contents ?? [])
+        for (const l of loansOn(state, c.itemId, w, d)) acc.loanIds.push(l.id);
       acc.completeCases += x.completeCases;
       acc.totalCases += state.cases.filter(
         (c) => c.caseTypeId === caseTypeId && c.warehouseId === w && !c.archived,

@@ -12,6 +12,7 @@ import {
   type User,
 } from '@quix/core';
 import {
+  completeSavedState,
   DATA_VERSION,
   DEMO_TODAY,
   migrateSavedState,
@@ -122,7 +123,7 @@ export const useProto = create<ProtoState>()((set, get) => ({
     if (p) {
       const old = p.dataVersion !== DATA_VERSION;
       set({
-        state: old ? migrateSavedState(p.state) : p.state,
+        state: completeSavedState(old ? migrateSavedState(p.state) : p.state),
         scenarioId: p.scenarioId,
         today: p.today,
         userId: p.userId,

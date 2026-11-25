@@ -1,5 +1,5 @@
 /** Deterministic demo data (seed 2027, today 2027-04-20) and scenarios for the prototypes. */
-import type { AppState } from '@quix/core';
+import { emptyState, type AppState } from '@quix/core';
 import { CATEGORY_COLOR } from './catalog-data';
 import { generateState } from './generate';
 import { caseBreaking } from './scenarios/case-breaking';
@@ -36,6 +36,15 @@ export function migrateSavedState(s: AppState): AppState {
       !c.parentId && !c.color && CATEGORY_COLOR[c.id] ? { ...c, color: CATEGORY_COLOR[c.id] } : c,
     ),
   };
+}
+
+/**
+ * Fill in collections and settings that did not exist when the state was saved, so the app never
+ * meets an undefined list. Nothing the user sees is added or changed.
+ */
+export function completeSavedState(s: AppState): AppState {
+  const empty = emptyState();
+  return { ...empty, ...s, settings: { ...empty.settings, ...s.settings } };
 }
 
 export type ScenarioId = 'base' | 'galaDinner' | 'conflictChain' | 'transfer' | 'caseBreaking';

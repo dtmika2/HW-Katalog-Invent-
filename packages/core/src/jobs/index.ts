@@ -3,9 +3,10 @@
  * Idempotent for the same day (a reminder fires at most once per day; `jobLog` remembers).
  */
 import { addDays, diffDays, type IsoDate } from '../dates';
-import { firstBookedFrom, firstEventDay, lastBookedUntil } from '../availability';
+import { firstBookedFrom, firstEventDay, isOpenLoan, lastBookedUntil } from '../availability';
 import { refillTasks } from '../catalog';
 import { recomputeConflictRecords } from '../conflicts';
+import { isLoanOverdue } from '../loans';
 import { chiefIds, notify, postEvent, warehouseIds } from '../notifications';
 import { returnSheet } from '../returns';
 import { casesOut } from '../shipping';
@@ -189,7 +190,36 @@ export function runDailyJobs(state: AppState, today: IsoDate): DailyJobResult {
       }
     }
 
+    for (const l of d.loans) {
+      if (!isOpenLoan(l) || l.from > today) continue;
+      const overdue = isLoanOverdue(l, today);
+      // An undated or overdue loan keeps counting as out for the next days.
+      if (!l.until || overdue) {
+        const ahead = addDays(today, d.settings.loanHorizonDays);
+        if (ahead > l.heldUntil) l.heldUntil = ahead;
+      }
+      if (overdue && l.until && due(`loan:${l.id}`, addDays(l.until, 1), r.overdueReturnEvery)) {
+        notify(
+          d,
+          [l.borrowerId ?? l.recordedBy, ...chiefIds(d)],
+          {
+            type: 'loan_overdue',
+            text: `Loan of ${l.qty}× ${l.itemId} is overdue`,
+            params: {
+              itemId: l.itemId,
+              qty: l.qty,
+              date: l.until,
+              who: l.borrowerName ?? d.users.find((u) => u.id === l.borrowerId)?.name ?? '',
+            },
+          },
+          today,
+        );
+      }
+    }
+
     for (const t of refillTasks(d)) {
+      // pieces out on a loan come back with it
+      if (d.loans.some((l) => l.fromCaseId === t.caseId && isOpenLoan(l))) continue;
       if (onOrder.has(t.caseId)) continue;
       const c = d.cases.find((x) => x.id === t.caseId);
       const params = { caseId: t.caseId, number: c?.number ?? t.caseId };

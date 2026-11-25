@@ -9,6 +9,7 @@ import {
   type BookingStatus,
   type ConflictDay,
 } from '@quix/core';
+import { LoanNames } from '../components/Loans';
 import { MonthNav, monthRange } from '../components/MonthGrid';
 import { StatusChip } from '../components/ui';
 import { cs, fmtDate, fmtRange, fmtShort } from '../i18n/cs';
@@ -110,6 +111,7 @@ function ConflictDetail({
                   ))}
                 </p>
               )}
+              <LoanNames s={s} ids={c.loanIds} />
               <p className="text-xs text-muted">
                 {cs.calendar.conflictDays(c.days.map((d) => fmtShort(d)).join(', '))}
               </p>

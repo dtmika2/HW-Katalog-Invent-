@@ -11,6 +11,7 @@ import {
 } from '@quix/core';
 import { cs, fmtDate } from '../i18n/cs';
 import { userName } from '../lib/names';
+import { loanLine } from './Loans';
 import { MonthGrid, MonthNav, monthRange } from './MonthGrid';
 import { StatusChip } from './ui';
 
@@ -22,6 +23,7 @@ interface DayCell {
   service: number;
   holders: { bookingId: string; qty: number; kind: HoldKind }[];
   serviceCaseIds: string[];
+  loanIds: string[];
 }
 
 /**
@@ -56,6 +58,7 @@ export function AvailabilityCalendar({
           service: d.outOfService,
           holders: d.holders,
           serviceCaseIds: d.serviceCaseIds,
+          loanIds: d.loanIds,
         });
       }
     } else {
@@ -68,6 +71,7 @@ export function AvailabilityCalendar({
           service: d.totalCases - d.completeCases,
           holders: d.holders,
           serviceCaseIds: [],
+          loanIds: d.loanIds,
         });
       }
     }
@@ -160,7 +164,7 @@ export function AvailabilityCalendar({
       {day && (
         <div className="panel p-3" data-testid="day-detail">
           <h3 className="mb-2 font-cond font-bold">{cs.calendar.dayTitle(fmtDate(day.date))}</h3>
-          {day.holders.length === 0 && day.serviceCaseIds.length === 0 ? (
+          {day.holders.length + day.serviceCaseIds.length + day.loanIds.length === 0 ? (
             <p className="text-sm text-muted">{cs.calendar.dayEmpty}</p>
           ) : (
             <ul className="space-y-1 text-sm">
@@ -187,6 +191,17 @@ export function AvailabilityCalendar({
                       <span className="text-xs text-warn">{cs.calendar.soft}</span>
                     )}
                     <StatusChip status={b.status} />
+                  </li>
+                );
+              })}
+              {day.loanIds.map((id) => {
+                const l = s.loans.find((x) => x.id === id);
+                if (!l) return null;
+                return (
+                  <li key={id} data-testid="holder-loan">
+                    <Link to="/loans" className="underline">
+                      {cs.loans.alsoLoaned} {loanLine(s, l)}
+                    </Link>
                   </li>
                 );
               })}

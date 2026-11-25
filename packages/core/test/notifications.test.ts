@@ -35,6 +35,7 @@ describe('notification importance', () => {
     for (const t of [
       'returned_with_issues',
       'case_shipped_short',
+      'loan_overdue',
       'prebooking_returned',
       'prebooking_expiring',
       'prebooking_expired',

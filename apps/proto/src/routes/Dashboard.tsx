@@ -2,14 +2,18 @@ import { Link } from 'react-router-dom';
 import {
   can,
   isServiceOverdue,
+  loansOn,
   openIssues,
+  openLoans,
   resolveConflict,
   returnSheet,
   setConflictInProgress,
   type AppState,
   type Booking,
+  type ConflictRecord,
   type User,
 } from '@quix/core';
+import { byReturn, LoanList, LoanNames } from '../components/Loans';
 import { Empty, Section, StatusChip } from '../components/ui';
 import { cs, fmtDate, fmtRange } from '../i18n/cs';
 import { ageDays, bookingSpan, itemName, targetName, userName } from '../lib/names';
@@ -39,6 +43,18 @@ export function BookingRow({ s, b, today }: { s: AppState; b: Booking; today: st
   );
 }
 
+/** Loans that are out on the days of a conflict. */
+function loanIdsOf(s: AppState, c: ConflictRecord): string[] {
+  const t = c.target;
+  const items =
+    'itemId' in t
+      ? [t.itemId]
+      : (s.caseTypes.find((x) => x.id === t.caseTypeId)?.contents ?? []).map((x) => x.itemId);
+  return items.flatMap((i) =>
+    c.days.flatMap((d) => loansOn(s, i, c.warehouseId, d).map((l) => l.id)),
+  );
+}
+
 function ConflictRecords({ s, user, today }: { s: AppState; user: User; today: string }) {
   const run = useProto((p) => p.run);
   const open = s.conflicts.filter((c) => c.status !== 'resolved');
@@ -63,6 +79,7 @@ function ConflictRecords({ s, user, today }: { s: AppState; user: User; today: s
                 .map((id) => s.bookings.find((x) => x.id === id)?.eventName ?? id)
                 .join(', ')}
             </p>
+            <LoanNames s={s} ids={loanIdsOf(s, c)} />
             {can(user, 'manage_conflicts') && (
               <div className="mt-1 flex gap-2">
                 {c.status === 'new' && (
@@ -121,6 +138,9 @@ function ChiefDashboard({ s, user, today }: { s: AppState; user: User; today: st
       >
         <ConflictRecords s={s} user={user} today={today} />
       </Section>
+      <Section title={`${cs.loans.out} (${openLoans(s).length})`}>
+        <LoanList loans={openLoans(s).sort(byReturn)} empty={<Empty>{cs.loans.empty}</Empty>} />
+      </Section>
       <Section title={`${cs.dashboard.pendingIssues} (${openIssues(s).length})`}>
         <IssuesList />
       </Section>
@@ -166,6 +186,9 @@ function PmDashboard({ s, user, today }: { s: AppState; user: User; today: strin
     .filter((b) => b.pmId === user.id && !['closed', 'expired'].includes(b.status))
     .sort((a, b) => (bookingSpan(a).from < bookingSpan(b).from ? -1 : 1));
   const returned = mine.filter((b) => b.status === 'draft' && b.returnedToPm);
+  const mineLoans = openLoans(s)
+    .filter((l) => l.borrowerId === user.id)
+    .sort(byReturn);
   const myIds = new Set(mine.map((b) => b.id));
   const conflicts = s.conflicts.filter(
     (c) =>
@@ -202,6 +225,11 @@ function PmDashboard({ s, user, today }: { s: AppState; user: User; today: strin
                 <BookingRow key={b.id} s={s} b={b} today={today} />
               ))}
             </ul>
+          </Section>
+        )}
+        {mineLoans.length > 0 && (
+          <Section title={cs.loans.mine}>
+            <LoanList loans={mineLoans} />
           </Section>
         )}
         <Section title={cs.dashboard.conflictsOnMine}>
