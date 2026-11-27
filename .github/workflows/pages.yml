@@ -59,18 +59,23 @@ jobs:
           npm run lint
           npm run build
 
-      - name: Quality gate and build (preview)
+      - name: Quality gate (preview)
         if: steps.preview.outcome == 'success'
         working-directory: preview
-        env:
-          # same origin as the live demo: keep the preview's saved data apart from it
-          VITE_STORAGE_SUFFIX: -preview-gamification
         run: |
           npm ci
           npm run typecheck
           npm test
           npm run lint
-          npm run build
+
+      - name: Build (preview)
+        if: steps.preview.outcome == 'success'
+        working-directory: preview
+        env:
+          # Same origin as the live demo: keep the preview's saved data apart from it. Only for the
+          # build: tests read the storage names as they are in normal builds.
+          VITE_STORAGE_SUFFIX: -preview-gamification
+        run: npm run build
 
       - name: Assemble the site
         run: |
