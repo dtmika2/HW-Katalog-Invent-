@@ -92,6 +92,8 @@ Prepare: `npm run dev`, open the app, click **Obnovit demo data**, scenario **Ga
 
 Plan: `docs/gamification-plan.md` · decisions: `DECISIONS.md` (entries "Gamification …") · tags `g0`–`g7`.
 
+**Try it:** https://dtmika2.github.io/HW-Katalog-Invent-/preview/gamification/ (the live demo stays at https://dtmika2.github.io/HW-Katalog-Invent-/). The preview is rebuilt on every push to the branch or to main, and keeps its saved demo data apart from the live demo's.
+
 A quiet layer of points, levels and badges over the catalogue. It only **reads** what the system already records. No existing screen, action or rule changed, and points are never stored: `computeLedger(state)` derives them, and every point can be traced to a record. It stays on its branch until the Chief, the PMs and the warehouse have tried it and agree.
 
 | Milestone | Tag | What | Tests |

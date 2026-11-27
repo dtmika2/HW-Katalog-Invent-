@@ -56,6 +56,12 @@ Gamification gives that something back, quietly:
   the team (Chief, PMs, warehouse) has tried it and agreed. Until then, `main` stays deployable
   without it. Merge `main` into the branch now and then, so it does not fall behind; never rebase
   (history is not rewritten).
+- **Preview:** https://dtmika2.github.io/HW-Katalog-Invent-/preview/gamification/, published by
+  `.github/workflows/pages.yml` together with the live demo on every push to main or to this
+  branch. GitHub Pages replaces the whole site on each deploy, so each run builds both; the file is
+  the same on both branches, and the `github-pages` environment allows this branch. The preview
+  build has its own browser storage names (`VITE_STORAGE_SUFFIX`), because it shares the origin
+  with the live demo. After merging, remove the preview job (or point it at the next branch).
 - Commits: `G<milestone>.<task>: <summary>`. Tag finished milestones `g1`, `g2`, … on the branch.
 
 ---
