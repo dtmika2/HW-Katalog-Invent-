@@ -77,7 +77,15 @@ import { LateItem } from '../components/LateItem';
 import { StagePlanner } from '../components/StagePlanner';
 import { LoanNames } from '../components/Loans';
 import { PrintButton } from '../components/print';
-import { CaseLabel, Empty, Field, PartlyShipped, Section, StatusChip } from '../components/ui';
+import {
+  CaseLabel,
+  Empty,
+  Field,
+  PANEL_TONE,
+  PartlyShipped,
+  Section,
+  StatusChip,
+} from '../components/ui';
 import { cs, fmtDate } from '../i18n/cs';
 import { DateInput } from '../components/DateInput';
 import { ageDays, isCaseLine, itemName, lineName, targetName, userName } from '../lib/names';
@@ -246,7 +254,7 @@ function Editor({ stored }: { stored: Booking }) {
                 }}
               />
             )}
-            <Section title={cs.editor.linesTitle}>
+            <Section title={cs.editor.linesTitle} tone="green">
               {expansion.cycleWarnings.length > 0 && (
                 <p className="mb-2 text-xs text-warn">{cs.editor.cycle}</p>
               )}
@@ -338,7 +346,7 @@ function Editor({ stored }: { stored: Booking }) {
               update={update}
             />
             {checks.length > 0 && (
-              <Section title={cs.editor.checksTitle}>
+              <Section title={cs.editor.checksTitle} tone="pink">
                 <ul className="space-y-3">
                   {checks.map((w) => (
                     <li key={w.key} data-testid="check-warning" className="text-sm">
@@ -382,7 +390,7 @@ function Editor({ stored }: { stored: Booking }) {
               </Section>
             )}
             {expansion.recommendations.length > 0 && editable && (
-              <Section title={cs.editor.recsTitle}>
+              <Section title={cs.editor.recsTitle} tone="purple">
                 <ul className="space-y-2">
                   {expansion.recommendations.map((r) => (
                     <li key={r.key} className="flex items-center justify-between gap-2 text-sm">
@@ -566,7 +574,7 @@ function Header({
     update(recalcBooking(s, { ...draft, periods }).booking);
   };
   return (
-    <div className="panel p-4">
+    <div className={`panel p-4 ${PANEL_TONE.blue}`} data-tone="blue">
       <CancelledNote b={stored} />
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <span className="text-xs font-medium text-muted">{cs.bookingType[stored.type]}</span>
@@ -914,7 +922,8 @@ function ConflictPanel({
   return (
     <section
       data-testid="conflict-panel"
-      className={`panel p-4 ${conflicts.length > 0 ? 'border-bad/50' : ''}`}
+      data-tone="yellow"
+      className={`panel p-4 ${conflicts.length > 0 ? 'border-bad/50 bg-yellow-50' : PANEL_TONE.yellow}`}
     >
       <h2 className={`mb-2 ${conflicts.length > 0 ? 'text-bad' : ''}`}>{cs.conflict.title}</h2>
       {conflicts.length > 0 && (
@@ -1152,7 +1161,7 @@ function ThreadPanel({
   const [text, setText] = useState('');
   const msgs = thread(s, bookingId);
   return (
-    <Section title={cs.thread.title}>
+    <Section title={cs.thread.title} tone="red">
       <ol className="space-y-2 text-sm">
         {msgs.map((m) => (
           <li key={m.id} className={m.event ? 'text-xs text-muted' : ''}>

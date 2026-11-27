@@ -1,5 +1,5 @@
 import { useMemo, useState, type ReactNode } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import * as XLSX from 'xlsx';
 import {
   bulkUpdateItems,
@@ -36,7 +36,12 @@ export function Catalog() {
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h1>{cs.catalog.title}</h1>
-        <div className="flex gap-1" role="tablist">
+        {editor && (
+          <Link to="/items/new" className="btn btn-sm btn-primary">
+            {cs.catalogEditor.newItem}
+          </Link>
+        )}
+        <div className="ml-auto flex gap-1" role="tablist">
           {tabs.map((t) => (
             <button
               key={t}
@@ -106,7 +111,6 @@ function CatalogTable() {
   const s = useAppState();
   const user = useUser();
   const run = useProto((p) => p.run);
-  const navigate = useNavigate();
   const [needsSetup, setNeedsSetup] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
   const [q, setQ] = useState('');
@@ -160,31 +164,6 @@ function CatalogTable() {
           />
           {cs.catalogEditor.showArchived}
         </label>
-        <button
-          type="button"
-          className="btn btn-sm btn-primary ml-auto"
-          onClick={() => {
-            let newId = '';
-            const err = run((st) => {
-              const r = upsertItem(st, user, {
-                id: '',
-                name: cs.catalogEditor.newItemName,
-                manufacturer: '',
-                model: '',
-                categoryId: subs[0]?.id ?? '',
-                priceDay: 0,
-                returnable: true,
-                archived: false,
-              });
-              if (!r.ok) return r;
-              newId = r.value.itemId;
-              return { ok: true, value: r.value.state };
-            });
-            if (!err) navigate(`/items/${newId}`);
-          }}
-        >
-          {cs.catalogEditor.newItem}
-        </button>
       </div>
       {sel.length > 0 && (
         <div className="panel flex flex-wrap items-end gap-2 p-2 text-sm">

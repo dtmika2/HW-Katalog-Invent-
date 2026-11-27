@@ -140,17 +140,35 @@ export function Field({
   );
 }
 
+/**
+ * Background tints for panels, so a page with many panels (the booking editor) can be read at
+ * a glance. Kept light so text, inputs and status colours stay readable.
+ */
+export const PANEL_TONE = {
+  white: '',
+  green: 'border-emerald-200 bg-emerald-50',
+  gray: 'border-slate-300 bg-slate-100',
+  red: 'border-red-300 bg-red-100',
+  blue: 'border-sky-200 bg-sky-50',
+  yellow: 'border-yellow-300 bg-yellow-50',
+  pink: 'border-pink-200 bg-pink-50',
+  purple: 'border-violet-200 bg-violet-50',
+} as const;
+export type PanelTone = keyof typeof PANEL_TONE;
+
 export function Section({
   title,
   children,
   actions,
+  tone = 'white',
 }: {
   title: string;
   children: ReactNode;
   actions?: ReactNode;
+  tone?: PanelTone;
 }) {
   return (
-    <section className="panel p-4">
+    <section className={`panel p-4 ${PANEL_TONE[tone]}`} data-tone={tone}>
       <div className="mb-3 flex items-center justify-between gap-2">
         <h2>{title}</h2>
         {actions}
