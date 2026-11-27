@@ -27,6 +27,7 @@ import {
   CLIENTS,
   CONNECTIONS,
   ITEM_ROWS,
+  STAGE_PARTS,
   U,
   USERS,
   WH,
@@ -108,6 +109,8 @@ export function buildCatalog(rand: () => number): AppState {
         archived: false,
       };
       if (kg !== undefined) it.weightKg = kg;
+      const stage = STAGE_PARTS[id];
+      if (stage) it.stage = stage;
       return it;
     },
   );

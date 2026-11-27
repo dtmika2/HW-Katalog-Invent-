@@ -74,6 +74,7 @@ import { ClientPicker } from '../components/Clients';
 import { CancelRequests, promisedRow } from '../components/Delivery';
 import { BookingPrint } from '../components/BookingPrint';
 import { LateItem } from '../components/LateItem';
+import { StagePlanner } from '../components/StagePlanner';
 import { LoanNames } from '../components/Loans';
 import { PrintButton } from '../components/print';
 import { CaseLabel, Empty, Field, PartlyShipped, Section, StatusChip } from '../components/ui';
@@ -234,6 +235,15 @@ function Editor({ stored }: { stored: Booking }) {
                 addTo={groupId ?? ''}
                 setAddTo={setAddTo}
                 onAdd={addTop}
+              />
+            )}
+            {editable && (
+              <StagePlanner
+                booking={booking}
+                onAdd={(b) => {
+                  update(b);
+                  showAll();
+                }}
               />
             )}
             <Section title={cs.editor.linesTitle}>

@@ -21,6 +21,10 @@ function validateItem(state: AppState, item: Item): Result<true> {
   if (item.weightKg !== undefined && (!Number.isFinite(item.weightKg) || item.weightKg < 0)) {
     return err('validation', 'Weight must be zero or more', { field: 'weightKg' });
   }
+  const sizes = item.stage ? Object.values(item.stage).filter((v) => typeof v === 'number') : [];
+  if (sizes.some((v) => !Number.isInteger(v) || v <= 0 || v > 100_000)) {
+    return err('validation', 'Stage sizes are whole millimetres', { field: 'stage' });
+  }
   return ok(true);
 }
 

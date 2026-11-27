@@ -14,6 +14,7 @@ import {
   type ConnectionKind,
   type Item,
   type QtyRule,
+  type StagePart,
   type Target,
 } from '@quix/core';
 import { CaseLabel, Field, Section } from '../components/ui';
@@ -89,6 +90,7 @@ export function ItemEditPanels({ item }: { item: Item }) {
         )}
       </div>
       <StockEditor item={item} />
+      <StagePartEditor item={item} />
       <ConnectionBuilder item={item} />
       <TryIt initial={`${item.name} ×10`} />
     </div>
@@ -159,6 +161,90 @@ function StockEditor({ item }: { item: Item }) {
           );
         })}
       </div>
+    </Section>
+  );
+}
+
+const PART_KINDS: StagePart['part'][] = ['deck', 'leg', 'skirt', 'rail', 'stairs'];
+
+/** Marks the item as a part of a stage, so the stage calculator counts with it. */
+function StagePartEditor({ item }: { item: Item }) {
+  const user = useUser();
+  const run = useProto((p) => p.run);
+  const [kind, setKind] = useState<StagePart['part'] | ''>(item.stage?.part ?? '');
+  const t = cs.stagePlan.part;
+  const v = (k: string) => {
+    const x = item.stage as Record<string, unknown> | undefined;
+    return typeof x?.[k] === 'number' ? (x[k] as number) : undefined;
+  };
+  const size = (name: string, label: string) => (
+    <Field label={label} htmlFor={`sp-${name}`}>
+      <input
+        id={`sp-${name}`}
+        name={name}
+        type="number"
+        min={1}
+        required
+        className="input w-28"
+        defaultValue={v(name)}
+      />
+    </Field>
+  );
+  return (
+    <Section title={t.title}>
+      <form
+        key={JSON.stringify(item.stage ?? null)}
+        className="flex flex-wrap items-end gap-3"
+        onSubmit={(e) => {
+          e.preventDefault();
+          const fd = new FormData(e.currentTarget);
+          const n = (k: string) => Number(fd.get(k));
+          const stage: StagePart | undefined =
+            kind === 'deck'
+              ? { part: 'deck', widthMm: n('widthMm'), depthMm: n('depthMm') }
+              : kind === 'leg'
+                ? { part: 'leg', heightMm: n('heightMm') }
+                : kind === 'skirt' || kind === 'rail'
+                  ? { part: kind, lengthMm: n('lengthMm') }
+                  : kind === 'stairs'
+                    ? { part: 'stairs' }
+                    : undefined;
+          const next: Item = { ...item };
+          delete next.stage;
+          run((st) => {
+            const r = upsertItem(st, user, stage ? { ...next, stage } : next);
+            return r.ok ? { ok: true, value: r.value.state } : r;
+          }, cs.catalogEditor.saved);
+        }}
+      >
+        <Field label={t.kind} htmlFor="sp-kind">
+          <select
+            id="sp-kind"
+            className="input w-auto"
+            value={kind}
+            onChange={(e) => setKind(e.target.value as StagePart['part'] | '')}
+          >
+            <option value="">{t.none}</option>
+            {PART_KINDS.map((k) => (
+              <option key={k} value={k}>
+                {t.kinds[k]}
+              </option>
+            ))}
+          </select>
+        </Field>
+        {kind === 'deck' && (
+          <>
+            {size('widthMm', t.width)}
+            {size('depthMm', t.depth)}
+          </>
+        )}
+        {kind === 'leg' && size('heightMm', t.height)}
+        {(kind === 'skirt' || kind === 'rail') && size('lengthMm', t.length)}
+        <button type="submit" className="btn btn-sm">
+          {cs.common.save}
+        </button>
+      </form>
+      <p className="mt-2 text-xs text-muted">{t.hint}</p>
     </Section>
   );
 }

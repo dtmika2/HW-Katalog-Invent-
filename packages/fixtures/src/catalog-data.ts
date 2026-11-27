@@ -2,7 +2,7 @@
  * Hand-written, realistic catalogue for a Czech AV rental company (made up; no real inventory).
  * Names are data, so they are Czech/product names here, not UI strings.
  */
-import type { Category, Client, Connection, QtyLine, Target, User } from '@quix/core';
+import type { Category, Client, Connection, QtyLine, StagePart, Target, User } from '@quix/core';
 
 export const WH = { brod: 'wh-brod', karlak: 'wh-karlak' } as const;
 
@@ -189,6 +189,16 @@ export const CATEGORY_SECTION: Record<string, { brod: string; karlak: string }> 
   kabelaz: { brod: 'B', karlak: 'A' },
   stage: { brod: 'D', karlak: 'B' },
   ostatni: { brod: 'A', karlak: 'A' },
+};
+
+/** Stage parts for the stage calculator (the drum riser has a height of its own, so not a deck). */
+export const STAGE_PARTS: Record<string, StagePart> = {
+  'stage-deck': { part: 'deck', widthMm: 2000, depthMm: 1000 },
+  'stage-leg-40': { part: 'leg', heightMm: 400 },
+  'stage-leg-80': { part: 'leg', heightMm: 800 },
+  'stage-skirt': { part: 'skirt', lengthMm: 2000 },
+  'stage-rail': { part: 'rail', lengthMm: 2000 },
+  'stage-stairs': { part: 'stairs' },
 };
 
 /** [id, name, manufacturer, model, subcategory, CZK/day, pcs Brod, pcs Karlák, returnable?, kg?] */

@@ -18,6 +18,7 @@
  * - `cancel` — asking the Chief to cancel packing or a delivery.
  * - `attachments` — notes and files of a booking: rules and records, not the contents.
  * - `late` — items taken to an event at the last minute.
+ * - `stage` — stage calculator: decks, legs, skirts, rails and stairs for a size in millimetres.
  * - `returns` — vratka sheet and sessions: outcomes, transfers, cases, unexpected items.
  * - `cases` — refill ("Doplnit case") tasks.
  * - `service` — service cases and their status flow.
@@ -50,6 +51,7 @@ export * from './issues';
 export * from './loans';
 export * from './attachments';
 export * from './late';
+export * from './stage';
 export * from './jobs';
 export * from './notifications';
 

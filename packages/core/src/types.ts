@@ -73,7 +73,15 @@ export interface Item {
   /** Data URLs or URLs; the first one is the thumbnail. */
   photos?: string[];
   archived: boolean;
+  /** What part of a stage the item is, for the stage calculator. Sizes in millimetres. */
+  stage?: StagePart;
 }
+
+export type StagePart =
+  | { part: 'deck'; widthMm: number; depthMm: number }
+  | { part: 'leg'; heightMm: number }
+  | { part: 'rail' | 'skirt'; lengthMm: number }
+  | { part: 'stairs' };
 
 export interface ItemStock {
   itemId: Id;

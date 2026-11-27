@@ -17,6 +17,7 @@ import {
   BREAKING,
   caseBreaking,
   CHAIN,
+  completeSavedState,
   conflictChain,
   DEMO_TODAY,
   GALA_ID,
@@ -220,6 +221,21 @@ describe('fixtures — consistency', () => {
 
   it('every scenario builds', () => {
     for (const sc of SCENARIOS) expect(sc.build().bookings.length).toBeGreaterThanOrEqual(30);
+  });
+
+  it('stage decks, legs, skirts, rails and stairs are marked, also in data saved before', () => {
+    const parts = base.items.filter((i) => i.stage).map((i) => i.stage!.part);
+    expect(parts.sort()).toEqual(['deck', 'leg', 'leg', 'rail', 'skirt', 'stairs']);
+    const old = { ...base, items: base.items.map(({ stage: _, ...i }) => i) };
+    expect(completeSavedState(old).items.filter((i) => i.stage)).toHaveLength(6);
+    // what someone changed is kept
+    const edited = {
+      ...base,
+      items: base.items.map((i) => (i.id === 'stage-rail' ? { ...i, stage: undefined } : i)),
+    };
+    expect(completeSavedState(edited).items.find((i) => i.id === 'stage-rail')?.stage).toBe(
+      undefined,
+    );
   });
 });
 

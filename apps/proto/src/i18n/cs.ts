@@ -24,6 +24,9 @@ const pcs = (n: number) => `${n} ks`;
 const paramDate = (d: string | number | undefined) =>
   fmtDate(d === undefined ? undefined : String(d));
 const cases = (n: number) => (n === 1 ? '1 case' : `${n} casy`);
+/** 6000 → 6 000 (non-breaking space, as Czech writes thousands). */
+const thousands = (n: number) => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, '\u00a0');
+const decks = (n: number) => `${n} ${n === 1 ? 'dílec' : n >= 2 && n <= 4 ? 'dílce' : 'dílců'}`;
 
 /** What somebody asks to cancel. */
 const cancelWhat = (p: Params) => (p.booking ? 'akce' : p.label ? `odvozu ${p.label}` : 'balení');
@@ -1189,6 +1192,51 @@ export const cs = {
     removeLabel: (name: string) => `Smazat: ${name}`,
     removeYes: 'Opravdu smazat',
     removed: 'Smazáno.',
+  },
+  stagePlan: {
+    button: 'Spočítat pódium',
+    hint: 'Z rozměru v mm spočítá dílce, nohy, sukně, zábradlí a schody a porovná je s volným skladem v termínu akce.',
+    title: 'Kalkulačka pódia',
+    size: 'Rozměr pódia v mm (šířka × hloubka)',
+    sizeHint: 'např. 6000*4000',
+    sizeBad: 'Zadejte šířku a hloubku v milimetrech, např. 6000*4000.',
+    deck: 'Dílec',
+    legs: 'Výška (nohy)',
+    noLegs: 'Bez noh',
+    skirt: 'Sukně (předek a boky)',
+    rail: 'Zábradlí (zadní strana a boky)',
+    stairs: 'Schody (ks)',
+    mm: (w: number, d: number) => `${thousands(w)} × ${thousands(d)} mm`,
+    decks,
+    exact: (size: string, n: number) => `Přesně ${size}, ${decks(n)}.`,
+    notExact: (deck: string) => `Rozměr nejde složit přesně z dílců ${deck}. Vyberte:`,
+    bigger: (size: string, n: number) => `Větší: ${size} (${decks(n)})`,
+    smaller: (size: string, n: number) => `Menší: ${size} (${decks(n)})`,
+    plan: 'Rozložení dílců',
+    front: 'předek',
+    col: { item: 'Položka', qty: 'Potřeba', free: 'Volné v termínu', state: 'Stav' },
+    auto: 'přijdou s dílci',
+    onBooking: (n: number) => `už v rezervaci ${pcs(n)}`,
+    enough: 'Stačí',
+    short: (n: number) => `Chybí ${pcs(n)}`,
+    fits: (size: string, n: number) => `Z volných kusů jde postavit nejvýš ${size} (${decks(n)}).`,
+    useFits: 'Použít tento rozměr',
+    noneFree: 'V termínu akce není volný žádný dílec.',
+    shortHint: 'Chybějící kusy půjde po uložení pokrýt externím pronájmem v panelu konfliktů.',
+    add: 'Přidat do rezervace',
+    added: 'Pódium je v rezervaci. Nezapomeňte uložit.',
+    group: (size: string) => `Pódium ${size}`,
+    part: {
+      title: 'Díl pódia',
+      hint: 'Kalkulačka pódia počítá jen s položkami, které tu mají vyplněný druh a rozměr.',
+      kind: 'Druh',
+      none: 'Není díl pódia',
+      kinds: { deck: 'Dílec', leg: 'Noha', skirt: 'Sukně', rail: 'Zábradlí', stairs: 'Schody' },
+      width: 'Šířka (mm)',
+      depth: 'Hloubka (mm)',
+      height: 'Výška (mm)',
+      length: 'Délka (mm)',
+    },
   },
   late: {
     tag: 'Navíc',
