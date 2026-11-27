@@ -123,11 +123,12 @@ describe('titles', () => {
   it('every title shows the rank and its step, so the order is clear, plus a name up to level 49', () => {
     const names = Array.from({ length: 49 }, (_, i) => titleOf(levelTier(i + 1)));
     expect(new Set(names).size).toBe(49);
-    expect(names.every((n) => / [IVX]+ – \S/.test(n))).toBe(true);
-    expect(titleOf(levelTier(1))).toBe('Učeň I – prodlužek');
-    expect(titleOf(levelTier(15))).toBe('Rytíř I – kabelů');
-    expect(titleOf(levelTier(16))).toBe('Rytíř II – trussů');
-    expect(titleOf(levelTier(16), 'f')).toBe('Rytířka II – trussů');
+    // "<rank> <numeral> – <the same rank> <name>"
+    expect(names.every((n) => /^(\S+) [IVX]+ – \1 \S/.test(n))).toBe(true);
+    expect(titleOf(levelTier(1))).toBe('Učeň I – Učeň prodlužek');
+    expect(titleOf(levelTier(6))).toBe('Tovaryš II – Tovaryš stativů');
+    expect(titleOf(levelTier(16))).toBe('Rytíř II – Rytíř trussů');
+    expect(titleOf(levelTier(16), 'f')).toBe('Rytířka II – Rytířka trussů');
     expect(titleOf(levelTier(50))).toBe('Legenda XI');
   });
 

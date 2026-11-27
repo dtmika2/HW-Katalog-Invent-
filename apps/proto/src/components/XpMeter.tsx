@@ -77,7 +77,11 @@ export function XpMeter() {
         className="flex h-9 w-full flex-col justify-center gap-1 rounded border border-alu-line bg-white px-2 hover:bg-alu"
       >
         <span className="flex items-baseline justify-between gap-2 text-xs leading-none">
-          <span data-testid="xp-title" className="truncate font-cond font-bold text-ink">
+          <span
+            data-testid="xp-title"
+            title={title}
+            className="truncate font-cond font-bold text-ink"
+          >
             {title}
           </span>
           {pending > 0 && (

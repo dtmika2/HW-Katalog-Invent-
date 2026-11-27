@@ -1623,7 +1623,7 @@ export const cs = {
     /**
      * Guild and knighthood ranks: the rank in both grammatical forms (the person picks one on the
      * profile), its step as a Roman numeral, and a name from the warehouse world for each level
-     * ("Rytíř II – trussů"). Past the last name only the rank and numeral ("Legenda XI").
+     * ("Tovaryš II – Tovaryš stativů"). Past the last name only the rank and numeral ("Legenda XI").
      */
     titles: {
       apprentice: {

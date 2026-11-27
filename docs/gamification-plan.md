@@ -207,7 +207,7 @@ after launch.
 | 40 | 5 905 | ~3.3 years |
 
 On the demo's 2.3 months of history the PMs and the Chief are at levels 6–8 (Tovaryš …) and
-Martin, the busiest, at level 12 (Panoš III – dodávky).
+Martin, the busiest, at level 12 (Panoš III – Panoš dodávky).
 
 Fast early levels make it feel alive; later levels slow down so they stay worth something.
 There is no cap.
@@ -230,7 +230,8 @@ until chosen, and can switch at any time; the warehouse part is the same for bot
 | 40–49 | Legenda | ztracených kabelů, nočních nakládek, posledního odvozu, dlouhých vratek, plných casů, věčné zvukovky, zamotaných prodlužek, tisíce akcí, celého QUIXu, všech dob |
 | 50+ | Legenda | Legenda XI, XII … (only the rank and numeral after the named levels) |
 
-Shown as, for example, *"Rytíř II – trussů"* (level 16). Every level-up has its own name, which is the
+Shown as *"Tovaryš II – Tovaryš stativů"* (level 6) or *"Rytíř II – Rytíř trussů"* (level 16): the rank
+and its step first, then the rank again with the level's name. Every level-up has its own name, which is the
 small "something to be proud of" moment: it shows once next to the meter and is dated on the
 profile.
 
@@ -270,7 +271,7 @@ added without touching the UI.
 
 ```
 ┌──────────────────────────────────────────────────────────────────────────┐
-│ QUIX HW   Rezervace  Kalendář  Katalog … Rytíř II – trussů ▰▰▰▰▱▱▱  🔔  │
+│ QUIX HW   Rezervace  Kalendář  Katalog … Rytíř II – Rytíř trussů ▰▰▱ 🔔 │
 │                                       +18 · Vratka Gala Dinner (pečlivě) │
 └──────────────────────────────────────────────────────────────────────────┘
 ```
@@ -281,7 +282,7 @@ added without touching the UI.
   Several at once combine: `+32 · 3 záznamy`. The line fades after ~8 s and leaves a small
   "+N dnes" label until the profile is opened. It sits in the normal page flow, never over
   content, and uses `aria-live="polite"`. With `prefers-reduced-motion` it does not fade.
-- A level-up or a new badge shows the same way (`Nová úroveň: Rytíř III – nakládky`,
+- A level-up or a new badge shows the same way (`Nová úroveň: Rytíř III – Rytíř nakládky`,
   `Nový odznak: Kompletní casy – stříbro`), plus a small dot on the meter until the profile is
   opened.
 - On phones (packing and vratka screens) the meter shrinks to the title and a thin bar, and the

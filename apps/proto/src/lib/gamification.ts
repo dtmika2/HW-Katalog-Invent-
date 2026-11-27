@@ -32,13 +32,15 @@ export function roman(n: number): string {
 export type TitleForm = 'm' | 'f';
 
 /**
- * "Rytíř II – trussů" / "Rytířka II – trussů": the rank with its step (so it is clear which knight
- * is higher) and the level's name from the warehouse; past the named steps just "Legenda XI".
+ * "Tovaryš II – Tovaryš stativů" / "Tovaryška II – Tovaryška stativů": the rank with its step (so it
+ * is clear which one is higher), then the level's name from the warehouse; past the named steps
+ * just "Legenda XI".
  */
 export function titleOf(level: Pick<LevelInfo, 'tier' | 'step'>, form: TitleForm = 'm'): string {
   const t = cs.gamification.titles[level.tier];
+  const rank = t[form];
   const name = t.steps[level.step - 1];
-  return `${t[form]} ${roman(level.step)}${name ? ` – ${name}` : ''}`;
+  return `${rank} ${roman(level.step)}${name ? ` – ${rank} ${name}` : ''}`;
 }
 
 /** A base entry with the bonuses earned the same day. */
