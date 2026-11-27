@@ -127,18 +127,18 @@ are the **starting table**, calibrated in G3, and they are data (`rules.ts`), no
 
 | Rule id | Source | Base | Quality bonuses |
 | --- | --- | --- | --- |
-| `booking.created` | thread `created` (reservation of a date or pre-booking) | 3 | — |
-| `booking.submitted` | the first thread `submitted` of a booking, or `confirmed` by its own PM (`canConfirmOwnOrders`) when there was no submission | 10 | +10 when ≥ 14 days before the first `eventFrom`, +15 when ≥ 30 days; +3 for a purpose message of ≥ 40 characters; +2 when a client is set (both optional in `createBooking`) |
+| `booking.created` | thread `created` (reservation of a date or pre-booking) | 4 | — |
+| `booking.submitted` | the first thread `submitted` of a booking, or `confirmed` by its own PM (`canConfirmOwnOrders`) when there was no submission | 8 | +6 when ≥ 14 days before the first `eventFrom`, +10 when ≥ 30 days; +3 for a purpose message of ≥ 40 characters; +2 when a client is set (both optional in `createBooking`) |
 | `booking.firstTime` | `confirmed` with no `returned_to_pm` before it in the thread | — | +5 ("approved the first time") |
 | `booking.organised` | an approved order with at least one PM group (`groups`) | — | +3 |
 | `booking.shortageSolved` | thread `shortage_solved` (rental or the other warehouse) | 8 | — |
-| `booking.completed` | thread `closed` on the PM's booking. Expiry posts `expired`, which does not count | 10 | — |
+| `booking.completed` | thread `closed` on the PM's booking. Expiry posts `expired`, which does not count | 12 | — |
 
 ### Chief and closing
 
 | Rule id | Source | Base | Quality bonuses |
 | --- | --- | --- | --- |
-| `chief.approved` | thread `confirmed` whose author is **not** the booking's PM | 10 | +5 within 2 days of `submittedAt` |
+| `chief.approved` | thread `confirmed` whose author is **not** the booking's PM | 14 | +3 within 2 days of `submittedAt` |
 | `chief.returned` | thread `returned_to_pm` (reason required) | 5 | — |
 | `chief.conflictResolved` | `ConflictRecord`: `resolvedBy`, `resolvedOn`, written `resolution` | 10 | — |
 | `booking.closedBy` | thread `closed` (warehouse or Chief closes a returned order) | 3 | — |
@@ -146,12 +146,17 @@ are the **starting table**, calibrated in G3, and they are data (`rules.ts`), no
 
 ### Communication (everyone)
 
-| Rule id | Source | Base | Limits |
+All communication of a person shares **one weekly budget of 4 points** (Monday to Sunday,
+`POOLS.talk`), however much is written. Communication supports the work and should not replace
+it. A budget per week, rather than per message, keeps a talkative team below 15 % of their points
+(G3), and the busier someone is with real work, the smaller the share.
+
+| Rule id | Source | Points | Notes |
 | --- | --- | --- | --- |
-| `talk.message` | `Message` with `text` ≥ 15 characters | 2 | at most 3 per booking per day and 10 per day |
-| `talk.reply` | a message within 1 day of another person's message in the same thread | +1 | same caps |
-| `talk.note` | `Attachment` with `text` ≥ 15 characters (a removed note no longer counts) | 3 | at most 5 per day |
-| `talk.file` | `Attachment` with a file (photo, document) | 4 | at most 5 per day |
+| `talk.message` | `Message` with `text` ≥ 15 characters | 1 | within the weekly budget |
+| `talk.reply` | a message within 1 day of another person's message in the same thread | +1 | goes with its message when the message is over the budget |
+| `talk.note` | `Attachment` with `text` ≥ 15 characters (a removed note no longer counts) | 2 | within the weekly budget |
+| `talk.file` | `Attachment` with a file (photo, document) | 2 | within the weekly budget |
 
 ### Loans
 
@@ -188,7 +193,7 @@ are the **starting table**, calibrated in G3, and they are data (`rules.ts`), no
 
 **Curve.** Total XP needed for level *L*: `xpFor(L) = round10(15 · (L − 1)^2.4)`.
 
-| Level | Total XP | Roughly, for an active warehouse employee (~1 500 XP/month, to be confirmed in G3) |
+| Level | Total XP | Roughly, for an active warehouse employee (~1 500 XP/month — **G3 found ~125–165 on the demo, so G2 re-sets this curve**) |
 | --- | --- | --- |
 | 2 | 20 | first packing |
 | 5 | 420 | first ~2 weeks |
@@ -399,25 +404,42 @@ interface LedgerEntry {
 
 ### G2: Levels, titles, badges
 
+**Input from G3:** the demo gives about 125–165 XP per active person per month (the busiest
+person, Martin, about 320), not the ~1 500 the curve above assumed. At that pace level 10 would
+take about 20 months. G2 sets the curve from the measured pace, so that the first levels come in
+days, level 10 in a few months and level 20 in about a year. The real team may be busier than the
+demo, so the curve is a constant in `levels.ts`, easy to adjust after launch.
+
 1. `levels.ts` with the curve and tiers; tests at the boundaries (level 4 → 5 changes the tier).
 2. `badges.ts` with the catalogue above and progress; tests for each badge and step.
 3. `summary.ts`: per-month and per-category counts and XP; tests.
 
-### G3: Calibration on demo data
+### G3: Calibration on demo data ✓ (Nov 27, 2026)
 
-1. `scripts/xp-report.ts` (run with `node`): ledger over every fixture scenario. It prints XP per
-   user, per role, per month, and the top 10 rules by share of XP.
-2. Tune `rules.ts` so that:
-   - a month of typical work gives each role a similar XP (within ±25 %), so roles are equally
-     rewarded;
-   - no single rule gives more than ~30 % of a person's XP;
-   - communication stays below ~15 %, so it supports the work without replacing it.
-3. The demo data has no notes, files or resolved conflicts or issues in its history, so some rules
-   score nothing there. Prefer tests over new fixture history: changing fixtures bumps
-   `DATA_VERSION` and shows everyone the "old data" banner. If calibration really needs it, add
-   history only on this branch and say so in `DECISIONS.md`.
-4. A snapshot test of the per-role totals, so a later rule change that skews the balance is
-   visible in review. Record the final weights and the reasons in `DECISIONS.md`.
+Done before G2, on request: calibration only touches `rules.ts` and does not need levels or
+badges.
+
+1. ✓ `npm run xp-report` (`XP_ALL=1` for every scenario) prints XP per person, per role and per
+   rule, and checks the targets. The logic is `calibrate()` in `packages/fixtures/src/calibration.ts`.
+   Roles are averaged over people with any points, so an unused account does not lower its role.
+2. ✓ Targets met on every scenario. Per person per month: PM 125, Chief 135, warehouse 164
+   (−12 %, −4 %, +16 % of the average). No rule above 30 % besides the roles' core rules;
+   communication of a talkative team 3–14 %.
+   - **Communication is one weekly budget** (4 points a week per person). With per-message caps
+     a talkative team got 24–56 % of their points from talking. The demo has almost no messages,
+     so this is checked on `withTypicalTalk`: the PM writes on every open booking every 4 days,
+     the Chief answers the next day, a note per booking, a photo per vratka.
+   - **Core rules:** `chief.approved` and `booking.submitted` may exceed 30 %. They are each
+     role's main job in the system, and neither can be inflated unseen: every approval needs a
+     PM's request, and every request goes to the Chief.
+   - **Weights changed:** `chief.approved` 10 → 14, `chief.quick` 5 → 3, `booking.submitted`
+     10 → 8, `booking.created` 3 → 4, `booking.completed` 10 → 12, `booking.early` 10 → 6,
+     `booking.veryEarly` 15 → 10. The lead-time bonus was as big as the request itself.
+3. ✓ No fixture history added. Rules missing from the demo (notes, files, resolutions) are covered
+   by unit tests and by the talkative variant.
+4. ✓ `fixtures/test/gamification.test.ts` fails when a target is broken, and a snapshot pins the
+   per-role and per-person figures, so any shift shows in review. Unit tests read the expected
+   points from `RULES`, so recalibrating does not mean rewriting them.
 
 ### G4: XP meter and points line
 
