@@ -4,7 +4,7 @@
  *   npm run xp-report              — the base demo state
  *   XP_ALL=1 npm run xp-report     — every scenario
  */
-import { RULES } from '@quix/core';
+import { levelFor, RULES } from '@quix/core';
 import { calibrate, DEMO_TODAY, SCENARIOS, type XpReport } from '@quix/fixtures';
 
 const pad = (s: string | number, n: number) => String(s).padEnd(n);
@@ -12,10 +12,10 @@ const rpad = (s: string | number, n: number) => String(s).padStart(n);
 const pct = (x: number) => `${(x * 100).toFixed(0)} %`;
 
 function people(r: XpReport): void {
-  console.log('Person              role         XP  top rule (besides core)        talk');
+  console.log('Person              role         XP  level  top rule (besides core)        talk');
   for (const p of r.people)
     console.log(
-      `${pad(p.name, 18)}  ${pad(p.role, 9)} ${rpad(p.total, 6)}  ${pad(`${p.topRule.ruleId} ${pct(p.topRule.share)}`, 30)} ${rpad(pct(p.talkShare), 5)}`,
+      `${pad(p.name, 18)}  ${pad(p.role, 9)} ${rpad(p.total, 6)}  ${pad(levelFor(p.total).level + ' ' + levelFor(p.total).tier, 14)} ${pad(`${p.topRule.ruleId} ${pct(p.topRule.share)}`, 30)} ${rpad(pct(p.talkShare), 5)}`,
     );
 }
 

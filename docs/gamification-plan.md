@@ -191,17 +191,23 @@ it. A budget per week, rather than per message, keeps a talkative team below 15 
 
 ## Levels and titles
 
-**Curve.** Total XP needed for level *L*: `xpFor(L) = round10(15 · (L − 1)^2.4)`.
+**Curve.** Total XP needed for level *L*: `xpFor(L) = round5(14 · (L − 1)^1.65)` (`LEVEL_CURVE`
+in `levels.ts`). It is set from the pace G3 measured on the demo, about 150 XP per active person
+per month. A busier real team simply levels up faster, and the curve is one constant to adjust
+after launch.
 
-| Level | Total XP | Roughly, for an active warehouse employee (~1 500 XP/month — **G3 found ~125–165 on the demo, so G2 re-sets this curve**) |
+| Level | Total XP | At ~150 XP a month (the demo pace) |
 | --- | --- | --- |
-| 2 | 20 | first packing |
-| 5 | 420 | first ~2 weeks |
-| 10 | 2 930 | ~2 months |
-| 15 | 8 450 | ~6 months |
-| 20 | 17 580 | ~1 year |
-| 30 | 48 510 | ~3 years |
-| 40 | 98 770 | ~5 years |
+| 2 | 15 | the first day |
+| 5 | 140 | ~1 month |
+| 10 | 525 | ~3.5 months |
+| 15 | 1 090 | ~7 months |
+| 20 | 1 805 | ~1 year |
+| 30 | 3 625 | ~2 years |
+| 40 | 5 905 | ~3.3 years |
+
+On the demo's 2.3 months of history: PMs and the Chief are Medior 6–8, Martin (the busiest) is
+Senior 12.
 
 Fast early levels make it feel alive; later levels slow down so they stay worth something.
 There is no cap.
@@ -232,7 +238,7 @@ outline's tone. Locked badges show their progress ("34 / 50"), so it is clear wh
 
 | Badge (`cs`) | For | Steps |
 | --- | --- | --- |
-| První krok | first packing, first vratka, first pre-booking, first report (one each, one-off) | — |
+| První krok | first packing, first vratka, first pre-booking, first report, first decision (approval or return, so the Chief has one too); one each, one-off | — |
 | Pečlivá vratka | vratky on time with at least one voluntary bonus (description, extra note, unexpected item, photo) | 10 / 50 / 200 |
 | Kompletní casy | cases checked line by line at packing | 25 / 150 / 500 |
 | Plný case | cases refilled instead of leaving short | 5 / 25 / 100 |
@@ -402,17 +408,22 @@ interface LedgerEntry {
    Jana 268, Karel 25. The fixtures do all warehouse work as Martin, and there are no notes,
    files or resolutions in them.
 
-### G2: Levels, titles, badges
+### G2: Levels, titles, badges ✓ (Nov 27, 2026)
 
-**Input from G3:** the demo gives about 125–165 XP per active person per month (the busiest
-person, Martin, about 320), not the ~1 500 the curve above assumed. At that pace level 10 would
-take about 20 months. G2 sets the curve from the measured pace, so that the first levels come in
-days, level 10 in a few months and level 20 in about a year. The real team may be busier than the
-demo, so the curve is a constant in `levels.ts`, easy to adjust after launch.
+Done after G3, which measured the pace the curve needed.
 
-1. `levels.ts` with the curve and tiers; tests at the boundaries (level 4 → 5 changes the tier).
-2. `badges.ts` with the catalogue above and progress; tests for each badge and step.
-3. `summary.ts`: per-month and per-category counts and XP; tests.
+1. ✓ `levels.ts`: `xpFor`, `levelFor` (level, tier, step, progress), `levelTier`, `levelHistory`
+   (the day each level was reached, for the profile and the points line). Named `levelTier` /
+   `LevelTier` / `LEVEL_TIERS` to keep them apart from the conflict tiers (`tierOf` in
+   `conflicts`). Tests at the boundaries and for the curve's shape.
+2. ✓ `badges.ts`: 18 badges as data, with `badgeProgress(state, ledger, userId)` returning the
+   count, the steps with the day each was earned, and the next threshold. Added `first.decision`,
+   so the Chief gets a badge on the demo too. Kronika reads the state, because the weekly budget
+   leaves most communication out of the ledger. On the demo, everyone with 100+ XP has at least
+   one badge (tested in fixtures).
+3. ✓ `summary.ts`: `activitySummary(ledger, userId, from?, to?)` gives XP and counts per category,
+   per rule and per month, including empty categories and months. A count is the number of base
+   entries, so a bonus adds XP but is not counted as another activity.
 
 ### G3: Calibration on demo data ✓ (Nov 27, 2026)
 
