@@ -91,7 +91,7 @@ are the **starting table**, calibrated in G3, and they are data (`rules.ts`), no
 
 | Rule id | Source | Base | Quality bonuses |
 | --- | --- | --- | --- |
-| `pack.packed` | thread `packed` (authorId, on, `count` = pieces) | 5 + 1 per 5 pieces (max +15); at most once per booking, person and day | — |
+| `pack.packed` | thread `packed` (authorId, on, `count` = pieces) **or** the packing records, whichever counts more pieces. *Zabalit a rovnou odvézt* packs without a `packed` event, and cancelling deletes the records | 5 + 1 per 5 pieces (max +15); at most once per booking, person and day | — |
 | `pack.caseChecked` | `CaseCheck` in a `PackingRecord` or `Shipment`, deduplicated by booking + case | 2 per case | `pack.refilled` +3 when the case was refilled from loose stock (`refilled`) instead of leaving short |
 | `ship.delivery` | thread `batch_shipped` (authorId, on, `label`) | 10 | — |
 | `ship.transfer` | thread `transfer_out` (event-to-event handover), once per pair of bookings and day | 8 | — |
@@ -372,20 +372,30 @@ interface LedgerEntry {
      for PMs who confirm their own pre-booking.
 2. ✓ Decisions written in `DECISIONS.md`.
 
-### G1: Ledger in core
+### G1: Ledger in core ✓ (Nov 27, 2026)
 
-1. Types, `rules.ts`, and `computeLedger` with the **warehouse** sources (packing, shipping,
-   vratka with bonuses).
-2. **Reports and service** sources.
-3. **PM and Chief** sources (including "not for approving one's own order").
-4. **Communication and loans** sources, plus `caps.ts`.
-5. Tests: one per rule, named after it (`vratka.damageDescribed gives +3 per damaged line with a
-   note`). Plus: entries never have points ≤ 0; ids are unique and stable across two runs;
-   `SYSTEM_USER_ID` earns nothing; cancelling a booking keeps `pack.packed` but drops
-   `pack.caseChecked` read from the removed packing record; packing the same booking twice in a
-   day counts once; **every existing core
-   action returns exactly the same state as before** (gamification adds exports only); an ESLint
-   rule stops imports of `gamification/` from outside.
+1. ✓ Types, `rules.ts`, and `computeLedger` with the **warehouse** sources. The limits
+   (`caps.ts`) and "same fact counts once" (stable ids) were built here, because the packing
+   rules already needed them.
+2. ✓ **Reports and service** sources.
+3. ✓ **PM and Chief** sources (approving one's own booking is not a decision; a PM confirming
+   their own pre-booking gets the request points instead).
+4. ✓ **Communication and loans** sources.
+5. ✓ 72 tests: one or more per rule, named after it (`test/gamification/*.test.ts` in core),
+   plus invariants in core and over every demo scenario (`fixtures/test/gamification.test.ts`):
+   points above zero, unique stable ids, sorted by day, input never changed, bonuses always with
+   their base entry, only known people, `SYSTEM_USER_ID` earns nothing, cancelling keeps
+   `pack.packed`. That existing actions behave exactly as before is guaranteed structurally:
+   core outside `gamification/` cannot import it (ESLint `no-restricted-imports`, checked),
+   and the existing tests pass unchanged.
+
+   Found on the way: *Zabalit a rovnou odvézt* packs silently (no `packed` event), so
+   `pack.packed` reads the packing records as well. Performance: under 1 ms per ledger on the
+   demo data, so the app can recompute it on every change.
+
+   First look at the demo totals for G3: Martin (warehouse) 741, Lucie 450, Petr 299, Tomáš 282,
+   Jana 268, Karel 25. The fixtures do all warehouse work as Martin, and there are no notes,
+   files or resolutions in them.
 
 ### G2: Levels, titles, badges
 
