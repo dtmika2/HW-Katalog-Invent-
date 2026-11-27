@@ -15,3 +15,11 @@ export {
   type LevelInfo,
   type LevelTier,
 } from './levels';
+export {
+  BADGES,
+  badgeProgress,
+  type BadgeDef,
+  type BadgeId,
+  type BadgeProgress,
+  type BadgeStepTier,
+} from './badges';

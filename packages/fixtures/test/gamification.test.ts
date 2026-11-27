@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { computeLedger, RULES, SYSTEM_USER_ID } from '@quix/core';
+import { badgeProgress, computeLedger, RULES, SYSTEM_USER_ID, totalPoints } from '@quix/core';
 import { calibrate, DEMO_TODAY, SCENARIOS } from '../src';
 
 describe('gamification over the demo scenarios', () => {
@@ -43,5 +43,18 @@ describe('gamification calibration (G3)', () => {
         cal.talkative.people.map((p) => [p.userId, round(p.talkShare * 100)]),
       ),
     }).toMatchSnapshot();
+  });
+});
+
+describe('gamification: badges on the demo data', () => {
+  it('everyone with real activity (100+ XP) has at least one badge on the first load', () => {
+    const s = SCENARIOS.find((x) => x.id === 'base')!.build();
+    const l = computeLedger(s);
+    const active = s.users.filter((u) => totalPoints(l, u.id) >= 100);
+    expect(active.length).toBeGreaterThanOrEqual(4);
+    for (const u of active) {
+      const earned = badgeProgress(s, l, u.id).filter((b) => b.earned > 0);
+      expect(earned.length, u.name).toBeGreaterThan(0);
+    }
   });
 });
