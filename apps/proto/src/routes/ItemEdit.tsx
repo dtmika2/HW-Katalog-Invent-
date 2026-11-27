@@ -175,7 +175,8 @@ function StagePartEditor({ item }: { item: Item }) {
   const t = cs.stagePlan.part;
   const v = (k: string) => {
     const x = item.stage as Record<string, unknown> | undefined;
-    return typeof x?.[k] === 'number' ? (x[k] as number) : undefined;
+    // stored in millimetres, shown in metres
+    return typeof x?.[k] === 'number' ? (x[k] as number) / 1000 : undefined;
   };
   const size = (name: string, label: string) => (
     <Field label={label} htmlFor={`sp-${name}`}>
@@ -183,7 +184,8 @@ function StagePartEditor({ item }: { item: Item }) {
         id={`sp-${name}`}
         name={name}
         type="number"
-        min={1}
+        min={0.01}
+        step={0.01}
         required
         className="input w-28"
         defaultValue={v(name)}
@@ -198,7 +200,7 @@ function StagePartEditor({ item }: { item: Item }) {
         onSubmit={(e) => {
           e.preventDefault();
           const fd = new FormData(e.currentTarget);
-          const n = (k: string) => Number(fd.get(k));
+          const n = (k: string) => Math.round(Number(fd.get(k)) * 1000);
           const stage: StagePart | undefined =
             kind === 'deck'
               ? { part: 'deck', widthMm: n('widthMm'), depthMm: n('depthMm') }

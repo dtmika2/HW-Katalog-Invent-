@@ -1,4 +1,4 @@
-/** "Spočítat pódium": decks, legs, skirts, rails and stairs for a size in millimetres. */
+/** "Spočítat pódium": decks, legs, skirts, rails and stairs for a size in metres. */
 import { useMemo, useState } from 'react';
 import {
   addStage,
@@ -38,7 +38,7 @@ export function StagePlanner({
   return <PlannerForm booking={booking} onAdd={onAdd} onClose={() => setOpen(false)} />;
 }
 
-const mm = (l: { widthMm: number; depthMm: number }) => cs.stagePlan.mm(l.widthMm, l.depthMm);
+const mm = (l: { widthMm: number; depthMm: number }) => cs.stagePlan.dims(l.widthMm, l.depthMm);
 
 function PlannerForm({
   booking,
@@ -88,7 +88,7 @@ function PlannerForm({
             id="sp-size"
             className="input"
             autoFocus
-            inputMode="numeric"
+            inputMode="decimal"
             placeholder={cs.stagePlan.sizeHint}
             value={text}
             onChange={(e) => {
@@ -233,7 +233,7 @@ function PlannerForm({
                       type="button"
                       className="btn btn-sm"
                       onClick={() => {
-                        setText(`${plan.fits!.widthMm}*${plan.fits!.depthMm}`);
+                        setText(cs.stagePlan.typed(plan.fits!.widthMm, plan.fits!.depthMm));
                         setRound('up');
                       }}
                     >

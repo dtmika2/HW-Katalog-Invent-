@@ -24,8 +24,8 @@ const pcs = (n: number) => `${n} ks`;
 const paramDate = (d: string | number | undefined) =>
   fmtDate(d === undefined ? undefined : String(d));
 const cases = (n: number) => (n === 1 ? '1 case' : `${n} casy`);
-/** 6000 → 6 000 (non-breaking space, as Czech writes thousands). */
-const thousands = (n: number) => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, '\u00a0');
+/** Millimetres as metres the Czech way: 6500 → "6,5". */
+const metres = (mm: number) => String(Math.round(mm / 10) / 100).replace('.', ',');
 const decks = (n: number) => `${n} ${n === 1 ? 'dílec' : n >= 2 && n <= 4 ? 'dílce' : 'dílců'}`;
 
 /** What somebody asks to cancel. */
@@ -1195,18 +1195,21 @@ export const cs = {
   },
   stagePlan: {
     button: 'Spočítat pódium',
-    hint: 'Z rozměru v mm spočítá dílce, nohy, sukně, zábradlí a schody a porovná je s volným skladem v termínu akce.',
+    hint: 'Z rozměru v metrech spočítá dílce, nohy, sukně, zábradlí a schody a porovná je s volným skladem v termínu akce.',
     title: 'Kalkulačka pódia',
-    size: 'Rozměr pódia v mm (šířka × hloubka)',
-    sizeHint: 'např. 6000*4000',
-    sizeBad: 'Zadejte šířku a hloubku v milimetrech, např. 6000*4000.',
+    size: 'Rozměr pódia v metrech (šířka × hloubka)',
+    sizeHint: 'např. 6*4 nebo 6,5*4',
+    sizeBad: 'Zadejte šířku a hloubku v metrech, např. 6*4 nebo 6,5*4.',
     deck: 'Dílec',
     legs: 'Výška (nohy)',
     noLegs: 'Bez noh',
     skirt: 'Sukně (předek a boky)',
     rail: 'Zábradlí (zadní strana a boky)',
     stairs: 'Schody (ks)',
-    mm: (w: number, d: number) => `${thousands(w)} × ${thousands(d)} mm`,
+    dims: (w: number, d: number) => `${metres(w)} × ${metres(d)} m`,
+    /** What is typed into the size field for a stage. */
+    typed: (w: number, d: number) => `${metres(w)}*${metres(d)}`,
+    metres,
     decks,
     exact: (size: string, n: number) => `Přesně ${size}, ${decks(n)}.`,
     notExact: (deck: string) => `Rozměr nejde složit přesně z dílců ${deck}. Vyberte:`,
@@ -1232,10 +1235,10 @@ export const cs = {
       kind: 'Druh',
       none: 'Není díl pódia',
       kinds: { deck: 'Dílec', leg: 'Noha', skirt: 'Sukně', rail: 'Zábradlí', stairs: 'Schody' },
-      width: 'Šířka (mm)',
-      depth: 'Hloubka (mm)',
-      height: 'Výška (mm)',
-      length: 'Délka (mm)',
+      width: 'Šířka (m)',
+      depth: 'Hloubka (m)',
+      height: 'Výška (m)',
+      length: 'Délka (m)',
     },
   },
   late: {

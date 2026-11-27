@@ -1,5 +1,5 @@
 /**
- * Stage calculator: from the size a PM needs (millimetres, width × depth) it works out how many
+ * Stage calculator: from the size a PM needs (typed in metres, width × depth) it works out how many
  * decks make it, with legs, skirts, rails and stairs, and compares that with what is free for the
  * booking's dates. Parts are catalogue items marked with `Item.stage`.
  */
@@ -20,12 +20,17 @@ export interface StageSize {
   depthMm: number;
 }
 
-/** "6000*4000", "6000 x 4000", "6 000 × 4 000 mm" → width and depth; undefined when not a size. */
+/**
+ * Size typed in metres: "6*4", "6,5 x 4", "6.5 × 4.2 m" → width and depth in millimetres;
+ * undefined when it is not a size.
+ */
 export function parseStageSize(text: string): StageSize | undefined {
-  const m = /^(\d+)[*x×](\d+)(mm)?$/i.exec(text.replace(/\s+/g, ''));
+  const num = '(\\d+(?:[.,]\\d+)?)';
+  const m = new RegExp(`^${num}[*x×]${num}m?$`, 'i').exec(text.replace(/\s+/g, ''));
   if (!m) return undefined;
-  const widthMm = Number(m[1]);
-  const depthMm = Number(m[2]);
+  const mm = (x: string) => Math.round(Number(x.replace(',', '.')) * 1000);
+  const widthMm = mm(m[1]!);
+  const depthMm = mm(m[2]!);
   if (!(widthMm > 0 && depthMm > 0 && widthMm <= STAGE_MAX_MM && depthMm <= STAGE_MAX_MM))
     return undefined;
   return { widthMm, depthMm };

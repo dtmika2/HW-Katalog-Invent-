@@ -91,10 +91,11 @@ const need = (s: AppState, b: Booking, extra: Partial<StageInput> = {}) =>
   Object.fromEntries(planStage(s, b, input(extra))!.needs.map((n) => [n.itemId, n]));
 
 describe('stage size', () => {
-  it('is written as width × depth in millimetres, with *, x or ×', () => {
-    for (const t of ['6000*4000', '6000 x 4000', '6 000 × 4 000 mm', '6000X4000'])
+  it('is written as width × depth in metres, with *, x or ×, decimals with a comma or a dot', () => {
+    for (const t of ['6*4', '6 x 4', '6 × 4 m', '6X4', '6,0*4.0'])
       expect(parseStageSize(t)).toEqual({ widthMm: 6000, depthMm: 4000 });
-    for (const t of ['', 'abc', '6000', '0*4000', '6000*-1', '200000*1000'])
+    expect(parseStageSize('6,5*4,25')).toEqual({ widthMm: 6500, depthMm: 4250 });
+    for (const t of ['', 'abc', '6', '0*4', '6*-1', '200*1', '6000*4000', '6,*4'])
       expect(parseStageSize(t)).toBeUndefined();
   });
 });

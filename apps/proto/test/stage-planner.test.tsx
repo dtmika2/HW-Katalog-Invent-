@@ -5,10 +5,9 @@ import { itemTotals } from '@quix/core';
 import { booking, renderApp, state } from './helpers';
 
 const ID = 'bk-teambuilding';
-const NB = ' ';
 const click = (name: string | RegExp) => fireEvent.click(screen.getByRole('button', { name }));
 const size = (value: string) =>
-  fireEvent.change(screen.getByLabelText('Rozměr pódia v mm (šířka × hloubka)'), {
+  fireEvent.change(screen.getByLabelText('Rozměr pódia v metrech (šířka × hloubka)'), {
     target: { value },
   });
 const needs = () =>
@@ -22,10 +21,10 @@ const open = () => {
 };
 
 describe('Kalkulačka pódia', () => {
-  it('6000*4000: twelve decks with their legs, skirt and stairs; added as a group and saved', () => {
+  it('6*4: twelve decks with their legs, skirt and stairs; added as a group and saved', () => {
     open();
-    size('6000*4000');
-    expect(screen.getByText('Přesně 6 000 × 4 000 mm, 12 dílců.')).toBeInTheDocument();
+    size('6*4');
+    expect(screen.getByText('Přesně 6 × 4 m, 12 dílců.')).toBeInTheDocument();
     expect(needs()).toEqual([
       'Pódiový dílec 2×1 m 12',
       'Noha pódia 40 cm' + 'přijdou s dílci 48',
@@ -42,7 +41,7 @@ describe('Kalkulačka pódia', () => {
     expect(screen.queryByTestId('stage-planner')).toBeNull();
     click('Uložit');
     const b = booking(ID)!;
-    expect(b.groups?.map((g) => g.name)).toContain(`Pódium 6${NB}000 × 4${NB}000 mm`);
+    expect(b.groups?.map((g) => g.name)).toContain('Pódium 6 × 4 m');
     const t = itemTotals(b.lines, state());
     expect([t.get('stage-deck'), t.get('stage-leg-80'), t.get('stage-leg-40')]).toEqual([
       12,
@@ -54,18 +53,18 @@ describe('Kalkulačka pódia', () => {
 
   it('a size that is not whole decks: bigger or smaller; a bad size says how to write it', () => {
     open();
-    size('6000');
-    expect(screen.getByText(/např\. 6000\*4000/)).toBeInTheDocument();
+    size('6');
+    expect(screen.getByText(/v metrech, např\. 6\*4/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Přidat do rezervace' })).toBeDisabled();
-    size('3000 x 3000');
-    expect(screen.getByLabelText('Větší: 4 000 × 3 000 mm (6 dílců)')).toBeChecked();
+    size('3 x 3');
+    expect(screen.getByLabelText('Větší: 4 × 3 m (6 dílců)')).toBeChecked();
     fireEvent.click(screen.getByLabelText(/^Menší: .* \(3 dílce\)$/));
     expect(needs()[0]).toBe('Pódiový dílec 2×1 m 3');
   });
 
   it('more than is free: what is missing, and the biggest stage that is free', () => {
     open();
-    size('20000*10000');
+    size('20*10');
     const deck = screen.getAllByTestId('stage-need')[0]!;
     expect(within(deck).getByText(/^Chybí \d+ ks$/)).toBeInTheDocument();
     expect(screen.getByText(/Z volných kusů jde postavit nejvýš/)).toBeInTheDocument();
@@ -78,8 +77,8 @@ describe('Kalkulačka pódia', () => {
     fireEvent.change(screen.getByLabelText('Druh', { selector: '#sp-kind' }), {
       target: { value: 'deck' },
     });
-    fireEvent.change(screen.getByLabelText('Šířka (mm)'), { target: { value: '2000' } });
-    fireEvent.change(screen.getByLabelText('Hloubka (mm)'), { target: { value: '2000' } });
+    fireEvent.change(screen.getByLabelText('Šířka (m)'), { target: { value: '2' } });
+    fireEvent.change(screen.getByLabelText('Hloubka (m)'), { target: { value: '2' } });
     fireEvent.submit(screen.getByLabelText('Druh', { selector: '#sp-kind' }).closest('form')!);
     expect(state().items.find((i) => i.id === 'riser')?.stage).toEqual({
       part: 'deck',
