@@ -21,7 +21,7 @@ import {
 } from '@quix/core';
 import { BadgeIcon } from '../components/BadgeIcon';
 import { cs } from '../i18n/cs';
-import { titleOf } from '../lib/gamification';
+import { titleOf, type TitleForm } from '../lib/gamification';
 import { useAppState, useToday, useUser } from '../store';
 import { ledgerOf, useGamificationStore } from '../store/gamification';
 
@@ -36,6 +36,7 @@ function TeamCard({
   viewer,
   manager,
   off,
+  form,
   today,
 }: {
   s: AppState;
@@ -44,6 +45,7 @@ function TeamCard({
   viewer: User;
   manager: boolean;
   off: boolean;
+  form: TitleForm;
   today: IsoDate;
 }) {
   const mine = ledger.filter((e) => e.userId === person.id);
@@ -71,7 +73,7 @@ function TeamCard({
         </div>
         {showLevel && (
           <p className="shrink-0 text-right">
-            <span className="block font-cond font-bold">{titleOf(level)}</span>
+            <span className="block font-cond font-bold">{titleOf(level, form)}</span>
             <span className="block text-xs text-muted">{g.level(level.level)}</span>
           </p>
         )}
@@ -139,6 +141,7 @@ export function Team() {
   const today = useToday();
   // select the stored object itself: a fresh `{}` per read would re-render forever
   const off = useGamificationStore((p) => p.prefs.off) ?? {};
+  const forms = useGamificationStore((p) => p.prefs.form) ?? {};
   const manager = viewer.role === 'chief' || viewer.role === 'admin';
   const ledger = ledgerOf(s);
   const people = useMemo(
@@ -164,6 +167,7 @@ export function Team() {
             viewer={viewer}
             manager={manager}
             off={!!off[person.id]}
+            form={forms[person.id] ?? 'm'}
             today={today}
           />
         ))}

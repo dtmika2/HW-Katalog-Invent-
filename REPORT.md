@@ -98,7 +98,7 @@ A quiet layer of points, levels and badges over the catalogue. It only **reads**
 | --- | --- | --- | --- |
 | G0 audit | `g0` | every rule checked against code and screens; mandatory fields are base work, bonuses only for what is voluntary | — |
 | G1 ledger | `g1` | 41 rules (packing, shipping, vratka, reports, service, PMs, Chief, communication, loans); base points from booking-thread events, which survive cancelling | 72 |
-| G2 levels, badges | `g2` | level curve set from the measured pace (level 10 in ~3.5 months, level 20 in ~1 year at the demo's ~150 XP a month), titles Junior … Legenda, 18 badges, activity summary | 22 |
+| G2 levels, badges | `g2` | level curve set from the measured pace (level 10 in ~3.5 months, level 20 in ~1 year at the demo's ~150 XP a month), ranks Učeň … Legenda with a warehouse name for every level ("Rytíř trussů"), both grammatical forms, 18 badges, activity summary | 22 |
 | G3 calibration | `g3` | `npm run xp-report`; roles within ±25 % of each other, communication one weekly budget (4 b.), guarded by a test and a snapshot | 3 |
 | G4 meter | `g4` | title and bar beside the bell; new points appear only there, once, with the reason | 6 UI |
 | G5 profile | `g5` | badges, activity in words, "Proč mám body", one-page overview for management (print / PDF), "Jak se počítají body" | 8 UI |
@@ -109,7 +109,7 @@ Totals for the branch: **119 automated tests** (89 core, 8 fixtures, 22 UI) and 
 
 ### Demo script (≈ 10 min)
 
-1. **Scénář → Transfer, Přihlášen jako → Martin (Sklad).** Point at the header: his title (a work grade such as "Senior III") with a thin bar beside the bell. That's all there is on the screen.
+1. **Scénář → Transfer, Přihlášen jako → Martin (Sklad).** Point at the header: his title (a rank with a warehouse joke, such as "Panoš dodávky") with a thin bar beside the bell. That's all there is on the screen.
 2. Open the vratka of **TechConf 2027**. On the LEDBeam line enter 2 pieces, mark **Poškozeno**, 1 damaged, and write a real note ("Jeden kus nejde tilt, prasklý kryt motoru"). Confirm the line and save. Under the meter: **"+N · Vratka – TechConf 2027 (pečlivě)"**. Nothing pops up over the work; the line fades after a few seconds and **+N** stays on the meter.
 3. Click the meter → **profile**. The newest row is marked *nové* and lists **Popsané poškození** as a bonus: a description that helps service earns more than the one-word note the system requires. Show the badges (earned with dates, others in progress), the activity in words (e.g. "11 vratek, z toho 11 včas …"), and **Proč mám body**, where every point has a reason.
 4. **Přehled pro vedení:** pick a period → *Tisk / uložit PDF*. One page an employee can bring to a review. It ends with "Body ukazují práci zaznamenanou v systému, ne veškerou práci."
@@ -119,7 +119,7 @@ Totals for the branch: **119 automated tests** (89 core, 8 fixtures, 22 UI) and 
 
 ### Questions for the team
 
-- Are the titles right (Junior, Medior, Senior, Specialista, Expert, Garant, Pilíř týmu, Legenda)?
+- Are the titles right? Ranks Učeň, Tovaryš, Panoš, Rytíř, Učenec, Mistr, Velmistr, Legenda, each level with a name from the warehouse ("Učeň prodlužek" … "Legenda všech dob"). The full list is in `docs/gamification-plan.md`; any name is a one-line change.
 - Should colleagues see each other's levels and badges at all, or only the Chief?
 - Are the weights fair for your role? (`npm run xp-report` shows them on the demo; the real team's pace will set the level curve after launch.)
 - When the real system starts, should everyone start at zero (`countFrom`) or count the history entered so far?

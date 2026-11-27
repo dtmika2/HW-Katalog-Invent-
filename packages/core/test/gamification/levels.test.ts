@@ -29,11 +29,11 @@ describe('gamification: levels', () => {
   });
 
   it('levelFor: a level starts exactly at its threshold', () => {
-    expect(levelFor(0)).toMatchObject({ level: 1, tier: 'junior', step: 1, progress: 0 });
+    expect(levelFor(0)).toMatchObject({ level: 1, tier: 'apprentice', step: 1, progress: 0 });
     expect(levelFor(14).level).toBe(1);
     expect(levelFor(15).level).toBe(2);
     expect(levelFor(524).level).toBe(9);
-    expect(levelFor(525)).toMatchObject({ level: 10, tier: 'senior', step: 1, levelStart: 525 });
+    expect(levelFor(525)).toMatchObject({ level: 10, tier: 'squire', step: 1, levelStart: 525 });
   });
 
   it('levelFor: progress within the level, from 0 up to (not including) 1', () => {
@@ -45,11 +45,11 @@ describe('gamification: levels', () => {
   });
 
   it('titles change at levels 5, 10, 15, 20, 25, 30 and 40; the step counts within the title', () => {
-    expect(levelTier(4)).toEqual({ tier: 'junior', step: 4 });
-    expect(levelTier(5)).toEqual({ tier: 'medior', step: 1 });
-    expect(levelTier(12)).toEqual({ tier: 'senior', step: 3 });
-    expect(levelTier(29)).toEqual({ tier: 'guarantor', step: 5 });
-    expect(levelTier(39)).toEqual({ tier: 'pillar', step: 10 });
+    expect(levelTier(4)).toEqual({ tier: 'apprentice', step: 4 });
+    expect(levelTier(5)).toEqual({ tier: 'journeyman', step: 1 });
+    expect(levelTier(12)).toEqual({ tier: 'squire', step: 3 });
+    expect(levelTier(29)).toEqual({ tier: 'master', step: 5 });
+    expect(levelTier(39)).toEqual({ tier: 'grandmaster', step: 10 });
     expect(levelTier(40)).toEqual({ tier: 'legend', step: 1 });
     expect(levelTier(47)).toEqual({ tier: 'legend', step: 8 });
     expect(LEVEL_TIERS.map((t) => t.from)).toEqual([1, 5, 10, 15, 20, 25, 30, 40]);

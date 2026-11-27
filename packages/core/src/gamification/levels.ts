@@ -9,26 +9,33 @@ import type { LedgerEntry } from './types';
 
 export const LEVEL_CURVE = { a: 14, b: 1.65 } as const;
 
-/** Work grades; Czech titles live in the app (gender-neutral in Czech workplace use). */
+/** Guild and knighthood ranks; Czech titles (both forms, with a name per level) live in the app. */
 export type LevelTier =
-  'junior' | 'medior' | 'senior' | 'specialist' | 'expert' | 'guarantor' | 'pillar' | 'legend';
+  | 'apprentice'
+  | 'journeyman'
+  | 'squire'
+  | 'knight'
+  | 'scholar'
+  | 'master'
+  | 'grandmaster'
+  | 'legend';
 
 /** First level of each tier, in order. */
 export const LEVEL_TIERS: readonly { tier: LevelTier; from: number }[] = [
-  { tier: 'junior', from: 1 },
-  { tier: 'medior', from: 5 },
-  { tier: 'senior', from: 10 },
-  { tier: 'specialist', from: 15 },
-  { tier: 'expert', from: 20 },
-  { tier: 'guarantor', from: 25 },
-  { tier: 'pillar', from: 30 },
+  { tier: 'apprentice', from: 1 },
+  { tier: 'journeyman', from: 5 },
+  { tier: 'squire', from: 10 },
+  { tier: 'knight', from: 15 },
+  { tier: 'scholar', from: 20 },
+  { tier: 'master', from: 25 },
+  { tier: 'grandmaster', from: 30 },
   { tier: 'legend', from: 40 },
 ];
 
 export interface LevelInfo {
   level: number;
   tier: LevelTier;
-  /** Level within the tier, from 1 ("Senior II" is step 2). */
+  /** Level within the tier, from 1 (the app names each step: "Rytíř trussů" is step 2). */
   step: number;
   xp: number;
   /** Total XP where this level starts and where the next one starts. */

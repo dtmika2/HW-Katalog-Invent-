@@ -37,12 +37,14 @@ import {
   titleOf,
   type EntryGroup,
   type HistoryRow as HistoryRowData,
+  type TitleForm,
 } from '../lib/gamification';
 import { useAppState, useToday, useUser } from '../store';
 import {
   useDisplayOff,
   useGamificationStore,
   useMyProgress,
+  useTitleForm,
   type MyProgress,
 } from '../store/gamification';
 
@@ -65,11 +67,13 @@ function LevelHeader({
   p,
   today,
   showXp,
+  form,
 }: {
   user: User;
   p: MyProgress;
   today: IsoDate;
   showXp: boolean;
+  form: TitleForm;
 }) {
   const month = activitySummary(p.mine, p.userId, startOfMonth(today), endOfMonth(today));
   const since = levelHistory(p.mine, p.userId).at(-1)?.on;
@@ -82,7 +86,7 @@ function LevelHeader({
           <p className="text-sm text-muted">{cs.roles[user.role]}</p>
         </div>
         <div className="text-right">
-          <p className="font-cond text-2xl font-bold">{titleOf(p.level)}</p>
+          <p className="font-cond text-2xl font-bold">{titleOf(p.level, form)}</p>
           <p className="text-sm text-muted">
             {g.level(p.level.level)}
             {since && ` · ${pf.levelSince(since)}`}
@@ -382,11 +386,13 @@ function OverviewPaper({
   p,
   from,
   to,
+  form,
 }: {
   user: User;
   p: MyProgress;
   from: IsoDate;
   to: IsoDate;
+  form: TitleForm;
 }) {
   usePrintTitle(pf.overviewFile(user.name, from, to));
   const sum = activitySummary(p.mine, p.userId, from, to);
@@ -409,7 +415,7 @@ function OverviewPaper({
           <p className="shrink-0 text-[9pt]">{pf.overviewDoc}</p>
         </div>
         <p className="text-[10pt]">
-          {cs.roles[user.role]} · {pf.overviewLevel(titleOf(p.level), p.level.level)}
+          {cs.roles[user.role]} · {pf.overviewLevel(titleOf(p.level, form), p.level.level)}
         </p>
         <p className="font-cond text-[13pt] font-bold">{pf.overviewPeriod(from, to)}</p>
         <p className="text-[10pt]">{pf.overviewXp(sum.xp)}</p>
@@ -444,7 +450,17 @@ function OverviewPaper({
   );
 }
 
-function Overview({ user, p, today }: { user: User; p: MyProgress; today: IsoDate }) {
+function Overview({
+  user,
+  p,
+  today,
+  form,
+}: {
+  user: User;
+  p: MyProgress;
+  today: IsoDate;
+  form: TitleForm;
+}) {
   const [from, setFrom] = useState(startOfMonth(today));
   const [to, setTo] = useState(today);
   return (
@@ -468,7 +484,9 @@ function Overview({ user, p, today }: { user: User; p: MyProgress; today: IsoDat
           </div>
         </Section>
       </div>
-      {from && to && from <= to && <OverviewPaper user={user} p={p} from={from} to={to} />}
+      {from && to && from <= to && (
+        <OverviewPaper user={user} p={p} from={from} to={to} form={form} />
+      )}
     </>
   );
 }
@@ -516,12 +534,31 @@ function HowPoints() {
   );
 }
 
-/** The person's own switch for levels and points. */
-function DisplaySwitch({ userId }: { userId: string }) {
+/** The person's own settings: the form of their title, and the switch for levels and points. */
+function DisplaySwitch({ userId, level }: { userId: string; level: MyProgress['level'] }) {
   const off = useDisplayOff(userId);
+  const form = useTitleForm(userId);
   const setOff = useGamificationStore((x) => x.setOff);
+  const setForm = useGamificationStore((x) => x.setForm);
   return (
     <Section title={pf.settings}>
+      <fieldset className="mb-4">
+        <legend className="label">{g.titleForm}</legend>
+        <div className="flex flex-wrap gap-4 text-sm">
+          {(['m', 'f'] as const).map((f) => (
+            <label key={f} className="flex items-center gap-1.5">
+              <input
+                type="radio"
+                name="title-form"
+                checked={form === f}
+                onChange={() => setForm(userId, f)}
+              />
+              {titleOf(level, f)}
+            </label>
+          ))}
+        </div>
+        <p className="mt-1 text-xs text-muted">{g.titleFormHint}</p>
+      </fieldset>
       <label className="flex items-start gap-2 text-sm">
         <input
           type="checkbox"
@@ -554,6 +591,7 @@ export function Profile({ userId }: { userId?: string }) {
   const detail = self || isManager(viewer);
   const p = useMyProgress(target?.id ?? viewer.id, self);
   const targetOff = useDisplayOff(p.userId);
+  const form = useTitleForm(p.userId);
   const put = useGamificationStore((x) => x.put);
   // What was new when one's own page opened stays marked during this visit.
   const [unviewed] = useState<ReadonlySet<string>>(() => {
@@ -575,14 +613,14 @@ export function Profile({ userId }: { userId?: string }) {
   return (
     <div className="space-y-4">
       <div className="space-y-4 print:hidden">
-        <LevelHeader user={target} p={p} today={today} showXp={detail} />
+        <LevelHeader user={target} p={p} today={today} showXp={detail} form={form} />
         <Badges badges={p.badges} />
         {detail && <Activity p={p} today={today} />}
         {detail && <History p={p} unviewed={unviewed} />}
       </div>
-      {detail && <Overview user={target} p={p} today={today} />}
+      {detail && <Overview user={target} p={p} today={today} form={form} />}
       <div className="space-y-4 print:hidden">
-        {self && <DisplaySwitch userId={p.userId} />}
+        {self && <DisplaySwitch userId={p.userId} level={p.level} />}
         <HowPoints />
         <p className="text-xs text-muted">{pf.footnote}</p>
       </div>

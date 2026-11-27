@@ -206,29 +206,33 @@ after launch.
 | 30 | 3 625 | ~2 years |
 | 40 | 5 905 | ~3.3 years |
 
-On the demo's 2.3 months of history: PMs and the Chief are Medior 6–8, Martin (the busiest) is
-Senior 12.
+On the demo's 2.3 months of history the PMs and the Chief are at levels 6–8 (Tovaryš …) and
+Martin, the busiest, at level 12 (Panoš dodávky).
 
 Fast early levels make it feel alive; later levels slow down so they stay worth something.
 There is no cap.
 
-**Titles** are work grades. Czech words that are gender-neutral in workplace use, so they need no
-gender field:
+**Titles** are guild and knighthood ranks, with a joke from the warehouse world for **every
+level** instead of a Roman numeral (changed on the user's request, Nov 27, 2026, from the
+earlier "Junior … Legenda", which sounded dismissive and corporate for a small team). The rank
+has both grammatical forms. Each person picks one on their profile (*Tvar titulu*), masculine
+until chosen; the warehouse part is the same for both. Names live in `cs.gamification.titles`.
 
-| Levels | Title (`cs.gamification.titles`) |
-| --- | --- |
-| 1–4 | Junior |
-| 5–9 | Medior |
-| 10–14 | Senior |
-| 15–19 | Specialista |
-| 20–24 | Expert |
-| 25–29 | Garant |
-| 30–39 | Pilíř týmu |
-| 40+ | Legenda |
+| Levels | Rank (m / f) | One name per level |
+| --- | --- | --- |
+| 1–4 | Učeň / Učnice | prodlužek, izolepy, baterek, stahovacích pásků |
+| 5–9 | Tovaryš / Tovaryška | jacků, stativů, svorek, regálů, paleťáku |
+| 10–14 | Panoš / Panoška | casů, stageboxů, dodávky, rampy, kabelových bubnů |
+| 15–19 | Rytíř / Rytířka | kabelů, trussů, nakládky, mixpultu, vratky |
+| 20–24 | Učenec / Učenkyně | katalogu, skladových pozic, propojení, konfliktů, inventury |
+| 25–29 | Mistr / Mistrová | světel, zvuku, pódia, elektrocentrály, expedice |
+| 30–39 | Velmistr / Velmistrová | skladu, kamionu, line arraye, rigu, ground supportu, open airů, festivalů, generálek, turné, všech casů |
+| 40–49 | Legenda | ztracených kabelů, nočních nakládek, posledního odvozu, dlouhých vratek, plných casů, věčné zvukovky, zamotaných prodlužek, tisíce akcí, celého QUIXu, všech dob |
+| 50+ | Legenda | Legenda XI, XII … (Roman numeral after the named levels) |
 
-Shown as *"Senior II · Sklad"*: title, the step within its tier as a Roman numeral, and the role.
-Each new tier is the "something to be proud of" moment: it shows once next to the meter and is
-dated on the profile.
+Shown as, for example, *"Rytíř trussů"* (level 16). Every level-up has its own name, which is the
+small "something to be proud of" moment: it shows once next to the meter and is dated on the
+profile.
 
 ## Badges
 
@@ -264,7 +268,7 @@ added without touching the UI.
 
 ```
 ┌──────────────────────────────────────────────────────────────────────────┐
-│ QUIX HW   Rezervace  Kalendář  Katalog …       Senior II  ▰▰▰▰▰▱▱▱  🔔  │
+│ QUIX HW   Rezervace  Kalendář  Katalog …    Rytíř trussů  ▰▰▰▰▰▱▱▱  🔔  │
 │                                       +18 · Vratka Gala Dinner (pečlivě) │
 └──────────────────────────────────────────────────────────────────────────┘
 ```
@@ -275,7 +279,7 @@ added without touching the UI.
   Several at once combine: `+32 · 3 záznamy`. The line fades after ~8 s and leaves a small
   "+N dnes" label until the profile is opened. It sits in the normal page flow, never over
   content, and uses `aria-live="polite"`. With `prefers-reduced-motion` it does not fade.
-- A level-up or a new badge shows the same way (`Nová úroveň: Senior III`,
+- A level-up or a new badge shows the same way (`Nová úroveň: Rytíř nakládky`,
   `Nový odznak: Kompletní casy – stříbro`), plus a small dot on the meter until the profile is
   opened.
 - On phones (packing and vratka screens) the meter shrinks to the title and a thin bar, and the

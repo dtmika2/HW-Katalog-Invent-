@@ -36,6 +36,8 @@ interface Prefs {
   users: Record<string, SeenRecord>;
   /** People who switched levels and points off ("Zobrazovat úrovně a body"). Survives new demo data. */
   off?: Record<string, boolean>;
+  /** Grammatical form of each person's title ("Rytíř" / "Rytířka"). Survives new demo data. */
+  form?: Record<string, 'm' | 'f'>;
 }
 
 const EMPTY: Prefs = { v: 1, users: {} };
@@ -66,6 +68,7 @@ interface GamificationStore {
   clear: () => void;
   /** Switch levels and points off or on for one person; on again starts fresh (no flood). */
   setOff: (userId: string, off: boolean) => void;
+  setForm: (userId: string, form: 'm' | 'f') => void;
 }
 
 export const useGamificationStore = create<GamificationStore>()((set, get) => ({
@@ -76,8 +79,8 @@ export const useGamificationStore = create<GamificationStore>()((set, get) => ({
     set({ prefs });
   },
   clear: () => {
-    const off = get().prefs.off;
-    const prefs: Prefs = off ? { v: 1, users: {}, off } : EMPTY;
+    const { off, form } = get().prefs;
+    const prefs: Prefs = { v: 1, users: {}, ...(off ? { off } : {}), ...(form ? { form } : {}) };
     write(prefs);
     set({ prefs });
   },
@@ -85,6 +88,11 @@ export const useGamificationStore = create<GamificationStore>()((set, get) => ({
     const users = { ...get().prefs.users };
     if (!isOff) delete users[userId];
     const prefs: Prefs = { ...get().prefs, users, off: { ...get().prefs.off, [userId]: isOff } };
+    write(prefs);
+    set({ prefs });
+  },
+  setForm: (userId, form) => {
+    const prefs: Prefs = { ...get().prefs, form: { ...get().prefs.form, [userId]: form } };
     write(prefs);
     set({ prefs });
   },
@@ -122,6 +130,11 @@ export interface MyProgress {
   badges: BadgeProgress[];
   /** What this person has been shown (undefined until the first view). */
   seen: SeenRecord | undefined;
+}
+
+/** A person's chosen form of their title (masculine until chosen). */
+export function useTitleForm(userId: string): 'm' | 'f' {
+  return useGamificationStore((p) => p.prefs.form?.[userId] ?? 'm');
 }
 
 /** Whether a person switched levels and points off. */

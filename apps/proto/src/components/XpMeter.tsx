@@ -12,6 +12,7 @@ import {
   useDisplayOff,
   useGamificationStore,
   useMyProgress,
+  useTitleForm,
 } from '../store/gamification';
 
 /** How long the points line stays before it fades. */
@@ -23,6 +24,7 @@ export function XpMeter() {
   const p = useMyProgress();
   const put = useGamificationStore((x) => x.put);
   const off = useDisplayOff(p.userId);
+  const form = useTitleForm(p.userId);
   const [lines, setLines] = useState<string[]>([]);
   const [fading, setFading] = useState(false);
 
@@ -37,7 +39,7 @@ export function XpMeter() {
     if (fresh.length === 0 && newBadges.length === 0 && !levelUp) return;
     const next = [
       pointsLine(s, fresh),
-      levelUp ? cs.gamification.newLevel(titleOf(p.level)) : undefined,
+      levelUp ? cs.gamification.newLevel(titleOf(p.level, form)) : undefined,
       ...badgeLines(p.badges, newBadges),
     ].filter((x): x is string => !!x);
     setLines(next);
@@ -48,7 +50,7 @@ export function XpMeter() {
       badges: [...seen.badges, ...newBadges],
       level: Math.max(seen.level, p.level.level),
     });
-  }, [p, s, put, off]);
+  }, [p, s, put, off, form]);
 
   useEffect(() => {
     if (lines.length === 0) return;
@@ -62,12 +64,12 @@ export function XpMeter() {
 
   const viewed = new Set(p.seen?.viewed ?? p.mine.map((e) => e.id));
   const pending = p.mine.filter((e) => !viewed.has(e.id)).reduce((n, e) => n + e.points, 0);
-  const title = titleOf(p.level);
+  const title = titleOf(p.level, form);
   const pct = Math.round(p.level.progress * 100);
   if (off) return null;
 
   return (
-    <div data-testid="xp" className="flex w-full shrink-0 flex-col items-end sm:w-44">
+    <div data-testid="xp" className="flex w-full shrink-0 flex-col items-end sm:w-52">
       <NavLink
         to="/profil"
         aria-label={cs.gamification.meterLabel(title, pending)}

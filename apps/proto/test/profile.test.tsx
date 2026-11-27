@@ -1,9 +1,17 @@
 /** Gamification in the app: the profile (G5). */
 import { act, fireEvent, screen, within } from '@testing-library/react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
-import { closeBooking, computeLedger, levelFor, RULE_IDS, totalPoints } from '@quix/core';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import {
+  closeBooking,
+  computeLedger,
+  levelFor,
+  levelTier,
+  RULE_IDS,
+  totalPoints,
+} from '@quix/core';
 import { titleOf } from '../src/lib/gamification';
 import { useProto } from '../src/store';
+import { useGamificationStore } from '../src/store/gamification';
 import { renderApp, renderCurrent, state } from './helpers';
 
 const MARTIN = 'u-martin';
@@ -21,6 +29,11 @@ function closeBenefice() {
 const total = (userId: string) => totalPoints(computeLedger(state()), userId);
 
 afterEach(() => vi.useRealTimers());
+// the store outlives a test: nothing shown, nobody switched off, no title form chosen
+beforeEach(() => {
+  globalThis.localStorage.clear();
+  useGamificationStore.setState({ prefs: { v: 1, users: {} } });
+});
 
 describe('profile (G5)', () => {
   const showAll = () => {
@@ -103,5 +116,28 @@ describe('profile (G5)', () => {
     renderApp('/profil', { scenario: 'base', user: MARTIN });
     const how = screen.getByTestId('how-points');
     for (const r of RULE_IDS) expect(how.querySelector(`[data-rule="${r}"]`)).not.toBeNull();
+  });
+});
+
+describe('titles', () => {
+  it('every level up to 49 has its own name from the warehouse world; then a Roman numeral', () => {
+    const names = Array.from({ length: 49 }, (_, i) => titleOf(levelTier(i + 1)));
+    expect(new Set(names).size).toBe(49);
+    expect(names.every((n) => !/ [IVX]+$/.test(n))).toBe(true);
+    expect(titleOf(levelTier(1))).toBe('Učeň prodlužek');
+    expect(titleOf(levelTier(16))).toBe('Rytíř trussů');
+    expect(titleOf(levelTier(50))).toBe('Legenda XI');
+  });
+
+  it('the form of the title is the person’s choice and shows everywhere', () => {
+    renderApp('/profil', { scenario: 'base', user: MARTIN });
+    const level = levelFor(total(MARTIN));
+    const female = titleOf(level, 'f');
+    fireEvent.click(screen.getByRole('radio', { name: female }));
+    expect(screen.getByTestId('xp-title')).toHaveTextContent(female);
+    expect(screen.getByTestId('profile-level')).toHaveTextContent(female);
+    act(() => useProto.getState().setUser('u-tomas'));
+    renderCurrent('/tym');
+    expect(screen.getAllByTestId('team-card-u-martin').at(-1)).toHaveTextContent(female);
   });
 });

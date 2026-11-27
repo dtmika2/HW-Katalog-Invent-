@@ -1620,16 +1620,77 @@ export const cs = {
     effectNone: 'Počet skladem se nezmění.',
   },
   gamification: {
-    tiers: {
-      junior: 'Junior',
-      medior: 'Medior',
-      senior: 'Senior',
-      specialist: 'Specialista',
-      expert: 'Expert',
-      guarantor: 'Garant',
-      pillar: 'Pilíř týmu',
-      legend: 'Legenda',
-    } satisfies Record<LevelTier, string>,
+    /**
+     * Guild and knighthood ranks: the rank in both grammatical forms (the person picks one on the
+     * profile) and a name from the warehouse world for each level within it. Past the last name
+     * a level shows the rank with a Roman numeral.
+     */
+    titles: {
+      apprentice: {
+        m: 'Učeň',
+        f: 'Učnice',
+        steps: ['prodlužek', 'izolepy', 'baterek', 'stahovacích pásků'],
+      },
+      journeyman: {
+        m: 'Tovaryš',
+        f: 'Tovaryška',
+        steps: ['jacků', 'stativů', 'svorek', 'regálů', 'paleťáku'],
+      },
+      squire: {
+        m: 'Panoš',
+        f: 'Panoška',
+        steps: ['casů', 'stageboxů', 'dodávky', 'rampy', 'kabelových bubnů'],
+      },
+      knight: {
+        m: 'Rytíř',
+        f: 'Rytířka',
+        steps: ['kabelů', 'trussů', 'nakládky', 'mixpultu', 'vratky'],
+      },
+      scholar: {
+        m: 'Učenec',
+        f: 'Učenkyně',
+        steps: ['katalogu', 'skladových pozic', 'propojení', 'konfliktů', 'inventury'],
+      },
+      master: {
+        m: 'Mistr',
+        f: 'Mistrová',
+        steps: ['světel', 'zvuku', 'pódia', 'elektrocentrály', 'expedice'],
+      },
+      grandmaster: {
+        m: 'Velmistr',
+        f: 'Velmistrová',
+        steps: [
+          'skladu',
+          'kamionu',
+          'line arraye',
+          'rigu',
+          'ground supportu',
+          'open airů',
+          'festivalů',
+          'generálek',
+          'turné',
+          'všech casů',
+        ],
+      },
+      legend: {
+        m: 'Legenda',
+        f: 'Legenda',
+        steps: [
+          'ztracených kabelů',
+          'nočních nakládek',
+          'posledního odvozu',
+          'dlouhých vratek',
+          'plných casů',
+          'věčné zvukovky',
+          'zamotaných prodlužek',
+          'tisíce akcí',
+          'celého QUIXu',
+          'všech dob',
+        ],
+      },
+    } satisfies Record<LevelTier, { m: string; f: string; steps: string[] }>,
+    titleForm: 'Tvar titulu',
+    titleFormHint: 'Jen jak se titul zobrazuje vám i ostatním. Body ani úroveň to nemění.',
     level: (n: number) => `Úroveň ${n}`,
     xp: (n: number) => `${n.toLocaleString('cs-CZ')} XP`,
     plusXp: (n: number) => `+${n}`,

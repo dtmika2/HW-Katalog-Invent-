@@ -28,9 +28,15 @@ export function roman(n: number): string {
   return out;
 }
 
-/** "Senior II". */
-export const titleOf = (level: Pick<LevelInfo, 'tier' | 'step'>): string =>
-  `${cs.gamification.tiers[level.tier]} ${roman(level.step)}`;
+/** Grammatical form of a title, chosen by the person (masculine until chosen). */
+export type TitleForm = 'm' | 'f';
+
+/** "Rytíř trussů" / "Rytířka trussů"; past the named steps "Legenda XI". */
+export function titleOf(level: Pick<LevelInfo, 'tier' | 'step'>, form: TitleForm = 'm'): string {
+  const t = cs.gamification.titles[level.tier];
+  const name = t.steps[level.step - 1];
+  return `${t[form]} ${name ?? roman(level.step)}`;
+}
 
 /** A base entry with the bonuses earned the same day. */
 export interface EntryGroup {
