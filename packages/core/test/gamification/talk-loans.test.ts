@@ -9,6 +9,7 @@ import {
   type AppState,
   type Attachment,
   type LoanInput,
+  type User,
 } from '../../src';
 import { baseState, order, U, W, withBookings } from '../helpers';
 import { msg, of, pts, withMessages } from './helpers';
@@ -97,7 +98,7 @@ describe('gamification: communication', () => {
 });
 
 describe('gamification: loans', () => {
-  const loan = (input: Partial<LoanInput> = {}, by = U.petr) =>
+  const loan = (input: Partial<LoanInput> = {}, by: User = U.petr) =>
     unwrap(
       createLoan(baseState(), by, T, {
         itemId: 'hazer',
