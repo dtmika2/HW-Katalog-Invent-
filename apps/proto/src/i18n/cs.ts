@@ -4,6 +4,9 @@
  */
 import { isIsoDate } from '@quix/core';
 import type {
+  ActivityCategory,
+  BadgeId,
+  BadgeStepTier,
   BookingStatus,
   Condition,
   ConflictStatus,
@@ -11,10 +14,12 @@ import type {
   HoldKind,
   IssueResolutionKind,
   IssueType,
+  LevelTier,
   NotificationLevel,
   NotificationType,
   Params,
   Role,
+  RuleId,
   ServiceStatus,
   SystemEventType,
 } from '@quix/core';
@@ -26,6 +31,9 @@ const paramDate = (d: string | number | undefined) =>
 const cases = (n: number) => (n === 1 ? '1 case' : `${n} casy`);
 /** Millimetres as metres the Czech way: 6500 → "6,5". */
 const metres = (mm: number) => String(Math.round(mm / 10) / 100).replace('.', ',');
+/** "12 vratek" with the Czech plural; '' for none, so empty parts drop out of a list. */
+const gpl = (n: number, one: string, few: string, many: string) =>
+  n === 0 ? '' : `${n} ${n === 1 ? one : n >= 2 && n <= 4 ? few : many}`;
 const decks = (n: number) => `${n} ${n === 1 ? 'dílec' : n >= 2 && n <= 4 ? 'dílce' : 'dílců'}`;
 
 /** What somebody asks to cancel. */
@@ -1608,6 +1616,324 @@ export const cs = {
     effectLower: (n: number) => `Počet skladem se trvale sníží o ${n} ks.`,
     effectLowerCase: 'Case i jeho obsah se trvale odepíšou ze skladu.',
     effectNone: 'Počet skladem se nezmění.',
+  },
+  gamification: {
+    tiers: {
+      junior: 'Junior',
+      medior: 'Medior',
+      senior: 'Senior',
+      specialist: 'Specialista',
+      expert: 'Expert',
+      guarantor: 'Garant',
+      pillar: 'Pilíř týmu',
+      legend: 'Legenda',
+    } satisfies Record<LevelTier, string>,
+    level: (n: number) => `Úroveň ${n}`,
+    xp: (n: number) => `${n.toLocaleString('cs-CZ')} XP`,
+    plusXp: (n: number) => `+${n}`,
+    meterHint: (level: number, xp: number, next: number) =>
+      `Úroveň ${level} · ${xp} / ${next} XP · do další úrovně ${next - xp} XP. Kliknutím otevřete profil.`,
+    meterLabel: (title: string, pending: number) =>
+      `Můj profil: ${title}${pending > 0 ? `, ${pending} nových bodů` : ''}`,
+    pendingHint: 'Nové body od poslední návštěvy profilu',
+    careful: 'pečlivě',
+    records: (n: number) => `${n} ${n >= 2 && n <= 4 ? 'záznamy' : 'záznamů'}`,
+    newLevel: (title: string) => `Nová úroveň: ${title}`,
+    newBadge: (name: string, step: string) => `Nový odznak: ${name}${step ? ` – ${step}` : ''}`,
+    steps: {
+      bronze: 'bronz',
+      silver: 'stříbro',
+      gold: 'zlato',
+      single: '',
+    } satisfies Record<BadgeStepTier, string>,
+    categories: {
+      packing: 'Balení',
+      shipping: 'Odvozy',
+      vratka: 'Vratky',
+      reports: 'Hlášení',
+      service: 'Servis',
+      bookings: 'Rezervace',
+      decisions: 'Schvalování',
+      talk: 'Komunikace',
+      loans: 'Výpůjčky',
+    } satisfies Record<ActivityCategory, string>,
+    /** What was done, from the counts of rules ("12 vratek, z toho 8 včas"). */
+    activity: {
+      packing: (c: (r: RuleId) => number) => [
+        gpl(c('pack.packed'), 'balení', 'balení', 'balení'),
+        gpl(
+          c('pack.caseChecked'),
+          'zkontrolovaný case',
+          'zkontrolované casy',
+          'zkontrolovaných casů',
+        ),
+        gpl(c('pack.refilled'), 'doplněný case', 'doplněné casy', 'doplněných casů'),
+      ],
+      shipping: (c: (r: RuleId) => number) => [
+        gpl(c('ship.delivery'), 'odvoz', 'odvozy', 'odvozů'),
+        gpl(
+          c('ship.transfer'),
+          'předání mezi akcemi',
+          'předání mezi akcemi',
+          'předání mezi akcemi',
+        ),
+        gpl(
+          c('ship.lateRecorded'),
+          'věc na poslední chvíli',
+          'věci na poslední chvíli',
+          'věcí na poslední chvíli',
+        ),
+      ],
+      vratka: (c: (r: RuleId) => number) => [
+        gpl(c('vratka.session'), 'vratka', 'vratky', 'vratek'),
+        c('vratka.onTime') > 0 ? `z toho ${c('vratka.onTime')} včas` : '',
+        gpl(
+          c('vratka.settled'),
+          'kompletně vrácená zakázka',
+          'kompletně vrácené zakázky',
+          'kompletně vrácených zakázek',
+        ),
+        gpl(c('booking.closedBy'), 'uzavřená zakázka', 'uzavřené zakázky', 'uzavřených zakázek'),
+      ],
+      reports: (c: (r: RuleId) => number) => [
+        gpl(c('report.fault'), 'nahlášená závada', 'nahlášené závady', 'nahlášených závad'),
+        gpl(c('report.confirmed'), 'potvrzené hlášení', 'potvrzená hlášení', 'potvrzených hlášení'),
+      ],
+      service: (c: (r: RuleId) => number) => [
+        gpl(c('service.fixed'), 'oprava', 'opravy', 'oprav'),
+        gpl(c('service.progress'), 'posun servisu', 'posuny servisu', 'posunů servisu'),
+        gpl(c('issue.resolved'), 'vyřešený problém', 'vyřešené problémy', 'vyřešených problémů'),
+      ],
+      bookings: (c: (r: RuleId) => number) => [
+        gpl(c('booking.submitted'), 'předrezervace', 'předrezervace', 'předrezervací'),
+        gpl(c('booking.created'), 'nová rezervace', 'nové rezervace', 'nových rezervací'),
+        gpl(c('booking.completed'), 'dokončená akce', 'dokončené akce', 'dokončených akcí'),
+        gpl(
+          c('booking.shortageSolved'),
+          'vyřešený nedostatek',
+          'vyřešené nedostatky',
+          'vyřešených nedostatků',
+        ),
+        gpl(c('client.created'), 'nový klient', 'noví klienti', 'nových klientů'),
+      ],
+      decisions: (c: (r: RuleId) => number) => [
+        gpl(c('chief.approved'), 'schválení', 'schválení', 'schválení'),
+        gpl(c('chief.returned'), 'vrácení k doplnění', 'vrácení k doplnění', 'vrácení k doplnění'),
+        gpl(
+          c('chief.conflictResolved'),
+          'vyřešený konflikt',
+          'vyřešené konflikty',
+          'vyřešených konfliktů',
+        ),
+      ],
+      talk: (c: (r: RuleId) => number) => [
+        gpl(c('talk.message'), 'zpráva', 'zprávy', 'zpráv'),
+        gpl(
+          c('talk.note') + c('talk.file'),
+          'poznámka nebo soubor',
+          'poznámky nebo soubory',
+          'poznámek a souborů',
+        ),
+      ],
+      loans: (c: (r: RuleId) => number) => [
+        gpl(c('loan.recorded'), 'zapsaná výpůjčka', 'zapsané výpůjčky', 'zapsaných výpůjček'),
+        gpl(c('loan.returnedOnTime'), 'vrácená včas', 'vrácené včas', 'vrácených včas'),
+        gpl(c('loan.returnedFor'), 'vrácená za kolegu', 'vrácené za kolegy', 'vrácených za kolegy'),
+      ],
+    } satisfies Record<ActivityCategory, (c: (r: RuleId) => number) => string[]>,
+    /** Short reason (history, points line) and how it is counted ("Jak se počítají body"). */
+    rules: {
+      'pack.packed': {
+        label: 'Balení',
+        how: 'Zabalená technika pro zakázku (jednou za den a zakázku).',
+      },
+      'pack.caseChecked': {
+        label: 'Case zkontrolován',
+        how: 'Case přepočítaný po kusech při balení.',
+      },
+      'pack.refilled': {
+        label: 'Case doplněn',
+        how: 'Case doplněný z volného skladu, místo aby odjel neúplný.',
+      },
+      'ship.delivery': { label: 'Odvoz', how: 'Odvezená dodávka.' },
+      'ship.transfer': {
+        label: 'Předání mezi akcemi',
+        how: 'Technika předaná rovnou z jedné akce na druhou.',
+      },
+      'ship.lateRecorded': {
+        label: 'Věc na poslední chvíli',
+        how: 'Poctivě zapsaná věc odvezená na poslední chvíli.',
+      },
+      'vratka.session': { label: 'Vratka', how: 'Zapsaná vratka.' },
+      'vratka.caseCounted': {
+        label: 'Casy přepočítané',
+        how: 'Case přepočítaný po kusech ve vratce.',
+      },
+      'vratka.settled': { label: 'Vše vráceno', how: 'Vratka, po které je celá zakázka zpět.' },
+      'vratka.damageDescribed': {
+        label: 'Popsané poškození',
+        how: 'Poškození popsané tak, aby z toho servis něco měl (aspoň 25 znaků).',
+      },
+      'vratka.extraNote': {
+        label: 'Poznámka navíc',
+        how: 'Poznámka u kompletně vráceného řádku, kde ji nikdo nevyžaduje.',
+      },
+      'vratka.unexpected': {
+        label: 'Zapsaná věc navíc',
+        how: 'Věc, která se vrátila, ač nebyla na seznamu.',
+      },
+      'vratka.photo': { label: 'Fotka k vratce', how: 'Soubor přidaný k akci v den vratky.' },
+      'vratka.onTime': {
+        label: 'Vratka včas',
+        how: 'Vratka nejpozději v poslední rezervovaný den.',
+      },
+      'report.fault': {
+        label: 'Nahlášená závada',
+        how: 'Závada nahlášená ručně (poškození z vratky se počítá u vratky).',
+      },
+      'report.confirmed': {
+        label: 'Hlášení se potvrdilo',
+        how: 'Nahlášený kus skončil opravený nebo odepsaný.',
+      },
+      'service.progress': { label: 'Posun servisu', how: 'Změna stavu servisního případu.' },
+      'service.fixed': { label: 'Opraveno', how: 'Servisní případ dotažený do stavu Opraveno.' },
+      'issue.resolved': {
+        label: 'Vyřešený problém',
+        how: 'Problém vyřešený s popisem, jak dopadl.',
+      },
+      'booking.created': {
+        label: 'Nová rezervace',
+        how: 'Založená rezervace termínu nebo předrezervace.',
+      },
+      'booking.submitted': {
+        label: 'Předrezervace',
+        how: 'Odeslaná předrezervace (jednou, i když se odešle znovu).',
+      },
+      'booking.early': { label: 'S předstihem', how: 'Odesláno aspoň 14 dní před akcí.' },
+      'booking.veryEarly': {
+        label: 'S velkým předstihem',
+        how: 'Odesláno aspoň 30 dní před akcí.',
+      },
+      'booking.purpose': { label: 'Popsaný účel', how: 'Účel akce popsaný aspoň 40 znaky.' },
+      'booking.client': { label: 'Vyplněný klient', how: 'Předrezervace s vybraným klientem.' },
+      'booking.firstTime': {
+        label: 'Schváleno napoprvé',
+        how: 'Schváleno bez vrácení k doplnění.',
+      },
+      'booking.organised': {
+        label: 'Uspořádaný seznam',
+        how: 'Schválená objednávka s vlastními skupinami.',
+      },
+      'booking.shortageSolved': {
+        label: 'Vyřešený nedostatek',
+        how: 'Chybějící kusy vyřešené půjčením nebo z druhého skladu.',
+      },
+      'booking.completed': { label: 'Akce dokončena', how: 'Vlastní akce uzavřená po vratce.' },
+      'chief.approved': { label: 'Schválení', how: 'Schválená předrezervace jiného PM.' },
+      'chief.quick': { label: 'Rychlé schválení', how: 'Schváleno do 2 dnů od odeslání.' },
+      'chief.returned': { label: 'Vráceno k doplnění', how: 'Předrezervace vrácená PM s důvodem.' },
+      'chief.conflictResolved': {
+        label: 'Vyřešený konflikt',
+        how: 'Konflikt uzavřený s písemným řešením.',
+      },
+      'booking.closedBy': { label: 'Uzavřená zakázka', how: 'Vrácená zakázka uzavřená.' },
+      'client.created': { label: 'Nový klient', how: 'Založený klient.' },
+      'talk.message': { label: 'Zpráva', how: 'Zpráva u akce (aspoň 15 znaků).' },
+      'talk.reply': { label: 'Odpověď', how: 'Odpověď kolegovi do druhého dne.' },
+      'talk.note': { label: 'Poznámka', how: 'Poznámka u akce (aspoň 15 znaků).' },
+      'talk.file': { label: 'Soubor', how: 'Fotka nebo dokument u akce.' },
+      'loan.recorded': { label: 'Zapsaná výpůjčka', how: 'Výpůjčka zapsaná s datem vrácení.' },
+      'loan.returnedOnTime': {
+        label: 'Výpůjčka vrácena včas',
+        how: 'Vlastní výpůjčka vrácená do slíbeného dne.',
+      },
+      'loan.returnedFor': { label: 'Vráceno za kolegu', how: 'Vrácená výpůjčka někoho jiného.' },
+    } satisfies Record<RuleId, { label: string; how: string }>,
+    /** Units of rules that add points per counted thing. */
+    units: {
+      'pack.packed': 'ks',
+      'vratka.session': 'řádek',
+      'vratka.caseCounted': 'case',
+      'vratka.damageDescribed': 'řádek',
+      'vratka.extraNote': 'řádek',
+      'vratka.unexpected': 'věc',
+    } as Partial<Record<RuleId, string>>,
+    points: (n: number) => `${n} b.`,
+    perUnit: (pts: number, every: number, unit: string) =>
+      every > 1 ? `${pts} b. za každých ${every} ${unit}` : `${pts} b. za ${unit}`,
+    perUnitMax: (max: number) => `nejvýš ${max} b.`,
+    bonusMark: 'bonus',
+    capSubject: (n: number) => `nejvýš ${n}× u jednoho případu`,
+    pool: (n: number) => `v týdenním rozpočtu komunikace (${n} b. týdně dohromady)`,
+    badges: {
+      'first.packing': { name: 'První balení', how: 'První zabalená zakázka.' },
+      'first.vratka': { name: 'První vratka', how: 'První zapsaná vratka.' },
+      'first.request': { name: 'První předrezervace', how: 'První odeslaná předrezervace.' },
+      'first.report': { name: 'První hlášení', how: 'První ručně nahlášená závada.' },
+      'first.decision': {
+        name: 'První rozhodnutí',
+        how: 'První schválení nebo vrácení předrezervace.',
+      },
+      carefulVratka: {
+        name: 'Pečlivá vratka',
+        how: 'Vratky včas a s něčím navíc: popis poškození, poznámka, věc navíc nebo fotka.',
+      },
+      completeCases: { name: 'Kompletní casy', how: 'Casy přepočítané po kusech při balení.' },
+      fullCase: { name: 'Plný case', how: 'Casy doplněné ze skladu místo odjezdu neúplné.' },
+      ahead: { name: 'S předstihem', how: 'Předrezervace odeslané aspoň 14 dní před akcí.' },
+      firstTime: { name: 'Napoprvé', how: 'Předrezervace schválené bez vrácení k doplnění.' },
+      sharpEye: { name: 'Bystré oko', how: 'Hlášení, která servis potvrdil.' },
+      workshop: { name: 'Dílna', how: 'Servisní případy dotažené do stavu Opraveno.' },
+      solver: { name: 'Řešitel', how: 'Vyřešené konflikty a nedostatky.' },
+      chronicle: { name: 'Kronika', how: 'Akce s vlastní zprávou, poznámkou nebo souborem.' },
+      bridge: { name: 'Most mezi akcemi', how: 'Technika předaná rovnou z akce na akci.' },
+      loansOnTime: { name: 'Vráceno včas', how: 'Výpůjčky vrácené do slíbeného dne.' },
+      bigEvent: { name: 'Velká akce', how: 'Vratka se 100 a více řádky, vrácená celá najednou.' },
+      bothWarehouses: { name: 'Obě skladiště', how: 'Balení nebo vratka techniky z obou skladů.' },
+    } satisfies Record<BadgeId, { name: string; how: string }>,
+    profile: {
+      title: 'Můj profil',
+      total: (xp: number) => `Celkem ${xp.toLocaleString('cs-CZ')} XP`,
+      toNext: (n: number) => `Do další úrovně ${n} XP`,
+      thisMonth: (xp: number) => `Tento měsíc ${xp} XP`,
+      levelSince: (d: string) => `od ${fmtDate(d)}`,
+      badges: 'Odznaky',
+      earnedOn: (d: string) => `Získáno ${fmtDate(d)}`,
+      progress: (count: number, next: number) => `${count} / ${next}`,
+      allSteps: 'Všechny stupně získány',
+      activity: 'Aktivita',
+      period: 'Období',
+      periodMonth: 'Tento měsíc',
+      periodAll: 'Celkem',
+      monthsTitle: 'Body po měsících',
+      monthBar: (month: string, xp: number) => `${month}: ${xp} XP`,
+      /** "11/2026" from "2026-11". */
+      monthLabel: (ym: string) => `${Number(ym.slice(5, 7))}/${ym.slice(0, 4)}`,
+      noActivity: 'V tomto období žádná zaznamenaná práce.',
+      history: 'Proč mám body',
+      historyEmpty: 'Zatím žádné body.',
+      newMark: 'nové',
+      times: (n: number) => `${n}×`,
+      moreBadges: (n: number) => `Další odznaky (${n})`,
+      more: 'Zobrazit další',
+      bonusOn: (d: string) => `získáno ${fmtDate(d)}`,
+      overview: 'Přehled pro vedení',
+      overviewHint:
+        'Jednostránkový přehled zaznamenané práce za zvolené období. Vytiskněte ho nebo uložte jako PDF.',
+      overviewDoc: 'Přehled zaznamenané práce',
+      overviewFile: (name: string, from: string, to: string) =>
+        `Přehled práce – ${name} – ${fmtDate(from)}–${fmtDate(to)}`,
+      overviewPeriod: (from: string, to: string) => `Období ${fmtRange(from, to)}`,
+      overviewXp: (xp: number) => `Body za období: ${xp.toLocaleString('cs-CZ')} XP`,
+      overviewCare: 'Práce navíc',
+      overviewBadges: 'Odznaky získané v období',
+      overviewNone: 'Žádné',
+      overviewLevel: (title: string, level: number) => `${title} · úroveň ${level}`,
+      how: 'Jak se počítají body',
+      howIntro:
+        'Body se počítají z toho, co systém už zaznamenává. Nic se nepočítá ručně a nic se neodečítá. Bonus je za práci navíc nad to, co systém vyžaduje.',
+      footnote: 'Body ukazují práci zaznamenanou v systému, ne veškerou práci.',
+    },
   },
 };
 

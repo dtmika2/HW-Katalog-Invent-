@@ -21,6 +21,7 @@ import {
 } from '@quix/fixtures';
 import { cs } from '../i18n/cs';
 import { clearFiles, dropOrphans } from './files';
+import { clearGamification } from './gamification';
 
 const STORAGE_KEY = 'quix-hw-proto-v1';
 
@@ -116,6 +117,8 @@ export const useProto = create<ProtoState>()((set, get) => ({
     const state = sc.build();
     // attached files belong to the data that is thrown away
     void clearFiles();
+    // new demo data: none of its points are "new" to anybody
+    clearGamification();
     const userId = sc.focus?.userId ?? get().userId;
     set({ state, scenarioId: sc.id, today: DEMO_TODAY, userId, staleData: false });
   },

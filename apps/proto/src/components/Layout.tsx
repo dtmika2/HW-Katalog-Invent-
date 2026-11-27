@@ -8,6 +8,7 @@ import { clearPersisted, useAppState, useProto, useToday, useUser } from '../sto
 import { ScenarioHelp } from './ScenarioHelp';
 import { StageHelpButton } from './StageHelp';
 import { LEVEL_STYLE, Toasts } from './ui';
+import { XpMeter } from './XpMeter';
 
 function Bell() {
   const s = useAppState();
@@ -217,9 +218,15 @@ export function Layout({ children }: { children: ReactNode }) {
         </nav>
       </aside>
       <div className="min-w-0">
-        <header className="flex items-start justify-between gap-3 border-b border-alu-line bg-alu-dark/60 px-4 py-3 print:hidden">
+        <header className="flex flex-wrap items-start justify-between gap-3 border-b border-alu-line bg-alu-dark/60 px-4 py-3 print:hidden">
           <Controls />
-          <Bell />
+          {/* phones: the meter takes its own row under the controls; wider: beside the bell */}
+          <div className="order-3 w-full sm:order-none sm:w-auto">
+            <XpMeter key={user.id} />
+          </div>
+          <div className="order-2 sm:order-none">
+            <Bell />
+          </div>
         </header>
         <div className="print:hidden">
           <StaleDataBanner />
