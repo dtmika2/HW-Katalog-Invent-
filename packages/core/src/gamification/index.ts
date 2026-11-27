@@ -23,3 +23,10 @@ export {
   type BadgeProgress,
   type BadgeStepTier,
 } from './badges';
+export {
+  ACTIVITY_CATEGORIES,
+  activitySummary,
+  type ActivitySummary,
+  type MonthActivity,
+  type Tally,
+} from './summary';
