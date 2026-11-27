@@ -50,7 +50,7 @@ export function Attachments({ id, readOnly = false }: { id: string; readOnly?: b
   }
   return (
     <div data-testid="attachments">
-      <Section title={cs.attachments.title}>
+      <Section title={cs.attachments.title} tone="gray">
         <AddForms id={id} />
         <List list={list} />
       </Section>
