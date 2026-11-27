@@ -2,7 +2,15 @@
  * The points table, as data. See `docs/gamification-plan.md` ("What earns points") for where each
  * rule's facts come from and why the excluded ones are excluded.
  */
-import type { RuleDef } from './types';
+import type { PoolId, RuleDef } from './types';
+
+/**
+ * Weekly budgets of points per person (Monday to Sunday). Communication supports the work, so all
+ * of it together counts up to this much a week, however much is written.
+ */
+export const POOLS: Record<PoolId, { perWeek: number }> = {
+  talk: { perWeek: 4 },
+};
 
 export const RULES = {
   // Warehouse: packing and shipping
@@ -46,30 +54,30 @@ export const RULES = {
   'issue.resolved': { category: 'service', points: 6 },
 
   // Project managers: bookings
-  'booking.created': { category: 'bookings', points: 3 },
-  'booking.submitted': { category: 'bookings', points: 10 },
-  'booking.early': { category: 'bookings', points: 10, bonus: true },
-  'booking.veryEarly': { category: 'bookings', points: 15, bonus: true },
+  'booking.created': { category: 'bookings', points: 4 },
+  'booking.submitted': { category: 'bookings', points: 8 },
+  'booking.early': { category: 'bookings', points: 6, bonus: true },
+  'booking.veryEarly': { category: 'bookings', points: 10, bonus: true },
   'booking.purpose': { category: 'bookings', points: 3, bonus: true },
   'booking.client': { category: 'bookings', points: 2, bonus: true },
   'booking.firstTime': { category: 'bookings', points: 5, bonus: true },
   'booking.organised': { category: 'bookings', points: 3, bonus: true },
   'booking.shortageSolved': { category: 'bookings', points: 8 },
-  'booking.completed': { category: 'bookings', points: 10 },
+  'booking.completed': { category: 'bookings', points: 12 },
 
   // Chief: decisions, and closing a returned order
-  'chief.approved': { category: 'decisions', points: 10 },
-  'chief.quick': { category: 'decisions', points: 5, bonus: true },
+  'chief.approved': { category: 'decisions', points: 14 },
+  'chief.quick': { category: 'decisions', points: 3, bonus: true },
   'chief.returned': { category: 'decisions', points: 5 },
   'chief.conflictResolved': { category: 'decisions', points: 10 },
   'booking.closedBy': { category: 'vratka', points: 3 },
   'client.created': { category: 'bookings', points: 3 },
 
-  // Communication
-  'talk.message': { category: 'talk', points: 2, caps: { perBookingDay: 3, perDay: 10 } },
-  'talk.reply': { category: 'talk', points: 1 },
-  'talk.note': { category: 'talk', points: 3, caps: { perDay: 5 } },
-  'talk.file': { category: 'talk', points: 4, caps: { perDay: 5 } },
+  // Communication (one weekly budget for all of it, see POOLS)
+  'talk.message': { category: 'talk', points: 1, pool: 'talk' },
+  'talk.reply': { category: 'talk', points: 1, pool: 'talk' },
+  'talk.note': { category: 'talk', points: 2, pool: 'talk' },
+  'talk.file': { category: 'talk', points: 2, pool: 'talk' },
 
   // Loans
   'loan.recorded': { category: 'loans', points: 2 },

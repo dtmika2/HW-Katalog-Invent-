@@ -27,7 +27,11 @@ export interface RuleDef {
   bonus?: true;
   /** At most this many entries of the rule per person and day, per person, booking and day, or per subject. */
   caps?: { perDay?: number; perBookingDay?: number; perSubject?: number };
+  /** Rules sharing a weekly budget of points per person (see `POOLS`). */
+  pool?: PoolId;
 }
+
+export type PoolId = 'talk';
 
 /** One reason for points. */
 export interface LedgerEntry {
