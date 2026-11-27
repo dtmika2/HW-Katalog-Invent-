@@ -1622,8 +1622,8 @@ export const cs = {
   gamification: {
     /**
      * Guild and knighthood ranks: the rank in both grammatical forms (the person picks one on the
-     * profile) and a name from the warehouse world for each level within it. Past the last name
-     * a level shows the rank with a Roman numeral.
+     * profile), its step as a Roman numeral, and a name from the warehouse world for each level
+     * ("Rytíř II – trussů"). Past the last name only the rank and numeral ("Legenda XI").
      */
     titles: {
       apprentice: {

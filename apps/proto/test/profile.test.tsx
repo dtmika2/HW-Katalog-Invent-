@@ -1,5 +1,5 @@
 /** Gamification in the app: the profile (G5). */
-import { act, fireEvent, screen, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   closeBooking,
@@ -120,13 +120,57 @@ describe('profile (G5)', () => {
 });
 
 describe('titles', () => {
-  it('every level up to 49 has its own name from the warehouse world; then a Roman numeral', () => {
+  it('every title shows the rank and its step, so the order is clear, plus a name up to level 49', () => {
     const names = Array.from({ length: 49 }, (_, i) => titleOf(levelTier(i + 1)));
     expect(new Set(names).size).toBe(49);
-    expect(names.every((n) => !/ [IVX]+$/.test(n))).toBe(true);
-    expect(titleOf(levelTier(1))).toBe('Učeň prodlužek');
-    expect(titleOf(levelTier(16))).toBe('Rytíř trussů');
+    expect(names.every((n) => / [IVX]+ – \S/.test(n))).toBe(true);
+    expect(titleOf(levelTier(1))).toBe('Učeň I – prodlužek');
+    expect(titleOf(levelTier(15))).toBe('Rytíř I – kabelů');
+    expect(titleOf(levelTier(16))).toBe('Rytíř II – trussů');
+    expect(titleOf(levelTier(16), 'f')).toBe('Rytířka II – trussů');
     expect(titleOf(levelTier(50))).toBe('Legenda XI');
+  });
+
+  it('the form can be changed back and forth at any time', () => {
+    renderApp('/profil', { scenario: 'base', user: MARTIN });
+    const level = levelFor(total(MARTIN));
+    fireEvent.click(screen.getByRole('radio', { name: titleOf(level, 'f') }));
+    expect(screen.getByTestId('xp-title')).toHaveTextContent(titleOf(level, 'f'));
+    fireEvent.click(screen.getByRole('radio', { name: titleOf(level, 'm') }));
+    expect(screen.getByTestId('xp-title')).toHaveTextContent(titleOf(level, 'm'));
+  });
+
+  it('badges never deplete: the count keeps growing, only the next target moves up', () => {
+    // Martin has 17 checked cases: bronze needs 25, so the card shows 17 / 25 …
+    renderApp('/profil', { scenario: 'base', user: MARTIN });
+    expect(screen.getByTestId('badge-completeCases')).toHaveTextContent('17 / 25');
+    cleanup();
+    // … and with 30, bronze is earned and the bar continues from 30 towards silver, not from 0.
+    renderApp('/profil', {
+      scenario: 'base',
+      user: MARTIN,
+      prepare: (s) => ({
+        ...s,
+        packings: [
+          ...s.packings,
+          {
+            id: 'pk-extra',
+            bookingId: 'bk-benefice',
+            on: '2027-04-19',
+            userId: MARTIN,
+            lines: Array.from({ length: 13 }, (_, i) => ({
+              lineId: `l-extra-${i}`,
+              qty: 1,
+              caseIds: [`case-extra-${i}`],
+              caseChecks: [{ caseId: `case-extra-${i}`, counts: [] }],
+            })),
+          },
+        ],
+      }),
+    });
+    const card = screen.getByTestId('badge-completeCases');
+    expect(card).toHaveAttribute('data-earned', '1');
+    expect(card).toHaveTextContent('30 / 150');
   });
 
   it('the form of the title is the person’s choice and shows everywhere', () => {

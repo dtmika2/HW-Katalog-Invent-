@@ -31,11 +31,14 @@ export function roman(n: number): string {
 /** Grammatical form of a title, chosen by the person (masculine until chosen). */
 export type TitleForm = 'm' | 'f';
 
-/** "Rytíř trussů" / "Rytířka trussů"; past the named steps "Legenda XI". */
+/**
+ * "Rytíř II – trussů" / "Rytířka II – trussů": the rank with its step (so it is clear which knight
+ * is higher) and the level's name from the warehouse; past the named steps just "Legenda XI".
+ */
 export function titleOf(level: Pick<LevelInfo, 'tier' | 'step'>, form: TitleForm = 'm'): string {
   const t = cs.gamification.titles[level.tier];
   const name = t.steps[level.step - 1];
-  return `${t[form]} ${name ?? roman(level.step)}`;
+  return `${t[form]} ${roman(level.step)}${name ? ` – ${name}` : ''}`;
 }
 
 /** A base entry with the bonuses earned the same day. */
