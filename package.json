@@ -18,7 +18,8 @@
     "build": "npm run build --workspaces --if-present",
     "dev": "npm run dev -w apps/proto",
     "coverage": "npm run coverage -w packages/core",
-    "e2e": "node node_modules/@playwright/test/cli.js test"
+    "e2e": "node node_modules/@playwright/test/cli.js test",
+    "xp-report": "node node_modules/vite-node/vite-node.mjs scripts/xp-report.ts"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.5",

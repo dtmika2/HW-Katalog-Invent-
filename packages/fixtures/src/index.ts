@@ -10,6 +10,18 @@ import { transfer } from './scenarios/transfer';
 export { BOOKINGS, buildCatalog, DEMO_TODAY, generateState, SEED } from './generate';
 export { Builder, type BookingSpec, type LineSpec, type Stage } from './builder';
 export { mulberry32 } from './prng';
+export {
+  calibrate,
+  CORE_RULES,
+  TARGETS,
+  withTypicalTalk,
+  xpReport,
+  type Calibration,
+  type Check,
+  type PersonReport,
+  type RoleReport,
+  type XpReport,
+} from './calibration';
 export * from './catalog-data';
 export { GALA_ID, GALA_STEPS, galaDinner } from './scenarios/gala-dinner';
 export { CHAIN, conflictChain } from './scenarios/conflict-chain';
