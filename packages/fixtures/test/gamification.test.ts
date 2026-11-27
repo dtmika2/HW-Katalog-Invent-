@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { computeLedger, RULES, SYSTEM_USER_ID } from '@quix/core';
-import { SCENARIOS } from '../src';
+import { calibrate, DEMO_TODAY, SCENARIOS } from '../src';
 
 describe('gamification over the demo scenarios', () => {
   for (const sc of SCENARIOS) {
@@ -24,4 +24,24 @@ describe('gamification over the demo scenarios', () => {
       expect(computeLedger(s)).toEqual(l);
     });
   }
+});
+
+describe('gamification calibration (G3)', () => {
+  const base = SCENARIOS.find((s) => s.id === 'base')!.build();
+  const cal = calibrate(base, DEMO_TODAY);
+
+  it('meets every balance target: roles, single rules, communication of a talkative team', () => {
+    expect(cal.checks.filter((c) => !c.ok)).toEqual([]);
+  });
+
+  it('per-role and per-person figures stay where they were calibrated (review any change)', () => {
+    const round = (x: number) => Math.round(x);
+    expect({
+      roles: cal.demo.roles.map((r) => ({ ...r, perPersonMonth: round(r.perPersonMonth) })),
+      people: Object.fromEntries(cal.demo.people.map((p) => [p.userId, p.total])),
+      talkative: Object.fromEntries(
+        cal.talkative.people.map((p) => [p.userId, round(p.talkShare * 100)]),
+      ),
+    }).toMatchSnapshot();
+  });
 });

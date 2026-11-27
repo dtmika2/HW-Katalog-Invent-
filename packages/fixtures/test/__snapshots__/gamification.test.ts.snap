@@ -1,0 +1,44 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`gamification calibration (G3) > per-role and per-person figures stay where they were calibrated (review any change) 1`] = `
+{
+  "people": {
+    "u-jana": 228,
+    "u-karel": 25,
+    "u-lucie": 389,
+    "u-martin": 741,
+    "u-ondra": 0,
+    "u-petr": 257,
+    "u-tomas": 316,
+  },
+  "roles": [
+    {
+      "people": 3,
+      "perPersonMonth": 125,
+      "role": "pm",
+      "total": 874,
+    },
+    {
+      "people": 1,
+      "perPersonMonth": 135,
+      "role": "chief",
+      "total": 316,
+    },
+    {
+      "people": 2,
+      "perPersonMonth": 164,
+      "role": "warehouse",
+      "total": 766,
+    },
+  ],
+  "talkative": {
+    "u-jana": 14,
+    "u-karel": 0,
+    "u-lucie": 9,
+    "u-martin": 3,
+    "u-ondra": 0,
+    "u-petr": 11,
+    "u-tomas": 12,
+  },
+}
+`;
