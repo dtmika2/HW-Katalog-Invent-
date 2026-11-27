@@ -22,8 +22,9 @@ import {
 import { cs } from '../i18n/cs';
 import { clearFiles, dropOrphans } from './files';
 import { clearGamification } from './gamification';
+import { STORAGE_SUFFIX } from '../lib/storage';
 
-const STORAGE_KEY = 'quix-hw-proto-v1';
+const STORAGE_KEY = `quix-hw-proto-v1${STORAGE_SUFFIX}`;
 
 export interface Toast {
   id: number;

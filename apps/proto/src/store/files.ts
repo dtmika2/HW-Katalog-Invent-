@@ -3,7 +3,9 @@
  * nobody else gets them. Without IndexedDB (blocked, private window) they last until the page is
  * closed.
  */
-const DB = 'quix-hw-files';
+import { STORAGE_SUFFIX } from '../lib/storage';
+
+const DB = `quix-hw-files${STORAGE_SUFFIX}`;
 const STORE = 'files';
 
 interface Stored {

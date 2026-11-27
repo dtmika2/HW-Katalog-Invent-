@@ -16,8 +16,9 @@ import {
   type LevelInfo,
 } from '@quix/core';
 import { useAppState, useUser } from './index';
+import { STORAGE_SUFFIX } from '../lib/storage';
 
-export const GAMIFICATION_KEY = 'quix-gamification';
+export const GAMIFICATION_KEY = `quix-gamification${STORAGE_SUFFIX}`;
 
 /** What one person has been shown. */
 export interface SeenRecord {
