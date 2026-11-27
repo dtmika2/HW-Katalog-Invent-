@@ -452,21 +452,37 @@ badges.
    per-role and per-person figures, so any shift shows in review. Unit tests read the expected
    points from `RULES`, so recalibrating does not mean rewriting them.
 
-### G4: XP meter and points line
+### G4: XP meter and points line ✓ (Nov 27, 2026)
 
-1. `useLedger()`, `useXpFeed()` (the seen-ids diff, the `quix-gamification` key, reset with
-   *Obnovit demo data*).
-2. The `XpMeter` component in `Layout.tsx` next to the bell, desktop and phone layouts; the
-   points line, level-up and badge messages; reduced motion; `aria-live`.
-3. Component tests: an action that creates a vratka shows `+N · …` next to the meter and nowhere
-   else; switching user does not announce old history.
+1. ✓ `store/gamification.ts`: `ledgerOf` (cached per state object), `useMyProgress`, and what each
+   person has been shown (`announced`, `viewed`, badge steps, level) in `quix-gamification`.
+   The key is cleared whenever demo data is loaded (one call in `loadScenario`, the only edit to
+   the existing store). Without that, points earned again after *Obnovit demo data* would have
+   the same ids and never be announced.
+2. ✓ `XpMeter` beside the bell: title with step, a thin bar, `+N` until the profile is opened
+   (this replaces the planned dot: new badges and levels always come with points). New points,
+   level-ups and badge steps show once in a line under the meter, inside the header's existing
+   height on desktop. It fades after 8 s and is a polite live region. On phones the meter takes
+   its own full-width row under the controls, because the user select alone fills the width.
+3. ✓ `test/xp-meter.test.tsx`: title and level; the first view announces nothing; a closed
+   order shows `+3 · Uzavřená zakázka – Benefice Dobrý start` inside the meter only; the line
+   fades and `+N` stays; switching user announces nothing; each point is announced once. Also
+   checked in a real browser (desktop and 390 px).
 
-### G5: Profile
+### G5: Profile ✓ (Nov 27, 2026)
 
-1. The `/profil` route: header, badges grid, activity by month and category, history with links.
-2. *Přehled pro vedení*: period picker and a print / save-as-PDF page.
-3. A *Jak se počítají body* section generated from `rules.ts`.
-4. Tests: history explains every point; the PDF lists the right period.
+1. ✓ `/profil`: level, title and totals; badges (earned and started ones shown, the rest folded
+   under "Další odznaky", since many belong to another role's work); activity per period in
+   words with monthly bars (thin bars, values written beside them); "Proč mám body" with every
+   entry, its event and its bonuses. Identical rows of one day are merged ("Case zkontrolován
+   5×"), and new entries are marked during the visit.
+2. ✓ *Přehled pro vedení*: a period picker and a one-page paper version (browser print / save as
+   PDF): activity, extra care, badges earned in the period, and the footnote.
+3. ✓ *Jak se počítají body*, generated from `RULES` (points, units, maximums, limits, weekly
+   budget), with a Czech label and explanation per rule (`Record<RuleId, …>`).
+4. ✓ `test/profile.test.tsx`: the history adds up to the total; repeated rows merge; opening the
+   profile marks the new entry and clears `+N`; badges earned and folded; activity by period;
+   the overview follows the chosen period; every rule is explained.
 
 ### G6: Team and visibility
 
