@@ -37,6 +37,13 @@ export const RULES = {
   },
   'vratka.photo': { category: 'vratka', points: 3, bonus: true },
   'vratka.onTime': { category: 'vratka', points: 5, bonus: true },
+
+  // Reporting problems and service
+  'report.fault': { category: 'reports', points: 8 },
+  'report.confirmed': { category: 'reports', points: 5, bonus: true },
+  'service.progress': { category: 'service', points: 3, caps: { perSubject: 5 } },
+  'service.fixed': { category: 'service', points: 10 },
+  'issue.resolved': { category: 'service', points: 6 },
 } as const satisfies Record<string, RuleDef>;
 
 export type RuleId = keyof typeof RULES;
