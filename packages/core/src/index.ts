@@ -27,6 +27,7 @@
  * - `loans` — quick loans outside reservations.
  * - `clients` — light client records: add, edit, archive, look-alike names.
  * - `notifications` — in-app notifications and the booking thread.
+ * - `gamification` — experience points derived from the records above (read-only).
  */
 import { DEFAULT_SETTINGS, type AppState } from './types';
 
@@ -54,6 +55,7 @@ export * from './late';
 export * from './stage';
 export * from './jobs';
 export * from './notifications';
+export * from './gamification';
 
 /** An empty state with default settings. */
 export function emptyState(): AppState {
