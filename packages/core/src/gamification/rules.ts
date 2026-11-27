@@ -64,6 +64,17 @@ export const RULES = {
   'chief.conflictResolved': { category: 'decisions', points: 10 },
   'booking.closedBy': { category: 'vratka', points: 3 },
   'client.created': { category: 'bookings', points: 3 },
+
+  // Communication
+  'talk.message': { category: 'talk', points: 2, caps: { perBookingDay: 3, perDay: 10 } },
+  'talk.reply': { category: 'talk', points: 1 },
+  'talk.note': { category: 'talk', points: 3, caps: { perDay: 5 } },
+  'talk.file': { category: 'talk', points: 4, caps: { perDay: 5 } },
+
+  // Loans
+  'loan.recorded': { category: 'loans', points: 2 },
+  'loan.returnedOnTime': { category: 'loans', points: 3 },
+  'loan.returnedFor': { category: 'loans', points: 2 },
 } as const satisfies Record<string, RuleDef>;
 
 export type RuleId = keyof typeof RULES;

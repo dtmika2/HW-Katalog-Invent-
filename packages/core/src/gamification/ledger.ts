@@ -9,6 +9,7 @@ import { bookingDrafts, chiefDrafts } from './sources/bookings';
 import { isPerson } from './sources/common';
 import { packingDrafts } from './sources/packing';
 import { reportDrafts } from './sources/reports';
+import { loanDrafts, talkDrafts } from './sources/talk';
 import { vratkaDrafts } from './sources/vratka';
 import type { Draft, LedgerEntry, LedgerOptions } from './types';
 
@@ -18,6 +19,8 @@ const SOURCES: ((state: AppState) => Draft[])[] = [
   reportDrafts,
   bookingDrafts,
   chiefDrafts,
+  talkDrafts,
+  loanDrafts,
 ];
 
 /** All ledger entries, sorted by day (then by the order the facts were recorded). */
