@@ -11,6 +11,7 @@ import { Dashboard } from './routes/Dashboard';
 import { EventCalendar } from './routes/EventCalendar';
 import { CaseTypeDetail, ItemDetail } from './routes/ItemDetail';
 import { Loans } from './routes/Loans';
+import { NewItem } from './routes/NewItem';
 import { Packing } from './routes/Packing';
 import { Shipping } from './routes/Shipping';
 import { Service } from './routes/Service';
@@ -33,6 +34,7 @@ export function AppRoutes() {
         <Route path="/notifications" element={<Notifications />} />
         <Route path="/calendar" element={<EventCalendar />} />
         <Route path="/catalog" element={<Catalog />} />
+        <Route path="/items/new" element={<NewItem />} />
         <Route path="/items/:id" element={<ItemDetail />} />
         <Route path="/case-types/:id" element={<CaseTypeDetail />} />
         <Route path="/packing/:id" element={<Packing />} />

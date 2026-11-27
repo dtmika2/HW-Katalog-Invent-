@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   addConnection,
   bulkUpdateItems,
+  createItem,
   duplicateItem,
   expand,
   importItems,
@@ -221,6 +222,101 @@ describe('catalogue editing', () => {
     expect(r.state.items.find((i) => i.id === 'clamp')).toMatchObject({
       priceDay: 30,
       returnable: false,
+    });
+  });
+});
+
+describe('new item with its connections', () => {
+  const newBar = {
+    id: 'ignored',
+    name: ' LED bar ',
+    manufacturer: 'Test',
+    model: 'Bar',
+    categoryId: 'cat',
+    priceDay: 300,
+    returnable: true,
+    archived: false,
+  };
+
+  it('a new item is created with its stock and all its connections in one step', () => {
+    const r = unwrap(
+      createItem(s, U.tomas, {
+        item: newBar,
+        stock: [
+          { warehouseId: W.brod, qty: 6, homeLocationId: L.brodB },
+          { warehouseId: W.karlak, qty: 0 },
+        ],
+        connections: [
+          { target: { itemId: 'powercon' }, kind: 'required', rule: 'per_piece', qty: 1 },
+          {
+            target: { itemId: 'clamp' },
+            kind: 'required',
+            rule: 'per_piece',
+            qty: 2,
+            groupId: 'rig',
+            groupMode: 'or',
+          },
+          {
+            target: { itemId: 'stand' },
+            kind: 'required',
+            rule: 'per_n',
+            n: 4,
+            qty: 1,
+            groupId: 'rig',
+            groupMode: 'or',
+          },
+          { target: { itemId: 'splitter' }, kind: 'recommended', rule: 'once_per_order', qty: 1 },
+        ],
+      }),
+    );
+    expect(r.itemId).not.toBe('ignored');
+    expect(r.state.items.find((i) => i.id === r.itemId)?.name).toBe('LED bar');
+    expect(r.state.stock.filter((x) => x.itemId === r.itemId)).toEqual([
+      { itemId: r.itemId, warehouseId: W.brod, qty: 6, homeLocationId: L.brodB },
+    ]);
+    const conns = r.state.connections.filter((c) => c.fromItemId === r.itemId);
+    expect(conns.map((c) => c.target)).toEqual([
+      { itemId: 'powercon' },
+      { itemId: 'clamp' },
+      { itemId: 'stand' },
+      { itemId: 'splitter' },
+    ]);
+    // the engine picks the new item's connections up right away
+    const e = expand([ln('l1', { itemId: r.itemId }, 4)], r.state);
+    expect(e.lines.find((l) => 'itemId' in l.target && l.target.itemId === 'powercon')?.qty).toBe(
+      4,
+    );
+  });
+
+  it('nothing is saved when one part of a new item is invalid', () => {
+    const bad = createItem(s, U.tomas, {
+      item: newBar,
+      stock: [{ warehouseId: W.brod, qty: 2, homeLocationId: L.brodA }],
+      connections: [
+        { target: { itemId: 'powercon' }, kind: 'required', rule: 'per_piece', qty: 1 },
+        { target: { itemId: 'stand' }, kind: 'required', rule: 'per_n', qty: 1 },
+      ],
+    });
+    expect(bad).toMatchObject({
+      ok: false,
+      error: { code: 'validation', details: { field: 'n', connection: 1 } },
+    });
+    expect(
+      createItem(s, U.tomas, {
+        item: newBar,
+        stock: [{ warehouseId: W.karlak, qty: 3, homeLocationId: L.brodA }],
+        connections: [],
+      }),
+    ).toMatchObject({
+      ok: false,
+      error: { details: { field: 'homeLocationId', warehouseId: W.karlak } },
+    });
+    expect(
+      createItem(s, U.tomas, { item: { ...newBar, name: '' }, stock: [], connections: [] }),
+    ).toMatchObject({ ok: false, error: { details: { field: 'name' } } });
+    expect(createItem(s, U.petr, { item: newBar, stock: [], connections: [] })).toMatchObject({
+      ok: false,
+      error: { code: 'forbidden' },
     });
   });
 });

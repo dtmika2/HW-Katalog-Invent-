@@ -48,6 +48,48 @@ export function upsertItem(
   return ok({ state: next, itemId: result });
 }
 
+export interface NewItemInput {
+  /** The item; its `id` is ignored and a fresh one is assigned. */
+  item: Item;
+  /** Pieces per warehouse; rows with 0 pieces are skipped. */
+  stock: { warehouseId: Id; qty: number; homeLocationId?: Id }[];
+  /** Outgoing connections of the new item. */
+  connections: Omit<Connection, 'id' | 'fromItemId'>[];
+}
+
+/**
+ * Create a new item together with its stock and all its connections in one step. Either
+ * everything is saved or nothing: the first invalid part is reported (connection errors carry
+ * their index as `details.connection`, stock errors the `details.warehouseId`).
+ */
+export function createItem(
+  state: AppState,
+  user: User,
+  input: NewItemInput,
+): Result<{ state: AppState; itemId: Id }> {
+  if (!can(user, 'edit_catalogue')) return forbidden();
+  const created = upsertItem(state, user, { ...input.item, id: '' });
+  if (!created.ok) return created;
+  const { itemId } = created.value;
+  let s = created.value.state;
+  for (const st of input.stock) {
+    if (st.qty === 0) continue;
+    const r = setItemStock(s, user, itemId, st.warehouseId, st.qty, st.homeLocationId);
+    if (!r.ok)
+      return err(r.error.code, r.error.message, {
+        ...r.error.details,
+        warehouseId: st.warehouseId,
+      });
+    s = r.value;
+  }
+  for (const [i, conn] of input.connections.entries()) {
+    const r = addConnection(s, user, { ...conn, fromItemId: itemId });
+    if (!r.ok) return err(r.error.code, r.error.message, { ...r.error.details, connection: i });
+    s = r.value.state;
+  }
+  return ok({ state: s, itemId });
+}
+
 /** Copy an item (similar lights differ only in name). Stock is not copied. */
 export function duplicateItem(
   state: AppState,
