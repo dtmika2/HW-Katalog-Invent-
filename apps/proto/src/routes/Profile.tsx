@@ -3,7 +3,7 @@
  * its reason), the printable overview for management, and how points are counted.
  */
 import { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import {
   ACTIVITY_CATEGORIES,
   activitySummary,
@@ -39,7 +39,12 @@ import {
   type HistoryRow as HistoryRowData,
 } from '../lib/gamification';
 import { useAppState, useToday, useUser } from '../store';
-import { useGamificationStore, useMyProgress, type MyProgress } from '../store/gamification';
+import {
+  useDisplayOff,
+  useGamificationStore,
+  useMyProgress,
+  type MyProgress,
+} from '../store/gamification';
 
 const g = cs.gamification;
 const pf = cs.gamification.profile;
@@ -55,7 +60,17 @@ function activityLines(sum: ActivitySummary) {
   }));
 }
 
-function LevelHeader({ user, p, today }: { user: User; p: MyProgress; today: IsoDate }) {
+function LevelHeader({
+  user,
+  p,
+  today,
+  showXp,
+}: {
+  user: User;
+  p: MyProgress;
+  today: IsoDate;
+  showXp: boolean;
+}) {
   const month = activitySummary(p.mine, p.userId, startOfMonth(today), endOfMonth(today));
   const since = levelHistory(p.mine, p.userId).at(-1)?.on;
   const pct = Math.round(p.level.progress * 100);
@@ -84,11 +99,13 @@ function LevelHeader({ user, p, today }: { user: User; p: MyProgress; today: Iso
       >
         <div className="h-full rounded-full bg-tape" style={{ width: `${pct}%` }} />
       </div>
-      <p className="mt-2 flex flex-wrap justify-between gap-x-4 text-sm text-ink-soft">
-        <span>{pf.total(p.total)}</span>
-        <span>{pf.toNext(p.level.nextAt - p.total)}</span>
-        <span>{pf.thisMonth(month.xp)}</span>
-      </p>
+      {showXp && (
+        <p className="mt-2 flex flex-wrap justify-between gap-x-4 text-sm text-ink-soft">
+          <span>{pf.total(p.total)}</span>
+          <span>{pf.toNext(p.level.nextAt - p.total)}</span>
+          <span>{pf.thisMonth(month.xp)}</span>
+        </p>
+      )}
     </section>
   );
 }
@@ -325,7 +342,7 @@ function HistoryItem({
 
 function History({ p, unviewed }: { p: MyProgress; unviewed: ReadonlySet<string> }) {
   const s = useAppState();
-  const user = useUser();
+  const user = useUser(); // the viewer: which events they may open
   const [shown, setShown] = useState(HISTORY_PAGE);
   const groups = useMemo(() => historyRows(groupEntries(p.mine).reverse()), [p.mine]);
   return (
@@ -499,37 +516,83 @@ function HowPoints() {
   );
 }
 
-export function Profile() {
-  const user = useUser();
+/** The person's own switch for levels and points. */
+function DisplaySwitch({ userId }: { userId: string }) {
+  const off = useDisplayOff(userId);
+  const setOff = useGamificationStore((x) => x.setOff);
+  return (
+    <Section title={pf.settings}>
+      <label className="flex items-start gap-2 text-sm">
+        <input
+          type="checkbox"
+          className="mt-0.5"
+          checked={!off}
+          onChange={(e) => setOff(userId, !e.target.checked)}
+        />
+        <span>
+          <span className="font-medium">{pf.display}</span>
+          <span className="block text-xs text-muted">{pf.displayHint}</span>
+        </span>
+      </label>
+    </Section>
+  );
+}
+
+const isManager = (u: User) => u.role === 'chief' || u.role === 'admin';
+
+/**
+ * One's own profile (everything, marks what is new), an employee's profile for the Chief or Admin
+ * (everything, marks nothing), or a colleague's (level, title and badges; nothing when they
+ * switched it off).
+ */
+export function Profile({ userId }: { userId?: string }) {
+  const s = useAppState();
+  const viewer = useUser();
   const today = useToday();
-  const p = useMyProgress();
+  const target = s.users.find((u) => u.id === (userId ?? viewer.id));
+  const self = !target || target.id === viewer.id;
+  const detail = self || isManager(viewer);
+  const p = useMyProgress(target?.id ?? viewer.id, self);
+  const targetOff = useDisplayOff(p.userId);
   const put = useGamificationStore((x) => x.put);
-  // What was new when the page opened stays marked during this visit.
+  // What was new when one's own page opened stays marked during this visit.
   const [unviewed] = useState<ReadonlySet<string>>(() => {
+    if (!self) return new Set();
     const viewed = new Set(p.seen?.viewed ?? p.mine.map((e: LedgerEntry) => e.id));
     return new Set(p.mine.filter((e) => !viewed.has(e.id)).map((e) => e.id));
   });
   useEffect(() => {
     const seen = p.seen;
-    if (!seen) return;
+    if (!self || !seen) return;
     const viewed = new Set(seen.viewed);
     if (p.mine.every((e) => viewed.has(e.id))) return;
     put(p.userId, { ...seen, viewed: p.mine.map((e) => e.id) });
-  }, [p, put]);
+  }, [p, put, self]);
+
+  if (!target) return <Empty>{cs.errors.not_found}</Empty>;
+  if (!detail && targetOff) return <Empty>{pf.hidden}</Empty>;
 
   return (
     <div className="space-y-4">
       <div className="space-y-4 print:hidden">
-        <LevelHeader user={user} p={p} today={today} />
+        <LevelHeader user={target} p={p} today={today} showXp={detail} />
         <Badges badges={p.badges} />
-        <Activity p={p} today={today} />
-        <History p={p} unviewed={unviewed} />
+        {detail && <Activity p={p} today={today} />}
+        {detail && <History p={p} unviewed={unviewed} />}
       </div>
-      <Overview user={user} p={p} today={today} />
+      {detail && <Overview user={target} p={p} today={today} />}
       <div className="space-y-4 print:hidden">
+        {self && <DisplaySwitch userId={p.userId} />}
         <HowPoints />
         <p className="text-xs text-muted">{pf.footnote}</p>
       </div>
     </div>
   );
+}
+
+/** `/profil` and `/profil/:userId`; a new person (also after switching user) gets a fresh page. */
+export function ProfileRoute() {
+  const { userId } = useParams();
+  const viewer = useUser();
+  return <Profile key={`${viewer.id}:${userId ?? ''}`} userId={userId} />;
 }

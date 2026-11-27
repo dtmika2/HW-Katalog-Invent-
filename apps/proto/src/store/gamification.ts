@@ -34,6 +34,8 @@ export interface SeenRecord {
 interface Prefs {
   v: 1;
   users: Record<string, SeenRecord>;
+  /** People who switched levels and points off ("Zobrazovat úrovně a body"). Survives new demo data. */
+  off?: Record<string, boolean>;
 }
 
 const EMPTY: Prefs = { v: 1, users: {} };
@@ -60,24 +62,31 @@ interface GamificationStore {
   prefs: Prefs;
   /** Replace one person's record. */
   put: (userId: string, rec: SeenRecord) => void;
-  /** Forget everything (new demo data: nothing of it is "new"). */
+  /** Forget what was shown (new demo data: nothing of it is "new"); the off switches stay. */
   clear: () => void;
+  /** Switch levels and points off or on for one person; on again starts fresh (no flood). */
+  setOff: (userId: string, off: boolean) => void;
 }
 
 export const useGamificationStore = create<GamificationStore>()((set, get) => ({
   prefs: read(),
   put: (userId, rec) => {
-    const prefs: Prefs = { v: 1, users: { ...get().prefs.users, [userId]: rec } };
+    const prefs: Prefs = { ...get().prefs, users: { ...get().prefs.users, [userId]: rec } };
     write(prefs);
     set({ prefs });
   },
   clear: () => {
-    try {
-      globalThis.localStorage?.removeItem(GAMIFICATION_KEY);
-    } catch {
-      /* ignore */
-    }
-    set({ prefs: EMPTY });
+    const off = get().prefs.off;
+    const prefs: Prefs = off ? { v: 1, users: {}, off } : EMPTY;
+    write(prefs);
+    set({ prefs });
+  },
+  setOff: (userId, isOff) => {
+    const users = { ...get().prefs.users };
+    if (!isOff) delete users[userId];
+    const prefs: Prefs = { ...get().prefs, users, off: { ...get().prefs.off, [userId]: isOff } };
+    write(prefs);
+    set({ prefs });
   },
 }));
 
@@ -115,8 +124,16 @@ export interface MyProgress {
   seen: SeenRecord | undefined;
 }
 
-/** The current person's points, level and badges, and what they have been shown. */
-export function useMyProgress(userId?: string): MyProgress {
+/** Whether a person switched levels and points off. */
+export function useDisplayOff(userId: string): boolean {
+  return useGamificationStore((p) => !!p.prefs.off?.[userId]);
+}
+
+/**
+ * A person's points, level and badges, and what they have been shown. `track` is false when
+ * somebody else looks at the profile: their own "seen" record must not be started or changed.
+ */
+export function useMyProgress(userId?: string, track = true): MyProgress {
   const state = useAppState();
   const me = useUser();
   const id = userId ?? me.id;
@@ -131,7 +148,7 @@ export function useMyProgress(userId?: string): MyProgress {
 
   // The first time a person is shown, everything so far counts as seen: no flood of "new" points.
   useEffect(() => {
-    if (seen) return;
+    if (seen || !track) return;
     const ids = derived.mine.map((e) => e.id);
     put(id, {
       announced: ids,
@@ -139,7 +156,7 @@ export function useMyProgress(userId?: string): MyProgress {
       badges: badgeKeys(derived.badges),
       level: derived.level.level,
     });
-  }, [seen, id, derived, put]);
+  }, [seen, id, derived, put, track]);
 
   return { userId: id, ...derived, seen };
 }

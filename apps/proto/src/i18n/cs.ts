@@ -66,6 +66,8 @@ export const cs = {
     dashboard: 'Přehled',
     bookings: 'Rezervace',
     newBooking: 'Nová předrezervace',
+    profile: 'Můj profil',
+    team: 'Tým',
     calendar: 'Kalendář',
     catalog: 'Katalog',
     warehouse: 'Sklad',
@@ -1933,6 +1935,25 @@ export const cs = {
       howIntro:
         'Body se počítají z toho, co systém už zaznamenává. Nic se nepočítá ručně a nic se neodečítá. Bonus je za práci navíc nad to, co systém vyžaduje.',
       footnote: 'Body ukazují práci zaznamenanou v systému, ne veškerou práci.',
+      hidden: 'Tento profil se nezobrazuje.',
+      display: 'Zobrazovat úrovně a body',
+      displayHint:
+        'Vypnutím zmizí ukazatel v záhlaví a kolegové neuvidí vaši úroveň ani odznaky. Body se počítají dál a vedoucí je vidí.',
+      settings: 'Nastavení',
+    },
+    team: {
+      title: 'Tým',
+      introManager:
+        'Zaznamenaná práce týmu za poslední tři měsíce. Seřazeno podle jména, nejde o pořadí.',
+      introColleague: 'Úrovně a odznaky kolegů. Seřazeno podle jména.',
+      lastMonths: 'Poslední tři měsíce',
+      noActivity: 'Za poslední tři měsíce žádná zaznamenaná práce.',
+      badges: (n: number) => (n === 0 ? 'Zatím bez odznaku' : `Odznaky: ${n}`),
+      hidden: 'Úroveň a odznaky nezobrazuje.',
+      hiddenManager: 'Úroveň a odznaky kolegům nezobrazuje.',
+      profile: 'Celý profil',
+      colleagueProfile: 'Profil',
+      me: 'vy',
     },
   },
 };

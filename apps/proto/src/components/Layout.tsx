@@ -9,6 +9,7 @@ import { ScenarioHelp } from './ScenarioHelp';
 import { StageHelpButton } from './StageHelp';
 import { LEVEL_STYLE, Toasts } from './ui';
 import { XpMeter } from './XpMeter';
+import { useDisplayOff } from '../store/gamification';
 
 function Bell() {
   const s = useAppState();
@@ -164,6 +165,7 @@ function StaleDataBanner() {
 export function Layout({ children }: { children: ReactNode }) {
   const user = useUser();
   const [open, setOpen] = useState(false);
+  const xpOff = useDisplayOff(user.id);
   const links: [string, string, boolean][] = [
     ['/', cs.nav.dashboard, true],
     ['/bookings', cs.nav.bookings, true],
@@ -173,6 +175,8 @@ export function Layout({ children }: { children: ReactNode }) {
     ['/service', cs.nav.service, true],
     ['/loans', cs.nav.loans, true],
     ['/clients', cs.nav.clients, can(user, 'manage_clients')],
+    ['/profil', cs.nav.profile, true],
+    ['/tym', cs.nav.team, true],
   ];
   return (
     <div className="min-h-screen lg:grid lg:grid-cols-[13rem_1fr] print:block">
@@ -197,7 +201,7 @@ export function Layout({ children }: { children: ReactNode }) {
               <NavLink
                 key={to}
                 to={to}
-                end={to === '/'}
+                end={to === '/' || to === '/profil'}
                 onClick={() => setOpen(false)}
                 className={({ isActive }) =>
                   `block rounded px-3 py-2 text-sm ${isActive ? 'bg-white/15 font-semibold' : 'text-white/80 hover:bg-white/10'}`
@@ -221,9 +225,11 @@ export function Layout({ children }: { children: ReactNode }) {
         <header className="flex flex-wrap items-start justify-between gap-3 border-b border-alu-line bg-alu-dark/60 px-4 py-3 print:hidden">
           <Controls />
           {/* phones: the meter takes its own row under the controls; wider: beside the bell */}
-          <div className="order-3 w-full sm:order-none sm:w-auto">
-            <XpMeter key={user.id} />
-          </div>
+          {!xpOff && (
+            <div className="order-3 w-full sm:order-none sm:w-auto">
+              <XpMeter key={user.id} />
+            </div>
+          )}
           <div className="order-2 sm:order-none">
             <Bell />
           </div>

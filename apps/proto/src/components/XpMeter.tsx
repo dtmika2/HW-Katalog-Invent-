@@ -7,7 +7,12 @@ import { NavLink } from 'react-router-dom';
 import { cs } from '../i18n/cs';
 import { badgeLines, pointsLine, titleOf } from '../lib/gamification';
 import { useAppState } from '../store';
-import { badgeKeys, useGamificationStore, useMyProgress } from '../store/gamification';
+import {
+  badgeKeys,
+  useDisplayOff,
+  useGamificationStore,
+  useMyProgress,
+} from '../store/gamification';
 
 /** How long the points line stays before it fades. */
 const SHOW_MS = 8000;
@@ -17,13 +22,14 @@ export function XpMeter() {
   const s = useAppState();
   const p = useMyProgress();
   const put = useGamificationStore((x) => x.put);
+  const off = useDisplayOff(p.userId);
   const [lines, setLines] = useState<string[]>([]);
   const [fading, setFading] = useState(false);
 
   // Announce what is new since the last announcement, once, then remember it.
   useEffect(() => {
     const seen = p.seen;
-    if (!seen) return;
+    if (!seen || off) return;
     const announced = new Set(seen.announced);
     const fresh = p.mine.filter((e) => !announced.has(e.id));
     const newBadges = badgeKeys(p.badges).filter((k) => !seen.badges.includes(k));
@@ -42,7 +48,7 @@ export function XpMeter() {
       badges: [...seen.badges, ...newBadges],
       level: Math.max(seen.level, p.level.level),
     });
-  }, [p, s, put]);
+  }, [p, s, put, off]);
 
   useEffect(() => {
     if (lines.length === 0) return;
@@ -58,6 +64,7 @@ export function XpMeter() {
   const pending = p.mine.filter((e) => !viewed.has(e.id)).reduce((n, e) => n + e.points, 0);
   const title = titleOf(p.level);
   const pct = Math.round(p.level.progress * 100);
+  if (off) return null;
 
   return (
     <div data-testid="xp" className="flex w-full shrink-0 flex-col items-end sm:w-44">
