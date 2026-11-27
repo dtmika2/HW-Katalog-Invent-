@@ -44,6 +44,26 @@ export const RULES = {
   'service.progress': { category: 'service', points: 3, caps: { perSubject: 5 } },
   'service.fixed': { category: 'service', points: 10 },
   'issue.resolved': { category: 'service', points: 6 },
+
+  // Project managers: bookings
+  'booking.created': { category: 'bookings', points: 3 },
+  'booking.submitted': { category: 'bookings', points: 10 },
+  'booking.early': { category: 'bookings', points: 10, bonus: true },
+  'booking.veryEarly': { category: 'bookings', points: 15, bonus: true },
+  'booking.purpose': { category: 'bookings', points: 3, bonus: true },
+  'booking.client': { category: 'bookings', points: 2, bonus: true },
+  'booking.firstTime': { category: 'bookings', points: 5, bonus: true },
+  'booking.organised': { category: 'bookings', points: 3, bonus: true },
+  'booking.shortageSolved': { category: 'bookings', points: 8 },
+  'booking.completed': { category: 'bookings', points: 10 },
+
+  // Chief: decisions, and closing a returned order
+  'chief.approved': { category: 'decisions', points: 10 },
+  'chief.quick': { category: 'decisions', points: 5, bonus: true },
+  'chief.returned': { category: 'decisions', points: 5 },
+  'chief.conflictResolved': { category: 'decisions', points: 10 },
+  'booking.closedBy': { category: 'vratka', points: 3 },
+  'client.created': { category: 'bookings', points: 3 },
 } as const satisfies Record<string, RuleDef>;
 
 export type RuleId = keyof typeof RULES;

@@ -5,13 +5,20 @@
 import type { AppState } from '../types';
 import { applyCaps } from './caps';
 import { RULES, rulePoints } from './rules';
+import { bookingDrafts, chiefDrafts } from './sources/bookings';
 import { isPerson } from './sources/common';
 import { packingDrafts } from './sources/packing';
 import { reportDrafts } from './sources/reports';
 import { vratkaDrafts } from './sources/vratka';
 import type { Draft, LedgerEntry, LedgerOptions } from './types';
 
-const SOURCES: ((state: AppState) => Draft[])[] = [packingDrafts, vratkaDrafts, reportDrafts];
+const SOURCES: ((state: AppState) => Draft[])[] = [
+  packingDrafts,
+  vratkaDrafts,
+  reportDrafts,
+  bookingDrafts,
+  chiefDrafts,
+];
 
 /** All ledger entries, sorted by day (then by the order the facts were recorded). */
 export function computeLedger(state: AppState, options: LedgerOptions = {}): LedgerEntry[] {
