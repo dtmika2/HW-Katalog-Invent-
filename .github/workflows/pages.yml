@@ -1,11 +1,18 @@
-# Runs the quality gate, then publishes the prototype to GitHub Pages on every push to main:
-#   https://<owner>.github.io/<repo>/
+# Publishes the prototype to GitHub Pages, with a preview of a feature branch beside it:
+#   https://<owner>.github.io/<repo>/                       — main (the live demo)
+#   https://<owner>.github.io/<repo>/preview/gamification/  — the branch in PREVIEW_BRANCH
+#
+# GitHub Pages serves one site per repository and every deploy replaces all of it, so each run
+# builds BOTH, whichever branch was pushed. This file must be the same on main and on the preview
+# branch: a push uses the workflow file of the pushed branch. The github-pages environment must
+# allow deployments from the preview branch (Settings → Environments → github-pages).
+# When the preview branch no longer exists, only main is published.
 # Can also be started by hand from the Actions tab.
 name: Deploy to GitHub Pages
 
 on:
   push:
-    branches: [main]
+    branches: [main, feature/gamification]
   workflow_dispatch:
 
 permissions:
@@ -15,23 +22,68 @@ concurrency:
   group: pages
   cancel-in-progress: false
 
+env:
+  PREVIEW_BRANCH: feature/gamification
+  PREVIEW_PATH: preview/gamification
+
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Check out main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          path: main
+      - name: Check out the preview branch
+        id: preview
+        uses: actions/checkout@v4
+        continue-on-error: true
+        with:
+          ref: ${{ env.PREVIEW_BRANCH }}
+          path: preview
       - uses: actions/setup-node@v4
         with:
           node-version: 24
           cache: npm
-      - run: npm ci
-      - run: npm run typecheck
-      - run: npm test
-      - run: npm run lint
-      - run: npm run build
+          cache-dependency-path: |
+            main/package-lock.json
+            preview/package-lock.json
+
+      - name: Quality gate and build (main)
+        working-directory: main
+        run: |
+          npm ci
+          npm run typecheck
+          npm test
+          npm run lint
+          npm run build
+
+      - name: Quality gate and build (preview)
+        if: steps.preview.outcome == 'success'
+        working-directory: preview
+        env:
+          # same origin as the live demo: keep the preview's saved data apart from it
+          VITE_STORAGE_SUFFIX: -preview-gamification
+        run: |
+          npm ci
+          npm run typecheck
+          npm test
+          npm run lint
+          npm run build
+
+      - name: Assemble the site
+        run: |
+          mkdir -p site
+          cp -r main/apps/proto/dist/. site/
+          if [ "${{ steps.preview.outcome }}" = "success" ]; then
+            mkdir -p "site/$PREVIEW_PATH"
+            cp -r preview/apps/proto/dist/. "site/$PREVIEW_PATH/"
+          fi
+
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: apps/proto/dist
+          path: site
 
   deploy:
     needs: build
