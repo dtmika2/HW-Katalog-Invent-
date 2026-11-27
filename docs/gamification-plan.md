@@ -484,26 +484,33 @@ badges.
    profile marks the new entry and clears `+N`; badges earned and folded; activity by period;
    the overview follows the chosen period; every rule is explained.
 
-### G6: Team and visibility
+### G6: Team and visibility ✓ (Nov 27, 2026)
 
-1. The `/tym` route for Chief and Admin: cards sorted by name, no ranking.
-2. Colleague profile view: level, title and badges only.
-3. Preference in `quix-gamification`: *Zobrazovat úrovně a body*. Off hides the meter for that
-   user (the ledger still exists, so turning it back on loses nothing).
+1. ✓ `/tym`, in everyone's menu (with *Můj profil*): one card per person, sorted by name, with no
+   ranking. The Chief and Admin see points per month and the work of the last three months, and
+   open the whole profile. Colleagues see level, title and badges.
+2. ✓ `/profil/:userId`: the whole profile for the Chief and Admin, without touching the person's
+   own "new" marks; level, title and badges for colleagues.
+3. ✓ *Zobrazovat úrovně a body* on one's own profile. Off hides the meter and also hides level and
+   badges from colleagues (not from the Chief or Admin). Points keep counting; switching on
+   again starts fresh (nothing old is announced); the switch survives new demo data.
+4. ✓ `test/team.test.tsx` (8 tests). Found on the way: a store selector returning a fresh `{}`
+   re-rendered the team page forever. It now selects the stored object.
 
-### G7: Acceptance and report
+### G7: Acceptance and report ✓ (Nov 27, 2026)
 
-1. Playwright: sign in as Sklad → do a vratka with a damaged line and a note → see `+N` with
-   "pečlivě" next to the meter → open the profile → the entry and its bonus are in the history.
-   As the Chief: open *Tým*.
-2. Add a "Gamifikace" section to `REPORT.md` with a demo script for the Chief and a PM.
-
----
+1. ✓ `e2e/gamification.spec.ts`: as Sklad, a vratka with a damaged line and a useful note →
+   `+N · Vratka – TechConf 2027 (pečlivě)` beside the meter → the profile row is marked *nové*
+   with *Popsané poškození*. As the Chief: *Tým* by name with the last three months. All 4
+   browser tests pass (`PW_CHROME`, see `BLOCKERS.md`).
+2. ✓ "Gamifikace" in `REPORT.md`: what was built, a 10-minute demo script, and questions for
+   the team.
 
 ## Acceptance criteria
 
 - No existing core test changes, and no existing screen behaves differently. The diff to existing
-  files is limited to: index export, `Layout.tsx` mount, routes and nav, `cs.ts`.
+  files is limited to: index export, `Layout.tsx` mount, routes and nav, `cs.ts`, plus one call in
+  `loadScenario` (G4) and the ESLint rule. ✓
 - Every point on a profile can be traced to a record by a link and a reason.
 - Nothing about points appears anywhere except the header meter, the profile, the team page and
   the explanation window.

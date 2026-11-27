@@ -88,6 +88,42 @@ Prepare: `npm run dev`, open the app, click **Obnovit demo data**, scenario **Ga
 12. Scenario **Rozdělení obsahu casu (AX1)**, user Lucie. Open *Křest alba*: 6 loose AX1 show the amber **Rozdělí obsah casu** warning, naming *Výstava designu*. Lucie has no Confirm button.
 13. Open **Kalendář** (event bars by state, PM filter) and a case-type calendar (complete cases free per day).
 
+## Gamifikace (branch `feature/gamification`, not merged)
+
+Plan: `docs/gamification-plan.md` · decisions: `DECISIONS.md` (entries "Gamification …") · tags `g0`–`g7`.
+
+A quiet layer of points, levels and badges over the catalogue. It only **reads** what the system already records. No existing screen, action or rule changed, and points are never stored: `computeLedger(state)` derives them, and every point can be traced to a record. It stays on its branch until the Chief, the PMs and the warehouse have tried it and agree.
+
+| Milestone | Tag | What | Tests |
+| --- | --- | --- | --- |
+| G0 audit | `g0` | every rule checked against code and screens; mandatory fields are base work, bonuses only for what is voluntary | — |
+| G1 ledger | `g1` | 41 rules (packing, shipping, vratka, reports, service, PMs, Chief, communication, loans); base points from booking-thread events, which survive cancelling | 72 |
+| G2 levels, badges | `g2` | level curve set from the measured pace (level 10 in ~3.5 months, level 20 in ~1 year at the demo's ~150 XP a month), titles Junior … Legenda, 18 badges, activity summary | 22 |
+| G3 calibration | `g3` | `npm run xp-report`; roles within ±25 % of each other, communication one weekly budget (4 b.), guarded by a test and a snapshot | 3 |
+| G4 meter | `g4` | title and bar beside the bell; new points appear only there, once, with the reason | 6 UI |
+| G5 profile | `g5` | badges, activity in words, "Proč mám body", one-page overview for management (print / PDF), "Jak se počítají body" | 8 UI |
+| G6 team | `g6` | Tým sorted by name with no ranking; colleagues see levels and badges, the Chief sees the work; off switch | 8 UI |
+| G7 acceptance | `g7` | 2 browser tests (careful vratka → points → profile; Chief's Tým) and this section | 2 E2E |
+
+Totals for the branch: **119 automated tests** (89 core, 8 fixtures, 22 UI) and 2 browser tests, on top of the existing suite. The quality gate passes.
+
+### Demo script (≈ 10 min)
+
+1. **Scénář → Transfer, Přihlášen jako → Martin (Sklad).** Point at the header: his title (a work grade such as "Senior III") with a thin bar beside the bell. That's all there is on the screen.
+2. Open the vratka of **TechConf 2027**. On the LEDBeam line enter 2 pieces, mark **Poškozeno**, 1 damaged, and write a real note ("Jeden kus nejde tilt, prasklý kryt motoru"). Confirm the line and save. Under the meter: **"+N · Vratka – TechConf 2027 (pečlivě)"**. Nothing pops up over the work; the line fades after a few seconds and **+N** stays on the meter.
+3. Click the meter → **profile**. The newest row is marked *nové* and lists **Popsané poškození** as a bonus: a description that helps service earns more than the one-word note the system requires. Show the badges (earned with dates, others in progress), the activity in words (e.g. "11 vratek, z toho 11 včas …"), and **Proč mám body**, where every point has a reason.
+4. **Přehled pro vedení:** pick a period → *Tisk / uložit PDF*. One page an employee can bring to a review. It ends with "Body ukazují práci zaznamenanou v systému, ne veškerou práci."
+5. Open **Jak se počítají body**: every rule with its points, generated from the same table the system counts with.
+6. **Přihlášen jako → Tomáš (Šéf techniky) → Tým.** One card per person, by name, with points and work over the last three months. **There's no ranking** (say why: it should feel like recognition, not competition). *Celý profil* opens an employee's profile and overview.
+7. **Přihlášen jako → Petr (PM) → Tým.** Colleagues see only levels and badges. On *Můj profil*, **Zobrazovat úrovně a body** switches it all off for people who don't want it; points keep counting, and the Chief still sees them.
+
+### Questions for the team
+
+- Are the titles right (Junior, Medior, Senior, Specialista, Expert, Garant, Pilíř týmu, Legenda)?
+- Should colleagues see each other's levels and badges at all, or only the Chief?
+- Are the weights fair for your role? (`npm run xp-report` shows them on the demo; the real team's pace will set the level curve after launch.)
+- When the real system starts, should everyone start at zero (`countFrom`) or count the history entered so far?
+
 ## Questions for the Chief and PMs
 
 1. **OR choices**: is it fine that the system picks the first free option (clamp before floor stand), or must the Chief confirm every choice?
